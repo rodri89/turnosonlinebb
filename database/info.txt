@@ -1,0 +1,594 @@
+---------------------------------------
+Subir proyecto laravel a hosting:
+---------------------------------------
+En el archivo env cambio esas variables
+APP_ENV=production
+APP_DEBUG=false  -> al poner esto en true si algo falla en la pagina te muestra el debug de laravel 
+
+Debo configurar el archivo env y poner mi base de datos, configurar mail y lo que sea
+
+abro el proyecto en la ventana de comandos y corro este comando:
+composer dumpautoload
+
+Comprimo el proyecto como un .zip y lo subo.
+Una vez que lo subimos debemos reorganizar las carpetas. 
+    Creo dos carpetas una public_html
+    Otra el nombre que quiera del proyecto. Ej: nombre_de_la_carpeta_del_proyecto.
+        En la public_html pongo todo los archivos y carpetas que tengo en la carpeta public del proyecto.
+        En la otra pongo el resto de las carpetas y archivos.
+
+Ahora debemos modificar el archivo index.php de la carpeta public. Debemos indicarle donde esta el codigo.
+Modifico esos dos lineas de codigo:
+    require __DIR__.'/../nombre_de_la_carpeta_del_proyecto/vendor/autoload.php';
+    $app = require_once __DIR__.'/../nombre_de_la_carpeta_del_proyecto/bootstrap/app.php';
+
+Ahora debemos actualizar el archivo: "AppServiceProvider.php" este se encuentra en app/providers
+
+public function register()
+{
+  $this->app->bind('path.public',function(){
+  return'/home/nombre_de_la_carpeta_del_proyecto/public_html';
+  });
+}
+
+require __DIR__.'/../TurnosImage/vendor/autoload.php';
+$app = require_once __DIR__.'/../TurnosImage/bootstrap/app.php';
+
+
+
+    public function register()
+    {
+          $this->app->bind('path.public',function(){
+            return '/public_html';
+            });
+    }
+
+    require __DIR__.'/../vendor/autoload.php';
+    $app = require_once __DIR__.'/../bootstrap/app.php';
+
+
+Eso es todo
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+EXTRA TURNOS
+Este modulo, me permite agregar tipos de turnos, el mismo especialista puede dar turnos de Consultas o turnos de Ecografia, estos turnos se deben dar de alta con un numero especial en tipo de turno (no se puede repetir, debe ser unico, los numeros en uso son 22, 23, 24).
+Debo crear el turno en horario_medicos
+Debo asignar el modulo tipo turno extra, en la pantalla de admin.
+Debo agregar en la vista seleccionar_tipo_turno el icono correspondiente.
+Debo agregar en la vista de listado de turnos, codigo para identificar a que corresponde ese turno
+Editar el archivo Util.php
+
+
+Info:
+
+Si es la primera vez que levanto el sistema, me debo loguear con el mail 'rodriadmin@test.com'  y cualquier contraseña.
+Eso me va a crear un usuario con el  y la contraseña siguiente.
+Admin user:
+email : banegasrodrigo89@gmail.com
+pass: Rodriban89
+
+  insert into tipo_usuario (tipo,activo) values ('admin',1);
+  insert into tipo_usuario (tipo,activo) values ('medico',1);
+  insert into tipo_usuario (tipo,activo) values ('secretaria',1);
+
+insert into modulos (descripcion,activo) values('Activar Paciente', 1);
+insert into modulos (descripcion,activo) values('Caja - Comentario', 1);
+insert into modulos (descripcion,activo) values('Primer Control Doble', 1);
+insert into modulos (descripcion,activo) values('Solo un turno por mes', 1);
+insert into modulos (descripcion,activo) values('Recetas', 1);
+insert into modulos (descripcion,activo) values('Videollamadas', 1);
+insert into modulos (descripcion,activo) values('MercadoPago', 1);
+
+insert into receta_estados (estado,activo) values ('Solicitada',1);
+insert into receta_estados (estado,activo) values ('Confirmada',1);
+insert into receta_estados (estado,activo) values ('Completa',1);
+insert into receta_estados (estado,activo) values ('Rechazada',1);
+insert into receta_estados (estado,activo) values ('Entregada',1);
+insert into receta_estados (estado,activo) values ('Cancelada',1);
+
+insert into pacientes (id,nombre,apellido,dni,telefono,mail,fecha_nacimiento,fecha_castigo,obra_social,numero_afiliado,obra_social_plan,activo) values (0,'','cancelado',99999,0,'','','','','','',1)
+
+
+
+Si estoy copiando este sitio antes de migrar debo limpiar la cache:
+php artisan config:cache
+
+---------------------------------------------------------
+instalar tema imagenes:
+    composer require intervention/image
+    agregar en config/app.php
+    dentro de 'providers' =>      
+     Intervention\Image\ImageServiceProvider::class,   
+     ]
+    y dentro de aliases
+    'Image' => Intervention\Image\Facades\Image::class,
+
+    en especialidadController tengo un ejemplo de como subir imagenes.
+    Obs: Tuve problemas con el path y con instalar intervention en el servidor. Para lograrlo tuve que subir el 
+    proyecto con el intervention ya instalado en el ambiente local.
+
+---------------------------------------------------------
+
+Observaciones:
+Pantalla home secretaria, opcion Turnos Asignados. Buscar un nombre mas acorde.
+
+Modal-> secretaria_asignar_turnos. cuando quiero registrar un nuevo paciente.
+
+para instalar el tema de los mails en el servidor
+
+	composer require s-ichikawa/laravel-sendgrid-driver
+
+	Luego debo configurar el archivo .env
+	MAIL_DRIVER=sendgrid      agrego estas lineas
+	SENDGRID_API_KEY=''       la clave esa la saco de la pag https://app.sendgrid.com/settings/api_keys  entro en setting/get API
+
+	#MAIL_DRIVER=smtp                comento estas lineas
+	#MAIL_HOST=smtp.mailtrap.io
+
+
+	luego en el archivo app/config/services pego el siguiente codigo
+
+	  'sendgrid' => [
+        'api_key' => env('SENDGRID_API_KEY'),
+    ],
+
+
+    archivos involucrados con el tema de los mails:
+    	app/mail/sendMailable.php
+    	app/console/kernel.php
+    	app/console/commands/recordatorioMail.php
+    	resources/views/emails/recordatorioMail.php
+    	.env	
+    	storage/logs
+
+
+---------------------------------------------------------
+Tema mails con gmail
+
+agregar en el archivo config/mail.php al final lo siguiente
+
+    'stream' => [
+        'ssl' => [
+            'allow_self_signed' => true,
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+        ],
+    ]
+
+en el archivo .env lo siguiente
+
+MAIL_DRIVER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USERNAME=turnosonlinebb@gmail.com
+MAIL_PASSWORD=turnosonlinebb19
+MAIL_ENCRYPTION=ssl
+
+y por ultimo refrescar cache
+
+php artisan config:cache
+
+---------------------------------
+Como enviar un mail con una view:
+---------------------------------
+
+php artisan make:mail EnviarMensajePacientes
+
+en el controlador: (ejemplo MedicoControler metodo activarPaciente)
+     $data = array('nombre'=>$paciente->nombre,'apellido'=>$paciente->apellido);
+     Mail::to($paciente->mail)->queue(new ActivarPacienteMailable($data));
+
+Debo definir el archivo php ActivarPacienteMailable en app/Mail
+
+ese archivo php me va a vincular la vista activarPaciente 
+
+    return $this->view('emails.activarPaciente');
+--------------------------------------------------------
+Reset password: 
+Archivos que debo tocar...
+-.env
+debo poner el name de la app (porque con ese nombre firma el mail)
+debo poner la url de mi pagina...porque utiliza esa url para generar el link que te permite resetear la password.
+-auth/notifications/resetPassword.php
+modifico el cuerpo del mail, que esta en ingles.
+-notifications/resources/view/email.php
+modifico el Hello y Regards del mail...lo paso a español.
+-homeController
+-home (view)
+-resetPasswordController
+-resources/view/auth/passoword/email
+-resources/view/auth/passoword/reset
+-vendor/laravel/framework/src/illuminate/notification/resources/views/email
+
+Por ultimo debo: porque toque el archivo env.
+php artisan config:cache
+
+
+---------------------------------
+Perfil 1
+---------------------------------
+Cuando el medico no activa los pacientes.
+---------------------------------
+Perfil 2
+---------------------------------
+Cuando el medico activa los pacientes.
+---------------------------------
+Perfil 3
+---------------------------------
+Cuando el medico activa los pacientes.
+Secretaria con recetas
+---------------------------------
+Perfil 4
+---------------------------------
+Secretaria con recetas.
+---------------------------------
+Perfil 5 (medico)
+---------------------------------
+Activar pacientes
+Recetas
+Videollamadas
+Configuracion
+---------------------------------
+Perfil 6 (medico)
+---------------------------------
+Recetas
+Videollamadas
+Configuracion
+---------------------------------
+Perfil 7 (medico)
+---------------------------------
+Videollamadas
+Configuracion
+---------------------------------
+Perfil 8 (medico)
+---------------------------------
+    Solo tiene videollamadas y pacientes
+Pacientes Nuevo y actualizar
+Videollamadas
+Configuracion
+---------------------------------
+
+
+
+Query para detectar si un paciente esta sacando turnos seguidos.
+---------------------------------
+select tr.fechaTurno,p.dni,p.nombre,p.apellido,tr.paciente, count(*) as 'C'
+from turno_registrados tr join pacientes p on tr.paciente=p.id 
+where tr.fechaTurno>'2020-01-06' and tr.fechaTurno<'2020-03-01' and tr.activo = 1 and tr.primerControl='NO'
+group by tr.paciente
+order by C desc
+---------------------------------
+Query para detectar si un turno fue sacado mas de una vez por algun timeout.    
+---------------------------------
+SELECT count(paciente),fechaTurno, paciente, horario, primerControl FROM turno_registrados where paciente!=84 and activo=1 and primerControl='NO'
+group by fechaTurno,paciente,horario  
+ORDER BY `count(paciente)`  ASC
+---------------------------------
+
+---------------------------------
+Cambiar un dia a un medico
+1) Agrego un dia nuevo,desde el panel admin/turnos.
+2) desactivo con una query el dia en la tabla horario_medicos
+3) desactivo con una query el dia horario_medicos_d_h_s
+4) desactivo con una query el dia en medico_primer_controls
+---------------------------------
+MERCADO PAGO - VIDEOLLAMADAS
+---------------------------------
+Cuando un paciente va a habilitar el link
+si tiene la consulta paga.
+o si tiene la obra social completa: numero mas tipo.
+o si el medico tiene el modulo mercado pago == no
+
+---------------------------------
+Datatable
+---------------------------------
+En el archivo composer.json, el intervention de abajo decia dev-to-master, lo tuve que pasar a 2.5.0
+"intervention/image": "2.5.0",
+
+Luego instalar el paquete 
+composer require yajra/laravel-datatables-oracle
+
+En el archivo -> config/app.php agrego lo siguiente:
+
+ 'providers' => [
+   
+   Yajra\Datatables\DatatablesServiceProvider::class,
+],
+
+ 'aliases' => [
+
+  'Datatables' => Yajra\Datatables\Facades\Datatables::class,
+]
+
+En la consola ejecuto el siguiente comando 
+php artisan vendor:publish
+
+Y listo:
+En la vista tengo agregar lo siguiente: 
+Esos dos archivos estan en esa carpeta por lo tanto debo copiarlos.
+<link rel="stylesheet" type="text/css" href="{{asset('datatable/jquery.dataTables.min.css')}}">
+<script type="text/javascript" src="{{asset('datatable/jquery.dataTables.min.js')}}"></script>
+
+Y luego para ver un ejemplo:
+la ruta es:
+    Route::get('users-list','SecretariaController@usersList');  ahi puedo ver el controlador.
+
+---------------------------------
+
+
+alter table turno_registrados add column caja float;
+alter table turno_registrados add column comentario varchar(250);
+
+alter table medicos add column perfil int
+update medicos set perfil=2
+
+alter table pacientes add column terminos_condiciones int
+update pacientes set terminos_condiciones=0
+
+alter table users add column perfil int
+update users set perfil=2
+
+
+
+update pacientes set activo=0 where id=298 206,201,543
+
+alter table pacientes add column domicilio varchar(250)
+update pacientes set domicilio = '' 
+
+
+update pacientes set obra_social_foto =''
+
+
+
+
+insert into horario_medico_dhs_videollamadas (medico, consultorio, dia, desde, hasta, activo) values (9, 1, 3, '17:00', '19:00', 1);
+insert into horario_medico_dhs_videollamadas (medico, consultorio, dia, desde, hasta, activo) values (9, 1, 4, '17:00', '19:00', 1);
+
+
+insert into horario_medico_videollamadas (medico, consultorio, dia, horario, doble, activo) values (9,1,3,'17:00', 0, 1);
+insert into horario_medico_videollamadas (medico, consultorio, dia, horario, doble, activo) values (9,1,3,'17:30', 0, 1);
+insert into horario_medico_videollamadas (medico, consultorio, dia, horario, doble, activo) values (9,1,3,'18:00', 0, 1);
+insert into horario_medico_videollamadas (medico, consultorio, dia, horario, doble, activo) values (9,1,3,'18:30', 1, 1);
+
+insert into horario_medico_videollamadas (medico, consultorio, dia, horario, doble, activo) values (9,1,4,'17:00', 0, 1);
+insert into horario_medico_videollamadas (medico, consultorio, dia, horario, doble, activo) values (9,1,4,'17:30', 0, 1);
+insert into horario_medico_videollamadas (medico, consultorio, dia, horario, doble, activo) values (9,1,4,'18:00', 0, 1);
+insert into horario_medico_videollamadas (medico, consultorio, dia, horario, doble, activo) values (9,1,4,'18:30', 1, 1);
+
+
+Ultimos Cambios:
+Castigo automatico es utilizado para mostrar el medico en el listado de medicos a elegir.
+
+
+Agregar nueva tabla:
+MedicoPaciente -> con la posibilidad de bloquear paciente, y para utilizar en la busqueda de pacientes.
+
+
+Para verificar si cancelaron un turno
+
+https://turnosonlinebb.com/get_turnos_dia_activo_desactivo/2020-12-09
+
+
+
+insert into modulos (descripcion, activo) values ('Afiliado Obligatorio', 1)
+agregar en la base de datos en la tabla pacientes la columna afiliado_obligatorio tipo integer
+
+insert into modulos (descripcion, activo) values ('Ventana dias', 1)
+agregue una nueva tabla y un nuevo modelo tabla:medico_configs
+
+
+tengo que ver los ids de lucas sosa y patricia sosa y actualizar la pantalla de seleccionar_dia_casos_especiales segun su id
+tmb debo actualizar la pantalla seleccionar_dia en la parte de arriba para explicar la modalidad virtual.
+
+
+debo actualizar algun medico_id en las pantallas de secretaria listado_turnos, asignar turnos, sobreturnos...porque lucas tiene otro id en produccion
+SECRETARIA:
+  listado_turnos
+  sobreturnos
+  asignar turnos
+Medicos
+  listado turnos
+  sobreturnos
+
+
+  insert into horario_medicos(medico, consultorio, dia, horario, doble, activo) values(1, 1, 1, '13:30', 0, 1);
+insert into horario_medicos(medico, consultorio, dia, horario, doble, activo) values(1, 1, 1, '14:00', 0, 1);
+insert into horario_medicos(medico, consultorio, dia, horario, doble, activo) values(1, 1, 1, '14:30', 0, 1);
+insert into horario_medicos(medico, consultorio, dia, horario, doble, activo) values(1, 1, 1, '15:00', 0, 1);
+insert into horario_medicos(medico, consultorio, dia, horario, doble, activo) values(1, 1, 1, '15:30', 0, 1);
+
+
+Amilcar dia lunes 
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,1, '16:00', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,1, '16:20', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,1, '16:40', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,1, '17:00', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,1, '17:20', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,1, '17:40', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,1, '18:00', 0, 1);
+
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,3, '16:00', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,3, '16:20', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,3, '16:40', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,3, '17:00', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,3, '17:20', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,3, '17:40', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,3, '18:00', 0, 1);
+
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,3, '16:00', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,5, '16:20', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,5, '16:40', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,5, '17:20', 0, 1);
+    insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (15, 6,5, '17:40', 0, 1);
+
+
+Ceci corti
+insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (11, 5, 3, '09:00', 0, 1);    
+insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (11, 5, 3, '09:30', 0, 1);    
+insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (11, 5, 3, '10:00', 0, 1);    
+insert into horario_medicos (medico, consultorio,dia, horario, doble, activo) values (11, 5, 3, '10:30', 0, 1);    
+
+
+Flor viernes
+insert into horario_medicos (medico, consultorio,dia, horario,doble,activo) values (1, 1,5, '14:30',0,1);
+insert into horario_medicos (medico, consultorio,dia, horario,doble,activo) values (1, 1,5, '15:00',0,1);
+insert into horario_medicos (medico, consultorio,dia, horario,doble,activo) values (1, 1,5, '15:30',0,1);
+
+
+
+
+index.php 
+
+<?php
+
+/**
+ * Laravel - A PHP Framework For Web Artisans
+ *
+ * @package  Laravel
+ * @author   Taylor Otwell <taylor@laravel.com>
+ */
+
+define('LARAVEL_START', microtime(true));
+
+/*
+|--------------------------------------------------------------------------
+| Register The Auto Loader
+|--------------------------------------------------------------------------
+|
+| Composer provides a convenient, automatically generated class loader for
+| our application. We just need to utilize it! We'll simply require it
+| into the script here so that we don't have to worry about manual
+| loading any of our classes later on. It feels great to relax.
+|
+*/
+
+require __DIR__.'/../HCDPediatria/vendor/autoload.php';
+
+/*
+|--------------------------------------------------------------------------
+| Turn On The Lights
+|--------------------------------------------------------------------------
+|
+| We need to illuminate PHP development, so let us turn on the lights.
+| This bootstraps the framework and gets it ready for use, then it
+| will load up this application so that we can run it and send
+| the responses back to the browser and delight our users.
+|
+*/
+
+$app = require_once __DIR__.'/../HCDPediatria/bootstrap/app.php';
+
+/*
+|--------------------------------------------------------------------------
+| Run The Application
+|--------------------------------------------------------------------------
+|
+| Once we have the application, we can handle the incoming request
+| through the kernel, and send the associated response back to
+| the client's browser allowing them to enjoy the creative
+| and wonderful application we have prepared for them.
+|
+*/
+
+$kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
+
+$response = $kernel->handle(
+    $request = Illuminate\Http\Request::capture()
+);
+
+$response->send();
+
+$kernel->terminate($request, $response);
+
+
+
+
+
+
+
+-------------provider-------------
+
+<?php
+
+namespace App\Providers;
+
+use Illuminate\Support\ServiceProvider;
+use Schema;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     *
+     * @return void
+     */
+    public function register()
+    {
+          $this->app->bind('path.public',function(){
+            return '/public_html';
+            });
+    }
+
+    /**
+     * Bootstrap any application services.
+     *
+     * @return void
+     */
+    public function boot()
+    {
+        Schema::defaultStringLength(191);
+    }
+}
+
+
+Neurodesarrollo historia clinica
+si ingreso acorde a edad no debe aparecer la tabla en el resumen.
+    
+
+Lucas sosa
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 2, '15:00', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 2, '15:20', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 2, '15:40', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 2, '16:00', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 2, '16:20', 0, 1);
+
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 4, '13:40', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 4, '14:00', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 4, '14:20', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 4, '14:40', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 4, '15:00', 0, 1);
+insert into horario_medicos (medico, consultorio, dia, horario, doble, activo) values (13, 6, 4, '15:20', 0, 1);
+
+
+
+update horario_medicos set tipo_turno = 1 
+update horario_medico_d_h_s set tipo_turno = 1
+insert into horario_medico_d_h_s (medico, consultorio, dia, desde, hasta, tipo_turno, activo) values (11, 5, 5, '09:00', '11:00', 22, 1) 
+
+
+TAREAS:
+Permitir editar dni.
+
+Mail para confirmar que se saco un turno o un whatsapp.
+
+Cuando un paciente saca turno y tiene una obra social, a veces elije otro medico que no tiene esa obra social entonces se le actualiza al paciente la obra social y se borra la que tenia actualmente.
+
+no mas de un turno por paciente.
+
+mostrar comentarios en los turnos pero no la caja.
+
+agregar obra social U.O.M (Metalurgicos)
+
+En la pantalla actualizar datos, agregar un boton para copiar el texto de cada dato.
+
+en la pantalla asignar turnos, agregar una columna con el telefono.
+
+
+
+Para infectologia y pediatria debo subir los siguientes archivos
+debo crear especialidad de infectologia
+debo crear user de anabela
+debo editar y subir archivo:
+PacienteController y ver cual es el id de anabela y el de infectologia y actualziar el metodo seleccionarMedicoEspecialidad
+
+

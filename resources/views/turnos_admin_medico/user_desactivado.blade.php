@@ -1,0 +1,1 @@
+<h1> El usuario se encuentra desactivado, por favor comuniquese con el Administrador. </h1>
