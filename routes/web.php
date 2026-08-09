@@ -63,12 +63,48 @@ Route::get('/seleccionar_medico', function () {
   //return view('turnos/datos_paciente');
 })->name("seleccionarmedicoget");
 
+// Ruta protegida para pruebas de Google Calendar (solo con token secreto) - DEBE ESTAR ANTES de la ruta 'test'
+Route::get('/test/google-calendar/{token?}', function($token = null) {
+    $secretToken = env('GOOGLE_CALENDAR_TEST_TOKEN', 'test-token-secreto-2026');
+    
+    if ($token !== $secretToken) {
+        abort(404); // Mostrar 404 en lugar de 403 para que no sea obvio que existe
+    }
+    
+    return app('App\Http\Controllers\GoogleCalendarController')->testPage(request());
+})->name('test.google.calendar');
+
+Route::get('/test/google-calendar-connect/{token?}', function($token = null) {
+    $secretToken = env('GOOGLE_CALENDAR_TEST_TOKEN', 'test-token-secreto-2026');
+    
+    if ($token !== $secretToken) {
+        abort(404);
+    }
+    
+    return app('App\Http\Controllers\GoogleCalendarController')->testConnect(request());
+})->name('test.google.calendar.connect');
+
+Route::post('/test/google-calendar-disconnect/{token?}', function($token = null) {
+    $secretToken = env('GOOGLE_CALENDAR_TEST_TOKEN', 'test-token-secreto-2026');
+    
+    if ($token !== $secretToken) {
+        abort(404);
+    }
+    
+    return app('App\Http\Controllers\GoogleCalendarController')->testDisconnect(request());
+})->name('test.google.calendar.disconnect');
+
+Route::get('/prueba-turno-medico-1/{token}', 'PacienteController@pruebaTurnoMedico1')
+    ->name('prueba.turno.medico1');
+
 Route::get('test','PacienteController@test')->name('test');
 Route::get('send_notifications','TurnoController@sendNotifications')->name('send_notifications');
-Route::get('test_fcm_notification/{paciente_id}','TurnoController@testFcmNotification')->name('test_fcm_notification');
+// COMENTADO: Ruta de test FCM - Removida porque no funciona en iOS
+// Route::get('test_fcm_notification/{paciente_id}','TurnoController@testFcmNotification')->name('test_fcm_notification');
 
 Route::post('save_one_signal_id','PacienteController@saveOneSignalId')->name('saveonesignalid');
-Route::post('save_fcm_token','PacienteController@saveFcmToken')->name('savefcmtoken');
+// COMENTADO: Ruta para guardar token FCM - Removida porque no funciona en iOS
+// Route::post('save_fcm_token','PacienteController@saveFcmToken')->name('savefcmtoken');
 
 Route::group(['middleware' => ['auth', 'usuarioAdmin']], function () {
 
@@ -84,9 +120,15 @@ Route::group(['middleware' => ['auth', 'usuarioAdmin']], function () {
 	
 	Route::get('admin_feriados','TurnoController@adminFeriados')->name('adminferiados');
 
+	Route::get('admin/reporte/horarios-medicos','ReporteHorariosMedicosController@mostrarHtml')->name('admin.reporte.horarios.medicos');
+	Route::get('admin/reporte/horarios-medicos.csv','ReporteHorariosMedicosController@descargarCsv')->name('admin.reporte.horarios.medicos.csv');
+
 	Route::post('alta_feriados','TurnoController@altaFeriados')->name('altaferiados');
 
 	Route::get('admin_extras','TurnoController@adminExtras')->name('adminextras');
+
+	Route::get('admin/mercadopago/settings', 'Admin\MercadoPagoSettingsController@edit')->name('admin.mercadopago.settings');
+	Route::post('admin/mercadopago/settings', 'Admin\MercadoPagoSettingsController@update')->name('admin.mercadopago.settings.update');
 
 	Route::post('ejecutar_extras','TurnoController@ejecutarExtras')->name('ejecutarextras');
 
@@ -97,6 +139,7 @@ Route::group(['middleware' => ['auth', 'usuarioAdmin']], function () {
 	Route::post('actualizar_foto','MedicoController@actualizarFoto')->name('actualizarFoto');
 
 	Route::post('actualizar_foto_consultorio','ConsultorioController@actualizarFotoConsultorio')->name('actualizarFotoConsultorio');
+	Route::post('actualizar_config_consultorio','ConsultorioController@actualizarConfig')->name('actualizarConfigConsultorio');
 	
 	Route::get('/admin_especialidad', function () {
 	  return view('turnos_admin/admin_especialidad');
@@ -109,7 +152,7 @@ Route::group(['middleware' => ['auth', 'usuarioAdmin']], function () {
 	Route::post('actualizar_medico','MedicoController@actualizarMedico')->name('actualizarmedico');
 
 	Route::get('/admin_consultorios', function () {
-	  $consultorios = DB::table('consultorios')->where('activo',1)->get();
+	  $consultorios = \App\Consultorio::where('activo',1)->get();
 	  return view('turnos_admin/admin_consultorios')->with('consultorios', $consultorios);
 	});
 
@@ -143,6 +186,26 @@ Route::group(['middleware' => ['auth', 'usuarioAdmin']], function () {
 Route::group(['middleware' => ['auth', 'usuarioMedico']], function () {
 
 	Route::get('admin_horariosm','MedicoController@adminHorarios')->name('adminhorariosm');
+	Route::get('admin_horarios_fijosm','MedicoController@adminHorariosFijos')->name('adminhorariosfijosm');
+	Route::get('medico_config_mensajes','MedicoController@adminMensajesEspeciales')->name('medicoconfigmensajes');
+	Route::get('medico_config_pagos','MedicoMercadoPagoController@adminPagosMercadoPago')->name('medicoconfigpagos');
+	Route::post('medico_admin_pagos','MedicoMercadoPagoController@medicoAdminPagos')->name('medicoadminpagos');
+	Route::post('medico_guardar_pagos_config','MedicoMercadoPagoController@guardarPagosConfig')->name('medicoguardarpagosconfig');
+	Route::post('medico_guardar_cobro_obra_social','MedicoMercadoPagoController@guardarCobroObraSocial')->name('medicoguardarcobroobrasocial');
+	Route::post('medico_aplicar_cobro_todas_obras_sociales','MedicoMercadoPagoController@aplicarCobroTodasObraSociales')->name('medicoaplicarcobrotodasobrassociales');
+	Route::post('medico_vincular_todas_obras_sociales_pagos','MedicoMercadoPagoController@vincularTodasObraSociales')->name('medicovinculartodasobrassocialespagos');
+	Route::post('medico_probar_reserva_turno','MedicoMercadoPagoController@probarReservaTurno')->name('medicoprobarreservaturno');
+	Route::post('medico_generar_link_prueba_pago','MedicoMercadoPagoController@generarLinkPruebaReserva')->name('medicogenerarlinkpruebapago');
+	Route::get('medico/mercadopago/connect','MedicoMercadoPagoController@connect')->name('medicompconnect');
+	Route::post('medico/mercadopago/disconnect','MedicoMercadoPagoController@disconnect')->name('medicompdisconnect');
+	Route::post('medico/reembolsar_reserva_turno','TurnoPagoController@reembolsarReservaTurno')->name('medicoreembolsarreservaturno');
+	Route::post('medico_admin_config_mensajes','MedicoController@medicoAdminConfigMensajes')->name('medicoadminconfigmensajes');
+	Route::post('medico_mensaje_especial_guardar','MedicoController@guardarMensajeEspecial')->name('medicoguardarmensajespecial');
+	Route::post('medico_mensaje_especial_actualizar','MedicoController@actualizarMensajeEspecial')->name('medicoactualizarmensajespecial');
+	Route::post('medico_mensaje_especial_activo','MedicoController@toggleActivoMensajeEspecial')->name('medicotoggleactivomensajespecial');
+	Route::post('medico_guardar_horario_fijo','MedicoController@guardarHorarioFijo')->name('medicoguardarhorariofijo');
+	Route::post('medico_eliminar_horario_fijo','MedicoController@eliminarHorarioFijo')->name('medicoeliminarhorariofijo');
+	Route::post('medico_actualizar_vigencia_horario_fijo','MedicoController@actualizarVigenciaHorarioFijo')->name('medicoactualizarvigenciahorariofijo');
 
 	Route::post('/medico_desbloquear_paciente', 'MedicoController@medicoDesbloquearPaciente')->name('medicodesbloquearpaciente');	
 
@@ -284,9 +347,12 @@ Route::group(['middleware' => ['auth', 'usuarioMedico']], function () {
 	
 	Route::post('medico_obra_social_estado','MedicoController@medicoObraSocialEstado')->name('medicoobrasocialestado');	
 	
-	Route::post('medico_admin_obra_social','MedicoController@medicoAdminObraSocial')->name('medicoadminobrasocial');	
-	
-	Route::post('activar_obras_sociales','MedicoController@activarObrasSociales')->name('activarobrassociales');	
+	Route::post('medico_admin_obra_social','MedicoController@medicoAdminObraSocial')->name('medicoadminobrasocial');
+	Route::get('medico_admin_obra_social_vista','MedicoController@medicoAdminObraSocial')->name('medicoadminobrasocialvista');
+	Route::post('medico_admin_horarios','MedicoController@medicoAdminHorarios')->name('medicoadminhorarios');
+	Route::post('medico_admin_horarios_fijos','MedicoController@medicoAdminHorariosFijos')->name('medicoadminhorariosfijos');
+
+	Route::post('activar_obras_sociales','MedicoController@activarObrasSociales')->name('activarobrassociales');
 	
 	Route::post('desactivar_obras_sociales','MedicoController@desactivarObrasSociales')->name('desactivarobrassociales');	
 
@@ -305,10 +371,15 @@ Route::group(['middleware' => ['auth', 'usuarioSecretaria']], function () {
 	Route::post('check_recetas_pendientes_secretaria','SecretariaController@checkRecetasPendientesSecretaria')->name('checkrecetaspendientessecretaria');
 	
 	Route::post('admin_seleccionar_consultorio','SecretariaController@seleccionarConsultorio')->name('seleccionarconsultorio');	
+	Route::post('secretaria_establecer_contexto_medico','SecretariaController@establecerContextoGestionMedico')->name('secretariaestablecercontextomedico');
+	Route::post('secretaria_limpiar_contexto_medico','SecretariaController@limpiarContextoMedico')->name('secretarialimpiarcontextomedico');
 
 	Route::get('/secretaria_home', function () {	  
 	  return view('turnos_admin_secretaria/home');
 	})->name('secretaria_home');
+
+	Route::get('secretaria_nueva_obra_social','SecretariaController@secretariaNuevaObraSocialForm')->name('secretarianuevaobrasocial');
+	Route::post('secretaria_alta_obra_social','SecretariaController@secretariaAltaObraSocial')->name('secretariaaltaobrasocial');
 
 	Route::post('mostrar_medico_consultorio','SecretariaController@showMedicosConsultorio')->name('mostrarmedicoconsultorio');	
 	
@@ -442,6 +513,22 @@ Route::get('/seleccionar_turno', function () {
 
 Route::get('/enviar_recordatorio_mail','TurnoController@enviarRecordatorioMail')->name('enviarrecordatoriomail');
 
+// Política de Privacidad para Google OAuth
+Route::get('/politica-privacidad', function () {
+    return view('turnos.politica_privacidad');
+})->name('politica.privacidad');
+
+// Condiciones del Servicio para Google OAuth
+Route::get('/condiciones-servicio', function () {
+    return view('turnos.condiciones_servicio');
+})->name('condiciones.servicio');
+
+// Rutas para Google Calendar OAuth (deben estar antes de otras rutas que puedan interceptar)
+Route::get('/google-calendar/authorize', 'GoogleCalendarController@redirect')->name('google.calendar.authorize');
+Route::get('/google-calendar/callback', 'GoogleCalendarController@callback')->name('google.calendar.callback');
+Route::post('/google-calendar/disconnect', 'GoogleCalendarController@disconnect')->name('google.calendar.disconnect');
+
+
 //Route::get('/turno_registrado', function () {return view('turnos/turno_registrado');});
 Route::get('/turno_registrado/{t}', 'TurnoController@turnoRegistrado')->name('turnoregistrado');
 
@@ -475,15 +562,22 @@ Route::post('/cargar_numero_afiliado_paciente','PacienteController@cargarNumeroA
 
 Route::post('/registrar_turno','TurnoController@registrarTurno')->name('registrarturno');
 
+Route::post('/turno/preview_reserva','TurnoPagoController@previewReserva')->name('turno.preview.reserva');
+Route::post('/turno/iniciar_pago','TurnoPagoController@iniciarPago')->name('turno.iniciar.pago');
+Route::post('/turno/cancelar_pago_pendiente','TurnoPagoController@cancelarPagoPendiente')->name('turno.cancelar.pago.pendiente');
+Route::get('/turno/pago/exito','TurnoPagoController@pagoExito')->name('turno.pago.exito');
+Route::get('/turno/pago/error','TurnoPagoController@pagoError')->name('turno.pago.error');
+Route::get('/turno/pago/pendiente','TurnoPagoController@pagoPendiente')->name('turno.pago.pendiente');
+Route::get('/turno/prueba-pago','MedicoMercadoPagoController@probarReservaTurnoPublico')->name('turno.prueba.pago.compartida');
+
+Route::group(['middleware' => ['auth']], function () {
+	Route::get('medico/oauth/mercadopago/callback','MedicoMercadoPagoController@oauthCallback')->name('medicomp.oauth.callback');
+});
+
 Route::post('/registrar_turno_primer_control','TurnoController@registrarTurnoPrimerControl')->name('registrarturnoprimercontrol');
 
 Route::get('/calendar/reminder/{turno_id}','TurnoController@downloadReminderCalendar')->name('calendar.reminder');
 Route::get('/calendar/turno/{turno_id}','TurnoController@downloadTurnoCalendar')->name('calendar.turno');
-
-// Rutas para Google Calendar OAuth
-Route::get('/google-calendar/authorize','GoogleCalendarController@redirect')->name('google.calendar.authorize');
-Route::get('/google-calendar/callback','GoogleCalendarController@callback')->name('google.calendar.callback');
-Route::post('/google-calendar/disconnect','GoogleCalendarController@disconnect')->name('google.calendar.disconnect');
 
 Route::post('/confirmar_turno','TurnoController@confirmarTurno')->name('confirmarturno');
 
@@ -493,11 +587,15 @@ Route::post('/get_horarios_medico','TurnoController@getHorariosMedico')->name('g
 
 Route::post('/get_fechas_disponibles','TurnoController@getFechasDisponibles')->name('getfechasdisponibles');
 
+Route::post('/get_mensaje_medico_especial','TurnoController@getMensajeMedicoEspecial')->name('getmensajemedicoespecial');
+
 Route::post('/seleccionar_turno_horario_videollamada','TurnoController@seleccionarTurnoHorarioVideollamada')->name('seleccionarturnohorariovideollamada');
 
 Route::get('/seleccionar_especialidad','EspecialidadController@index')->name('seleccionarespecialidad');
 
 Route::post('/alta_paciente','PacienteController@store')->name('altapaciente');
+
+Route::post('/proximas_fechas_sugeridas','PacienteController@proximasFechasSugeridas')->name('proximasfechassugeridas');
 
 Route::post('/registrar_paciente_pendiente','PacienteController@registrarPacientePendiente')->name('registrarpacientependiente');
 
@@ -518,6 +616,9 @@ Route::post('actualizar_datos_paciente','PacienteController@actualizarDatosPacie
 Route::post('tipo_turno','PacienteController@tipoTurno')->name('tipoturno');
 
 Route::post('tipo_turno_cardiologo','PacienteController@tipoTurnoCardiologo')->name('tipoturnocardiologo');
+
+// Landing por consultorio, ejemplo: /consultorio=garibaldi
+Route::get('consultorio={slug}','PacienteController@medicosPorConsultorioSlug')->name('consultoriomedicos');
 
 Route::post('alta_paciente_medico_secretaria','PacienteController@altaPacienteMedicoSecretaria')->name('altapacientemedicosecretaria');	
 
@@ -595,6 +696,10 @@ Route::post('/actualizar_listado_horarios_fecha', 'MedicoController@actualizarLi
 
 Route::post('/actualizar_listado_horarios_fecha_eliminar', 'MedicoController@actualizarListadoHorariosFechaEliminar')->name('actualizarlistadohorariosfechaeliminar');
 Route::get('/cancelaturno/{id}', 'TurnoController@cancelaTurno')->name('cancelaturno');
+Route::get('/cancelarturno/{id}', 'TurnoController@cancelaTurno');
+
+Route::get('/confirmaturno/{id}', 'TurnoController@confirmaTurno')->name('confirmaturno');
+Route::get('/confirmarturno/{id}', 'TurnoController@confirmaTurno')->name('confirmarturno');
 
 Route::post('/mercadopago/preference', 'MercadopagoController@createPreference')->name('createPreference');
 

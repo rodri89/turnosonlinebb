@@ -29,3 +29,4 @@ Route::group(['prefix' => 'auth'], function () {
 
 Route::post('/mercadopago/preference', 'MercadopagoController@createPreference')->name('createPreference');
 Route::post('/mercadopago/preference2', 'MercadopagoController@createPreference')->name('createPreference2');
+Route::post('/webhooks/mercadopago', 'TurnoPagoController@webhook');

@@ -10,7 +10,7 @@ use Image;
 class ConsultorioController extends Controller
 {
 
-	public function store(Request $request)
+    public function store(Request $request)
     {        
         if($request->hasfile('foto')){
             $image = $request->file('foto');
@@ -27,6 +27,7 @@ class ConsultorioController extends Controller
         $consultorio->telefono = $request->get('telefono');
         $consultorio->foto = $name;
         $consultorio->activo = 1;
+        $consultorio->config = $this->buildConfigFromRequest($request);
     
         $consultorio->save();
 		
@@ -34,6 +35,21 @@ class ConsultorioController extends Controller
         return redirect('admin_consultorios');
         //return view('turnos.turno_registrado')->with('name',$paciente->nombre);
 
+    }
+
+    /**
+     * Construye el array de configuración a partir del request.
+     */
+    private function buildConfigFromRequest(Request $request)
+    {
+        $config = [];
+        if ($request->has('color_primario'))     $config['color_primario']     = $request->get('color_primario');
+        if ($request->has('color_secundario'))   $config['color_secundario']   = $request->get('color_secundario');
+        if ($request->has('color_terciario'))    $config['color_terciario']    = $request->get('color_terciario');
+        if ($request->has('titulo_color'))       $config['titulo_color']       = $request->get('titulo_color');
+        if ($request->has('subtitulo_color'))    $config['subtitulo_color']    = $request->get('subtitulo_color');
+        if ($request->has('titulo_tipo_letra'))  $config['titulo_tipo_letra']  = $request->get('titulo_tipo_letra');
+        return $config;
     }
 
     public function actualizarFotoConsultorio(Request $request){
@@ -59,5 +75,20 @@ class ConsultorioController extends Controller
 
     }
 
+    /**
+     * Actualizar la configuración de un consultorio existente.
+     */
+    public function actualizarConfig(Request $request)
+    {
+        $consultorio = Consultorio::find($request->get('consultorio_id'));
+        if (!$consultorio) {
+            return redirect('admin_consultorios')->with('error', 'Consultorio no encontrado');
+        }
+
+        $consultorio->config = $this->buildConfigFromRequest($request);
+        $consultorio->save();
+
+        return redirect('admin_consultorios')->with('success', 'Configuración actualizada correctamente');
+    }
 
 }

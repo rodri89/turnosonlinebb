@@ -7,11 +7,11 @@
   justify-content: center;
   align-items: center;
   text-align: center;
-  margin:0px auto;
-  padding:3%;    
+  margin: 0px auto;
+  padding: 3%;
 }
 
-.circulo_rojo_receta > h2 {
+.circulo_rojo_receta>h2 {
   margin-top: 7px;
   font-family: sans-serif;
   color: white;
@@ -19,44 +19,44 @@
   font-weight: bold;
 }
 
-.float_right{
+.float_right {
   float: right;
 }
 
-  .marginLeft5px{
-    margin-left: 5px;
-  }
-
-  .marginLeft_184px{
-    margin-left: 184px;
-  }
-
-.admin_videollamada_sobreturno{
-  visibility: visible; 
+.marginLeft5px {
+  margin-left: 5px;
 }
 
-.admin_videollamada_sobreturno_cel{
-  visibility: hidden; 
+.marginLeft_184px {
+  margin-left: 184px;
 }
 
-.mercadopago_collapse_250px{
- width: 250px; 
+.admin_videollamada_sobreturno {
+  visibility: visible;
 }
 
-.mercadopago_collapse_70px{
- width: 70px; 
+.admin_videollamada_sobreturno_cel {
+  visibility: hidden;
 }
 
-.mercadopago_collapse_150px{
- width: 150px; 
+.mercadopago_collapse_250px {
+  width: 250px;
 }
 
-.mercadopago_collapse_100px{
- width: 100px;  
+.mercadopago_collapse_70px {
+  width: 70px;
 }
 
-.mercadopago_collapse_30px{
- width: 30px; 
+.mercadopago_collapse_150px {
+  width: 150px;
+}
+
+.mercadopago_collapse_100px {
+  width: 100px;
+}
+
+.mercadopago_collapse_30px {
+  width: 30px;
 }
 
 .botonImage {
@@ -65,94 +65,104 @@
   transition: 0.3s;
 }
 
-.botonImage:hover {opacity: 0.7;}
-
-img.mediana{
-  width: 100px; height: 100px;
+.botonImage:hover {
+  opacity: 0.7;
 }
 
-.mercadoPagoHeader{
-  height:35px
+img.mediana {
+  width: 100px;
+  height: 100px;
 }
 
-.mercadoPagoHeaderTO{
+.mercadoPagoHeader {
+  height: 35px
+}
+
+.mercadoPagoHeaderTO {
   margin-left: 50px;
   margin-top: 250px;
 }
 
-h4.rodri{
-	size:1000px;
+h4.rodri {
+  size: 1000px;
 }
 
 .centrarVerticalHorizontalCancelar {
-    /**display: inline;   */
-      display: inline-flex;   
-      align-items: center;
+  /**display: inline;   */
+  display: inline-flex;
+  align-items: center;
 }
 
 .circulo {
-	width: 10rem;
-	height: 10rem;
-	border-radius: 50%;
-	background: white;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	text-align: center;
-  margin:0px auto;
-  padding:3%;
+  width: 10rem;
+  height: 10rem;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  margin: 0px auto;
+  padding: 3%;
   border-style: solid;
   border-color: #91e842;
 }
 
-.circulo_ocupado{
-/*background: gray;*/
-border-color: red;
+.circulo_ocupado {
+  /*background: gray;*/
+  border-color: red;
 }
 
-.circulo > h2 {
-	font-family: sans-serif;
-	color: black;
-	font-size: 1.4rem;
-	font-weight: bold;
+/* Libre pero fuera de la ventana «mostrar de a dos» (solo visualización) */
+.circulo_fuera_ventana {
+  opacity: 0.65;
+  border-color: #c9a227;
+  background: #fafafa;
 }
 
-.col-center{
+.circulo>h2 {
+  font-family: sans-serif;
+  color: black;
+  font-size: 1.4rem;
+  font-weight: bold;
+}
+
+.col-center {
   float: none;
   margin-left: auto;
   margin-right: auto;
 }
 
 
-.col-centrada{
-    float: none;
-    margin: 0 auto;
+.col-centrada {
+  float: none;
+  margin: 0 auto;
 }
 
-.rodri_button_agenda{
+.rodri_button_agenda {
   background: white;
   border: none;
-  width: 120px;  
+  width: 120px;
   height: 25px;
 }
 
 .rodri_button_agenda_tipo_turno {
   background: #d7d3cb;
   border: none;
-  width: 120px;  
+  width: 120px;
   height: 25px;
 }
 
-.rodri_input_error{
+.rodri_input_error {
   background: transparent;
   border: none;
-  color: red;  
+  color: red;
 }
 
-.rodri_button_volver{
+.rodri_button_volver {
   background: white;
-  border-style: solid; 
-  width: 120px;  
+  border-style: solid;
+  width: 120px;
   border-radius: 120px 120px 120px 120px;
   -moz-border-radius: 120px 120px 120px 120px;
   -webkit-border-radius: 120px 120px 120px 120px;
@@ -160,10 +170,10 @@ border-color: red;
   height: 35px;
 }
 
-.rodri_button_aceptar{
+.rodri_button_aceptar {
   background: white;
-  border-style: solid; 
-  width: 120px;  
+  border-style: solid;
+  width: 120px;
   border-radius: 120px 120px 120px 120px;
   -moz-border-radius: 120px 120px 120px 120px;
   -webkit-border-radius: 120px 120px 120px 120px;
@@ -171,10 +181,10 @@ border-color: red;
   height: 35px;
 }
 
-.rodri_button_cancelar{
+.rodri_button_cancelar {
   background: white;
-  border-style: solid;  
-  width: 120px;  
+  border-style: solid;
+  width: 120px;
   border-radius: 120px 120px 120px 120px;
   -moz-border-radius: 120px 120px 120px 120px;
   -webkit-border-radius: 120px 120px 120px 120px;
@@ -182,10 +192,10 @@ border-color: red;
   height: 35px;
 }
 
-.rodri_button_aceptar_si{
+.rodri_button_aceptar_si {
   background: white;
-  border-style: solid; 
-  width: 35px;  
+  border-style: solid;
+  width: 35px;
   border-radius: 120px 120px 120px 120px;
   -moz-border-radius: 120px 120px 120px 120px;
   -webkit-border-radius: 120px 120px 120px 120px;
@@ -193,10 +203,10 @@ border-color: red;
   height: 35px;
 }
 
-.rodri_button_cancelar_no{
+.rodri_button_cancelar_no {
   background: white;
-  border-style: solid;  
-  width: 35px;   
+  border-style: solid;
+  width: 35px;
   border-radius: 120px 120px 120px 120px;
   -moz-border-radius: 120px 120px 120px 120px;
   -webkit-border-radius: 120px 120px 120px 120px;
@@ -204,24 +214,24 @@ border-color: red;
   height: 35px;
 }
 
-.rodri_button_cancelar_a{
-   background: white;
-   border-style: solid;  
-   border: 1px solid red;
+.rodri_button_cancelar_a {
+  background: white;
+  border-style: solid;
+  border: 1px solid red;
 }
 
-.rodri_button_calendario{
+.rodri_button_calendario {
   background: transparent;
-  width: 35px;     
+  width: 35px;
   height: 35px;
   border-radius: 120px 120px 120px 120px;
   -moz-border-radius: 120px 120px 120px 120px;
   -webkit-border-radius: 120px 120px 120px 120px;
 }
 
-.rodri_button_receta{
+.rodri_button_receta {
   background: transparent;
-  width: 40px;     
+  width: 40px;
   height: 40px;
   border-radius: 120px 120px 120px 120px;
   -moz-border-radius: 120px 120px 120px 120px;
@@ -232,70 +242,85 @@ body {
   font-family: 'Roboto', sans-serif;
   background-color: #f8f7fa;
   color: #333;
+  padding-top: 48px;
 }
 
-.addBorder{
-  	border-style: solid;
-	border-color: black;
+/* Estilos globales para el botón hamburguesa (visible en todos los tamaños) */
+.navbar-toggler {
+  border-color: rgba(255, 255, 255, 0.5);
+  padding: 6px 10px;
 }
 
-.rpadding{
-	padding: 25px;
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+  display: inline-block;
+  width: 1.5em;
+  height: 1.5em;
+  vertical-align: middle;
 }
 
-.smalltextslogin{
-	color:#FFF;
+.addBorder {
+  border-style: solid;
+  border-color: black;
+}
+
+.rpadding {
+  padding: 25px;
+}
+
+.smalltextslogin {
+  color: #FFF;
 }
 
 .centrarVerticalHorizontal {
-   display: flex;   
-   align-items: center;
+  display: flex;
+  align-items: center;
 }
 
 .flotante {
-    display:scroll;
-    position:fixed;
-    bottom:25px;
-    right:25px;
+  display: scroll;
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
 }
 
 .pie_pagina {
-    position: relative;
-    bottom: 0;
-    width: 100%;
-    height: 300px;
-    background-color: black;
+  position: relative;
+  bottom: 0;
+  width: 100%;
+  height: 300px;
+  background-color: black;
 }
 
-.sinBackground{
+.sinBackground {
   background-color: transparent;
   border: none;
 }
 
-.sinBackgroundAncho{
+.sinBackgroundAncho {
   background-color: transparent;
   border: none;
   width: 480px;
 }
 
-.domicilio{
+.domicilio {
   margin-left: 5px;
   width: 300px;
 }
 
-.sinBackgroundMedioAncho{
+.sinBackgroundMedioAncho {
   background-color: transparent;
   border: none;
   width: 200px;
 }
 
-.sinBackgroundMp{
+.sinBackgroundMp {
   background-color: transparent;
   border: none;
   width: 92px;
 }
 
-.sinBackgroundAnchoFechaDNI{
+.sinBackgroundAnchoFechaDNI {
   background-color: transparent;
   border: none;
   width: 120px;
@@ -305,284 +330,293 @@ body {
   background-color: #F8DF73;
 }
 
-.sinBackgroundAzul{
+.sinBackgroundAzul {
   background-color: transparent;
   border: none;
-  color:blue;
+  color: blue;
   text-decoration: underline;
 }
 
-.terminosCondicionesSize{
+.terminosCondicionesSize {
   margin-left: 5%;
   margin-right: 5%;
-  color: white; 
+  color: white;
   font-size: x-small;
 }
 
-.input_snackbar{
+.input_snackbar {
   border: none;
-  font-weight:bold; 
+  font-weight: bold;
   color: #FFF;
-  width: 42px;  
+  width: 42px;
   background: #333;
 }
 
 .letraAzul {
-   color:#303F9F;
+  color: #303F9F;
 }
 
-.input_snackbar_220{
+.input_snackbar_220 {
   border: none;
-  font-weight:bold; 
+  font-weight: bold;
   text-align: center;
   color: #FFF;
-  width: 220px;  
+  width: 220px;
   background: #333;
 }
 
-.modal_input_horario{
+.modal_input_horario {
   border: none;
-  font-weight:bold; 
-  width: 50px;  
+  font-weight: bold;
+  width: 50px;
 }
 
-.input_configuracion_horario{ 
+.input_configuracion_horario {
   text-align: center;
-  width: 60px;  
+  width: 60px;
 }
 
-.rodri_button_a{
-  background: red;  
-  border-radius: 120px 120px 120px 120px;  
-  border: 1px solid #03f237; 
-  
-}
-
-.rodri_button{
-  width: 160px;
-  background: linear-gradient(45deg, rgba(44,123,144,1) 0%, rgba(44,123,144,1) 16%, rgba(42,108,126,1) 36%, rgba(0,77,69,1) 100%);
+.rodri_button_a {
+  background: red;
   border-radius: 120px 120px 120px 120px;
--moz-border-radius: 120px 120px 120px 120px;
--webkit-border-radius: 120px 120px 120px 120px;
-border: 1px solid #03f237;
-color:#FFF;
-height: 35px;
+  border: 1px solid #03f237;
+
 }
 
-.rodri_button_login{
+.rodri_button {
   width: 160px;
-  background: linear-gradient(45deg, rgba(44,123,144,1) 0%, rgba(44,123,144,1) 16%, rgba(42,108,126,1) 36%, rgba(0,77,69,1) 100%);
+  background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
   border-radius: 120px 120px 120px 120px;
--moz-border-radius: 120px 120px 120px 120px;
--webkit-border-radius: 120px 120px 120px 120px;
-border: 1px solid #03f237;
-color:#FFF;
-height: 35px;
+  -moz-border-radius: 120px 120px 120px 120px;
+  -webkit-border-radius: 120px 120px 120px 120px;
+  border: 1px solid #03f237;
+  color: #FFF;
+  height: 35px;
 }
 
-.loginHeader{
-    font-size: 1.0rem;
-    margin-left: 0px;
-    margin-top: 0px; 
-  }
+.rodri_button_login {
+  width: 160px;
+  background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
+  border-radius: 120px 120px 120px 120px;
+  -moz-border-radius: 120px 120px 120px 120px;
+  -webkit-border-radius: 120px 120px 120px 120px;
+  border: 1px solid #03f237;
+  color: #FFF;
+  height: 35px;
+}
 
-  .loginHeaderSize{
-    height: 40px;
-  }
+.loginHeader {
+  font-size: 1.0rem;
+  margin-left: 0px;
+  margin-top: 0px;
+}
 
-.rodri_button_large{
+.loginHeaderSize {
+  height: 40px;
+}
+
+.rodri_button_large {
   width: 260px;
-  background: linear-gradient(45deg, rgba(44,123,144,1) 0%, rgba(44,123,144,1) 16%, rgba(42,108,126,1) 36%, rgba(0,77,69,1) 100%);
+  background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
   border-radius: 120px 120px 120px 120px;
--moz-border-radius: 120px 120px 120px 120px;
--webkit-border-radius: 120px 120px 120px 120px;
-border: 1px solid #03f237;
-color:#FFF;
-height: 35px;
+  -moz-border-radius: 120px 120px 120px 120px;
+  -webkit-border-radius: 120px 120px 120px 120px;
+  border: 1px solid #03f237;
+  color: #FFF;
+  height: 35px;
 }
 
-.rodri_button_disabled{
+.rodri_button_disabled {
   width: 160px;
   background: grey;
   border-radius: 120px 120px 120px 120px;
--moz-border-radius: 120px 120px 120px 120px;
--webkit-border-radius: 120px 120px 120px 120px;
-border: 1px solid #03f237;
-color:#FFF;
-height: 35px;
+  -moz-border-radius: 120px 120px 120px 120px;
+  -webkit-border-radius: 120px 120px 120px 120px;
+  border: 1px solid #03f237;
+  color: #FFF;
+  height: 35px;
 }
 
-.fondoHeader{
+.fondoHeader {
   /*background: linear-gradient(to right, rgba(210,255,82,1) 0%, rgba(145,232,66,1) 100%);*/
- background: linear-gradient(45deg, rgba(147,206,222,1) 0%, rgba(147,206,222,1) 16%, rgba(117,189,209,1) 36%, rgba(0,150,136,1) 82%, rgba(0,150,136,1) 100%);
+  background: linear-gradient(45deg, rgba(147, 206, 222, 1) 0%, rgba(147, 206, 222, 1) 16%, rgba(117, 189, 209, 1) 36%, rgba(0, 150, 136, 1) 82%, rgba(0, 150, 136, 1) 100%);
 }
 
 hr.style4 {
   border-top: 1px dotted #8c8b8b;
 }
 
-.fontColorHeader{
+.fontColorHeader {
   /*color:#388E3C;*/
-  color:#303F9F;
+  color: #303F9F;
 }
 
-.fontTitulo{
+.fontTitulo {
   font-size: 3.4rem;
-  color:#303F9F;
+  color: #303F9F;
 }
 
-.fontHomeTitulo{
+.fontHomeTitulo {
   font-size: 2.4rem;
-  color:#303F9F;
+  color: #303F9F;
 }
 
-.fontVideollamadaTitulo{
+.fontVideollamadaTitulo {
   font-size: 2.4rem;
-  color:#303F9F;
+  color: #303F9F;
 }
 
-.fontHomeSubtitulo{
+.fontHomeSubtitulo {
   font-size: 1.9rem;
-  color:#303F9F; 
+  color: #303F9F;
 }
 
-.fontHomeBody{
+.fontHomeBody {
   font-size: 1.5rem;
-  color:#303F9F;
+  color: #303F9F;
 }
 
-.fontColorHeaderParrafo{
- color:#FFF;
- opacity: 10; 
+.header-instruction-text {
+  font-size: 1rem;
 }
 
-.footerBackground{
-  background: linear-gradient(45deg, rgba(44,123,144,1) 0%, rgba(44,123,144,1) 16%, rgba(42,108,126,1) 36%, rgba(0,77,69,1) 100%);
+.fontColorHeaderParrafo {
+  color: #FFF;
+  opacity: 10;
 }
 
-.fondoNav{
+.footerBackground {
+  background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
+}
+
+.fondoNav {
   /*background: #388E3C;*/
-  background: linear-gradient(45deg, rgba(44,123,144,1) 0%, rgba(44,123,144,1) 16%, rgba(42,108,126,1) 36%, rgba(0,77,69,1) 100%);
+  background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
 }
 
-.fontNav{
-  color:#FFF; 
+.fontNav {
+  color: #FFF;
 }
 
-.fontContainer{
+.fontContainer {
   background: #C8E6C9;
 }
 
 .contenedor3 {
-        display: flex;
-        align-items: center;
+  display: flex;
+  align-items: center;
 }
+
 .contenido3 {
-        margin: 0 auto; /* requerido para alineación horizontal */
+  margin: 0 auto;
+  /* requerido para alineación horizontal */
 
 }
 
-.alinearHorizontal{
+.alinearHorizontal {
   display: inline-block;
 }
 
-.letrasrojo{
-  color:red;
+.letrasrojo {
+  color: red;
 }
 
-.letrasVerde{
-  color:green;
+.letrasVerde {
+  color: green;
 }
 
-.letrasblancas{
-  color:white;
+.letrasblancas {
+  color: white;
 }
 
-.img-responsive{
-    width:100%;
-    height:auto;
+.img-responsive {
+  width: 100%;
+  height: auto;
 }
 
-.r_inline{
+.r_inline {
   display: inline-block;
 }
 
-.img_home_2{
+.img_home_2 {
   width: 250px;
   height: 250px;
   margin-right: 20px;
   margin-left: 20px;
 }
 
-.img_obra_social{
+.img_obra_social {
   width: 250px;
   height: 100px;
 }
 
-.img_home{
+.img_home {
   width: 149px;
   height: 149px;
   margin-right: 20px;
   margin-left: 20px;
-} 
-  .margin5{
-    margin-left: 5px;
-  }
+}
 
- .fechaNacEditText{
-    margin-left: 10px;
-    width: 50px;
-  }
-  .fechaNacAnioEditText{
-    margin-left: 10px;
-    width: 100px;
-  }
+.margin5 {
+  margin-left: 5px;
+}
 
-  .img_turno_apl{
-    width: 100px;
-    height: 100px;
-    font-size: 0.5rem;  
-  }
+.fechaNacEditText {
+  margin-left: 10px;
+  width: 50px;
+}
 
-  .turno_text_size_apl{
-    font-size: 1.0rem;
-  }
+.fechaNacAnioEditText {
+  margin-left: 10px;
+  width: 100px;
+}
 
-  .visibleLoginCel{
-    visibility: hidden;
-  }
+.img_turno_apl {
+  width: 100px;
+  height: 100px;
+  font-size: 0.5rem;
+}
 
- .botonReceta{
-  margin-left: 25px;  
- }
- .textoReceta{
+.turno_text_size_apl {
+  font-size: 1.0rem;
+}
+
+.visibleLoginCel {
+  visibility: hidden;
+}
+
+.botonReceta {
+  margin-left: 25px;
+}
+
+.textoReceta {
   margin-top: 4px;
   margin-left: 35px;
- }
+}
 
-@media (max-width:360px){
+@media (max-width:360px) {
   .footer_mobile {
     width: 780px;
   }
 
-  .widthImageCarousel{
+  .widthImageCarousel {
     width: 360px;
   }
 
-  .width200px{
+  .width200px {
     width: 300px;
   }
 
-  .botonReceta{
-    margin-left: 10px;  
+  .botonReceta {
+    margin-left: 10px;
   }
-  
-  .textoReceta{
+
+  .textoReceta {
     margin-top: 15px;
     margin-left: 35px;
   }
 
-  .buttonMenuSize{
+  .buttonMenuSize {
     border-color: #FFF;
     color: #FFF;
     height: 10px;
@@ -594,7 +628,7 @@ hr.style4 {
     margin-top: 2.5px;
   }
 
-  .buttonMenuSizeMarco{
+  .buttonMenuSizeMarco {
     border-color: #FFF;
     height: 15px;
     width: 12px;
@@ -605,315 +639,705 @@ hr.style4 {
     margin-top: 2.5px;
   }
 
-  .sizeHeader{
-    height: 390px;
+  .sizeHeader {
+    min-height: 390px;
+    height: auto;
   }
-  .img_turno{
+
+  .img_turno {
     width: 100px;
     height: 100px;
-    font-size: 0.5rem;   
+    font-size: 0.5rem;
   }
-  .turno_text_size{
+
+  .turno_text_size {
     font-size: 1.5rem;
   }
 
-  .fontHomeSubtitulo{
-    font-size: 1.1rem;    
+  .fontHomeSubtitulo {
+    font-size: 1.1rem;
   }
 
-  .textheader
-{
+  .textheader {
     position: absolute;
     top: 0;
-    font-size: 0.5rem;     
+    font-size: 0.5rem;
   }
 
-  .textheaderMenu{
+  .textheaderMenu {
     /*position: absolute;
     top: 0;*/
-    font-size: 0.5rem;     
-  }  
+    font-size: 0.5rem;
+  }
 
-  .textheaderLogin{
+  .textheaderLogin {
     position: absolute;
     top: 2;
     right: 0;
-    font-size: 0.5rem;     
+    font-size: 0.5rem;
   }
 
-  .fondoNav{
-  /*background: #388E3C;*/
-  height: 20px;
+  .fondoNav {
+    /*background: #388E3C;*/
+    height: auto;
+    min-height: 20px;
+    padding-top: 2px;
+    padding-bottom: 2px;
   }
 
-  .fondoNavMenu{
-     
-     background: linear-gradient(45deg, rgba(44,123,144,1) 0%, rgba(44,123,144,1) 16%, rgba(42,108,126,1) 36%, rgba(0,77,69,1) 100%);
-     text-align: right;
-     font-size: 0.8rem;
+  .fondoNavMenu {
+
+    background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
+    text-align: right;
+    font-size: 0.8rem;
   }
 
-  .menuAlineacion{
-    float: right;     
+  .menuAlineacion {
+    float: right;
   }
 
-  .fontImage{
-     font-size: 0.7rem;
+  .fontImage {
+    font-size: 0.7rem;
   }
 
-  .fontHomeBody2{
-    color:#303F9F;
+  .fontHomeBody2 {
+    color: #303F9F;
     margin-top: 25px;
     font-size: 0.7rem;
     width: 250px;
     float: right;
-  }  
+  }
 
-  .fontHomeBody{
+  .fontHomeBody {
     margin-top: 25px;
     font-size: 1.0rem;
     width: 250px;
     float: right;
   }
-  
-  .img_size_carrousel{
+
+  .img_size_carrousel {
     width: 15px;
-    height: 15px;  
+    height: 15px;
   }
 
-  .img_home{
+  .img_home {
     margin-left: 25px;
     width: 100px;
     height: 100px;
-  } 
-  .createdby{
-   font-size: 0.7rem; 
   }
 
-  .rodri_button{
+  .createdby {
+    font-size: 0.7rem;
+  }
+
+  .rodri_button {
     font-size: 0.7rem;
     width: 80px;
     height: 25px;
   }
 
-  .rodri_button_login{
+  .rodri_button_login {
     font-size: 0.5rem;
     width: 80px;
     height: 25px;
   }
 
   .contenedor3_telefono {
-        display: flex;
-        align-items: center;
-  }
-  .contenido3_telefono {
-        margin: 0 auto; /* requerido para alineación horizontal */
+    display: flex;
+    align-items: center;
   }
 
-  .buttonpreviousnext_telefono{
+  .contenido3_telefono {
+    margin: 0 auto;
+    /* requerido para alineación horizontal */
+  }
+
+  .buttonpreviousnext_telefono {
     width: 50px;
     height: 50px;
   }
 
   .centrarVerticalHorizontal {
     /**display: inline;   */
-      display: inline-flex;   
-      align-items: center;
+    display: inline-flex;
+    align-items: center;
   }
 
-  h4.fontColorHeader{
+  h4.fontColorHeader {
     font-size: 1.3rem;
   }
 
-  h1.fontColorHeader{
+  h1.fontColorHeader {
     font-size: 1.2rem;
   }
 
-  p.fontColorHeader{
-   font-size: 0.9rem; 
+  p.fontColorHeader {
+    font-size: 0.9rem;
   }
 
-  li.fontColorHeader{
-   font-size: 0.9rem;  
+  li.fontColorHeader {
+    font-size: 0.9rem;
   }
 
-  .fontHomeTitulo{
+  .fontHomeTitulo {
     font-size: 1.0rem;
-    color:#303F9F;
+    color: #303F9F;
   }
 
-  .editText{
-    font-size: 0.9rem; 
+  .editText {
+    font-size: 0.9rem;
   }
 
-  .fechaNacEditText{
+  .fechaNacEditText {
     margin-left: 15px;
     width: 80px;
   }
-  .fechaNacAnioEditText{
+
+  .fechaNacAnioEditText {
     margin-left: 15px;
     width: 120px;
   }
-  .img_medico_center{
+
+  .img_medico_center {
     width: 100px;
     height: 100px;
   }
 
-  .fontMedicoNombre{
+  .fontMedicoNombre {
     font-size: 1.2rem;
-    color:#303F9F;
+    color: #303F9F;
   }
 
-  .divLogin{
+  .divLogin {
     height: 200px;
     width: 300px;
   }
 
-  .marginLeft10px{
+  .marginLeft10px {
     margin-left: 10px;
   }
 
-  .marginTop20px{
+  .marginTop20px {
     margin-top: 20px;
   }
 
-  .divMarginCel{
+  .divMarginCel {
     margin-top: 10px;
     margin-bottom: 10px;
   }
 
-  .loginHeader{
+  .loginHeader {
     font-size: 0.6rem;
     margin-left: -5px;
-    margin-top: -5px; 
+    margin-top: -5px;
   }
 
-  .inputTextLogin{
+  .inputTextLogin {
     font-size: 0.6rem;
     height: 28px;
     width: 200px;
   }
 
-  .loginText{
+  .loginText {
     font-size: 0.6rem;
   }
 
-  .medicoTituloTextoCel{
-   font-size: 1.0rem;
-   margin-top: 5px;
-   margin-left: 20px; 
+  .medicoTituloTextoCel {
+    font-size: 1.0rem;
+    margin-top: 5px;
+    margin-left: 20px;
   }
 
-  .textAlignCenterCel{
-    text-align: center;    
+  .textAlignCenterCel {
+    text-align: center;
   }
 
-.rodri_button_agenda{
-  background: transparent;
-  border: none;
-  width: 300px;  
-  height: 25px;
+  .rodri_button_agenda {
+    background: transparent;
+    border: none;
+    width: 300px;
+    height: 25px;
+  }
+
+  .marginTop50px {
+    margin-top: 50px;
+  }
+
+  .hiddenLoginCel {
+    visibility: hidden;
+  }
+
+  .visibleLoginCel {
+    visibility: visible;
+  }
+
+  .img_home_2 {
+    width: 150px;
+    height: 150px;
+    margin-top: 20px;
+    margin-left: 30%;
+  }
+
+  .mercadoPagoHeaderTO {
+    margin-left: 5px;
+    top: 0;
+  }
+
+  .marginTopCel_25px {
+    margin-top: 25px;
+  }
+
+  .marginTopCel_15px {
+    margin-top: 15px;
+  }
+
+  .sinBackgroundMp {
+    background-color: transparent;
+    border: none;
+    width: 92px;
+  }
+
+  .mercadopago_collapse_250px {
+    width: 300px;
+  }
+
+  .mercadopago_collapse_70px {
+    width: 70px;
+  }
+
+  .mercadopago_collapse_150px {
+    width: 130px;
+  }
+
+  .mercadopago_collapse_100px {
+    width: 100px;
+  }
+
+  .mercadopago_collapse_30px {
+    width: 10px;
+  }
+
+  .fontVideollamadaTitulo {
+    font-size: 1.4rem;
+    color: #303F9F;
+  }
+
+  .videollamada_margin_left_50px {
+    text-align: center;
+  }
+
+  .admin_videollamada_sobreturno_cel {
+    visibility: visible;
+    margin-left: 10px;
+  }
+
+  .admin_videollamada_sobreturno {
+    visibility: hidden;
+
+  }
+
 }
 
-.marginTop50px{
-  margin-top: 50px;
+/* ===== MEDIA QUERY PARA DISPOSITIVOS DE 421px A 576px ===== */
+/* Cubre Moto G77 (443px), Galaxy A系列, iPhone 12-15 Pro Max, etc. */
+@media (max-width: 576px) {
+  .footer_mobile {
+    width: 100%;
+  }
+
+  .widthImageCarousel {
+    width: 100%;
+  }
+
+  .width200px {
+    width: 100%;
+  }
+
+  .botonReceta {
+    margin-left: 10px;
+  }
+
+  .textoReceta {
+    margin-top: 15px;
+    margin-left: 35px;
+  }
+
+  .sizeHeader {
+    min-height: auto;
+    height: auto;
+    padding-top: 60px !important;
+    padding-bottom: 15px !important;
+  }
+
+  /* Reducir padding/margen del header de modelo_plantilla en mobile */
+  header.fondoHeader.py-5.mb-5 {
+    padding-top: 15px !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 10px !important;
+  }
+
+  header.fondoHeader h4.display-4.mt-5 {
+    margin-top: 0 !important;
+    font-size: 1.4rem;
+    line-height: 1.3;
+  }
+
+  header.fondoHeader .lead.mb-2.fontColorHeader {
+    font-size: 0.9rem;
+  }
+
+  .img_turno {
+    width: 100px;
+    height: 100px;
+    font-size: 0.5rem;
+  }
+
+  .turno_text_size {
+    font-size: 1.5rem;
+  }
+
+  .fontHomeSubtitulo {
+    font-size: 1.2rem;
+  }
+
+  .textheader {
+    font-size: 0.9rem;
+  }
+
+  .textheaderMenu {
+    font-size: 0.9rem;
+  }
+
+  .textheaderLogin {
+    font-size: 0.8rem;
+  }
+
+  .fondoNav {
+    height: auto;
+    min-height: 44px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .fondoNavMenu {
+    background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
+    text-align: left;
+    font-size: 0.9rem;
+  }
+
+  .fondoNavMenu .nav-link {
+    padding: 8px 15px;
+  }
+
+  .menuAlineacion {
+    float: none;
+  }
+
+  .fontImage {
+    font-size: 0.8rem;
+  }
+
+  .fontHomeBody2 {
+    color: #303F9F;
+    margin-top: 15px;
+    font-size: 0.9rem;
+    width: 100%;
+    float: none;
+  }
+
+  .fontHomeBody {
+    margin-top: 15px;
+    font-size: 1.0rem;
+    width: 100%;
+    float: none;
+    display: block;
+  }
+
+  .fontHomeBody3 {
+    margin-top: 15px;
+    font-size: 0.9rem;
+    float: none;
+  }
+
+  .img_size_carrousel {
+    width: 20px;
+    height: 20px;
+  }
+
+  .img_home {
+    margin: 10px auto;
+    width: 120px;
+    height: 120px;
+    display: block;
+  }
+
+  .img_home_2 {
+    width: 180px;
+    height: 180px;
+    margin: 10px auto;
+  }
+
+  .createdby {
+    font-size: 0.8rem;
+  }
+
+  .rodri_button {
+    font-size: 0.8rem;
+    width: 100px;
+    height: 32px;
+  }
+
+  .rodri_button_login {
+    font-size: 0.7rem;
+    width: 100px;
+    height: 28px;
+  }
+
+  .rodri_button_large {
+    width: 200px;
+  }
+
+  .contenedor3_telefono {
+    display: flex;
+    align-items: center;
+  }
+
+  .contenido3_telefono {
+    margin: 0 auto;
+  }
+
+  .buttonpreviousnext_telefono {
+    width: 50px;
+    height: 50px;
+  }
+
+  .centrarVerticalHorizontal {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  h4.fontColorHeader {
+    font-size: 1.4rem;
+  }
+
+  h1.fontColorHeader {
+    font-size: 1.3rem;
+  }
+
+  p.fontColorHeader {
+    font-size: 1.0rem;
+  }
+
+  li.fontColorHeader {
+    font-size: 1.0rem;
+  }
+
+  .fontHomeTitulo {
+    font-size: 1.2rem;
+    color: #303F9F;
+  }
+
+  .editText {
+    font-size: 0.9rem;
+  }
+
+  .fechaNacEditText {
+    margin-left: 15px;
+    width: 80px;
+  }
+
+  .fechaNacAnioEditText {
+    margin-left: 15px;
+    width: 120px;
+  }
+
+  .img_medico_center {
+    width: 120px;
+    height: 120px;
+  }
+
+  .fontMedicoNombre {
+    font-size: 1.3rem;
+    color: #303F9F;
+  }
+
+  .divLogin {
+    height: 200px;
+    width: 100%;
+  }
+
+  .marginLeft10px {
+    margin-left: 10px;
+  }
+
+  .marginTop20px {
+    margin-top: 20px;
+  }
+
+  .divMarginCel {
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+
+  .loginHeader {
+    font-size: 0.8rem;
+    margin-left: 0;
+    margin-top: 0;
+  }
+
+  .inputTextLogin {
+    font-size: 0.8rem;
+    height: 32px;
+    width: 100%;
+  }
+
+  .loginText {
+    font-size: 0.8rem;
+  }
+
+  .medicoTituloTextoCel {
+    font-size: 1.1rem;
+    margin-top: 5px;
+    margin-left: 10px;
+  }
+
+  .textAlignCenterCel {
+    text-align: center;
+  }
+
+  .rodri_button_agenda {
+    background: transparent;
+    border: none;
+    width: 100%;
+    height: 30px;
+  }
+
+  .marginTop50px {
+    margin-top: 50px;
+  }
+
+  .hiddenLoginCel {
+    visibility: hidden;
+  }
+
+  .visibleLoginCel {
+    visibility: visible;
+  }
+
+  .mercadoPagoHeaderTO {
+    margin-left: 5px;
+    top: 0;
+  }
+
+  .marginTopCel_25px {
+    margin-top: 25px;
+  }
+
+  .marginTopCel_15px {
+    margin-top: 15px;
+  }
+
+  .sinBackgroundMp {
+    background-color: transparent;
+    border: none;
+    width: 92px;
+  }
+
+  .mercadopago_collapse_250px {
+    width: 100%;
+  }
+
+  .mercadopago_collapse_70px {
+    width: 70px;
+  }
+
+  .mercadopago_collapse_150px {
+    width: 130px;
+  }
+
+  .mercadopago_collapse_100px {
+    width: 100px;
+  }
+
+  .mercadopago_collapse_30px {
+    width: 10px;
+  }
+
+  .fontVideollamadaTitulo {
+    font-size: 1.5rem;
+    color: #303F9F;
+  }
+
+  .videollamada_margin_left_50px {
+    text-align: center;
+  }
+
+  .admin_videollamada_sobreturno_cel {
+    visibility: visible;
+    margin-left: 10px;
+  }
+
+  .admin_videollamada_sobreturno {
+    visibility: hidden;
+  }
+
+  /* Hace que los items del menú colapsable se vean bien */
+  .navbar-collapse {
+    background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
+    border-radius: 0 0 8px 8px;
+    padding: 5px 0;
+    margin-top: 5px;
+  }
+
+  /* Ajuste para que el header no quede oculto tras el nav */
+  .py-5.mb-5.sizeHeader {
+    padding-top: 70px !important;
+  }
+
+  /* Asegura que las imágenes responsive se vean bien */
+  .mobile-screen-shot {
+    width: 45%;
+    min-width: 130px;
+  }
+
+  .mobile-screens-row {
+    gap: 8px;
+  }
+
+  .col-md-9.mx-auto {
+    text-align: center;
+  }
+
+  .r_inline {
+    display: block;
+    margin: 10px auto;
+  }
 }
 
-.hiddenLoginCel{
-  visibility: hidden;
-}
-.visibleLoginCel{
-  visibility: visible;
-}
 
-.img_home_2{
-  width: 150px;
-  height: 150px;
-  margin-top: 20px;
-  margin-left: 30%;
-}
-
-.mercadoPagoHeaderTO{
-  margin-left: 5px;  
-  top:0;
-}
-.marginTopCel_25px{
-  margin-top: 25px;    
-}
-.marginTopCel_15px{
-  margin-top: 15px;    
-}
-
-.sinBackgroundMp{
-  background-color: transparent;
-  border: none;
-  width: 92px;
-}
-
-.mercadopago_collapse_250px{
- width: 300px; 
-}
-
-.mercadopago_collapse_70px{
- width: 70px; 
-}
-
-.mercadopago_collapse_150px{
- width: 130px; 
-}
-
-.mercadopago_collapse_100px{
- width: 100px;  
-}
-
-.mercadopago_collapse_30px{
- width: 10px; 
-}
-
-.fontVideollamadaTitulo{
-  font-size: 1.4rem;
-  color:#303F9F;
-}
-
-.videollamada_margin_left_50px{  
-  text-align: center;
-}
-.admin_videollamada_sobreturno_cel{
-  visibility: visible;
-  margin-left:10px; 
-}
-
-.admin_videollamada_sobreturno{
-  visibility: hidden; 
-
-}
-
-}
-
-
-@media (max-width:420px){
+@media (max-width:420px) {
   .footer_mobile {
     width: 780px;
   }
 
-  .widthImageCarousel{
+  .widthImageCarousel {
     width: 450px;
   }
 
-  .width200px{
+  .width200px {
     width: 300px;
   }
 
-  .botonReceta{
-    margin-left: 10px;  
+  .botonReceta {
+    margin-left: 10px;
   }
-  
-  .textoReceta{
+
+  .textoReceta {
     margin-top: 15px;
     margin-left: 35px;
   }
 
-  .buttonMenuSize{
+  .buttonMenuSize {
     border-color: #FFF;
     color: #FFF;
     height: 10px;
@@ -925,7 +1349,7 @@ hr.style4 {
     margin-top: 2.5px;
   }
 
-  .buttonMenuSizeMarco{
+  .buttonMenuSizeMarco {
     border-color: #FFF;
     height: 15px;
     width: 12px;
@@ -936,286 +1360,301 @@ hr.style4 {
     margin-top: 2.5px;
   }
 
-  .sizeHeader{
-    height: 390px;
+  .sizeHeader {
+    min-height: 390px;
+    height: auto;
   }
-  .img_turno{
+
+  .img_turno {
     width: 100px;
     height: 100px;
-    font-size: 0.5rem;   
+    font-size: 0.5rem;
   }
-  .turno_text_size{
+
+  .turno_text_size {
     font-size: 1.5rem;
   }
 
-  .fontHomeSubtitulo{
-    font-size: 1.1rem;    
+  .fontHomeSubtitulo {
+    font-size: 1.1rem;
   }
 
-  .textheader{
+  .textheader {
     position: absolute;
     top: 0;
-    font-size: 0.5rem;     
+    font-size: 0.5rem;
   }
 
-  .textheaderMenu{
+  .textheaderMenu {
     /*position: absolute;
     top: 0;*/
-    font-size: 0.5rem;     
-  }  
+    font-size: 0.5rem;
+  }
 
-  .textheaderLogin{
+  .textheaderLogin {
     position: absolute;
     top: 2;
     right: 0;
-    font-size: 0.5rem;     
+    font-size: 0.5rem;
   }
 
-  .fondoNav{
-  /*background: #388E3C;*/
-  height: 20px;
+  .fondoNav {
+    /*background: #388E3C;*/
+    height: auto;
+    min-height: 20px;
+    padding-top: 2px;
+    padding-bottom: 2px;
   }
 
-  .fondoNavMenu{
-     
-     background: linear-gradient(45deg, rgba(44,123,144,1) 0%, rgba(44,123,144,1) 16%, rgba(42,108,126,1) 36%, rgba(0,77,69,1) 100%);
-     text-align: right;
-     font-size: 0.8rem;
+  .fondoNavMenu {
+
+    background: linear-gradient(45deg, rgba(44, 123, 144, 1) 0%, rgba(44, 123, 144, 1) 16%, rgba(42, 108, 126, 1) 36%, rgba(0, 77, 69, 1) 100%);
+    text-align: right;
+    font-size: 0.8rem;
   }
 
-  .menuAlineacion{
-    float: right;     
+  .menuAlineacion {
+    float: right;
   }
 
-  .fontImage{
-     font-size: 0.7rem;
+  .fontImage {
+    font-size: 0.7rem;
   }
 
-  .fontHomeBody2{
-    color:#303F9F;
+  .fontHomeBody2 {
+    color: #303F9F;
     margin-top: 25px;
     font-size: 0.7rem;
     width: 250px;
     float: right;
-  }  
+  }
 
-  .fontHomeBody{
+  .fontHomeBody {
     margin-top: 25px;
     font-size: 1.0rem;
     width: 250px;
     float: right;
   }
-  
-  .img_size_carrousel{
+
+  .img_size_carrousel {
     width: 15px;
-    height: 15px;  
+    height: 15px;
   }
 
-  .img_home{
+  .img_home {
     margin-left: 25px;
     width: 100px;
     height: 100px;
-  } 
-  .createdby{
-   font-size: 0.7rem; 
   }
 
-  .rodri_button{
+  .createdby {
+    font-size: 0.7rem;
+  }
+
+  .rodri_button {
     font-size: 0.7rem;
     width: 80px;
     height: 25px;
   }
 
-  .rodri_button_login{
+  .rodri_button_login {
     font-size: 0.5rem;
     width: 80px;
     height: 25px;
   }
 
   .contenedor3_telefono {
-        display: flex;
-        align-items: center;
-  }
-  .contenido3_telefono {
-        margin: 0 auto; /* requerido para alineación horizontal */
+    display: flex;
+    align-items: center;
   }
 
-  .buttonpreviousnext_telefono{
+  .contenido3_telefono {
+    margin: 0 auto;
+    /* requerido para alineación horizontal */
+  }
+
+  .buttonpreviousnext_telefono {
     width: 50px;
     height: 50px;
   }
 
   .centrarVerticalHorizontal {
     /**display: inline;   */
-      display: inline-flex;   
-      align-items: center;
+    display: inline-flex;
+    align-items: center;
   }
 
-  h4.fontColorHeader{
+  h4.fontColorHeader {
     font-size: 1.3rem;
   }
 
-  h1.fontColorHeader{
+  h1.fontColorHeader {
     font-size: 1.2rem;
   }
 
-  p.fontColorHeader{
-   font-size: 0.9rem; 
+  p.fontColorHeader {
+    font-size: 0.9rem;
   }
 
-  li.fontColorHeader{
-   font-size: 0.9rem;  
+  li.fontColorHeader {
+    font-size: 0.9rem;
   }
 
-  .fontHomeTitulo{
+  .fontHomeTitulo {
     font-size: 1.0rem;
-    color:#303F9F;
+    color: #303F9F;
   }
 
-  .editText{
-    font-size: 0.9rem; 
+  .editText {
+    font-size: 0.9rem;
   }
 
-  .fechaNacEditText{
+  .fechaNacEditText {
     margin-left: 15px;
     width: 80px;
   }
-  .fechaNacAnioEditText{
+
+  .fechaNacAnioEditText {
     margin-left: 15px;
     width: 120px;
   }
-  .img_medico_center{
+
+  .img_medico_center {
     width: 100px;
     height: 100px;
   }
 
-  .fontMedicoNombre{
+  .fontMedicoNombre {
     font-size: 1.2rem;
-    color:#303F9F;
+    color: #303F9F;
   }
 
-  .divLogin{
+  .divLogin {
     height: 200px;
     width: 300px;
   }
 
-  .marginLeft10px{
+  .marginLeft10px {
     margin-left: 10px;
   }
 
-  .marginTop20px{
+  .marginTop20px {
     margin-top: 20px;
   }
 
-  .divMarginCel{
+  .divMarginCel {
     margin-top: 10px;
     margin-bottom: 10px;
   }
 
-  .loginHeader{
+  .loginHeader {
     font-size: 0.6rem;
     margin-left: -5px;
-    margin-top: -5px; 
+    margin-top: -5px;
   }
 
-  .inputTextLogin{
+  .inputTextLogin {
     font-size: 0.6rem;
     height: 28px;
     width: 200px;
   }
 
-  .loginText{
+  .loginText {
     font-size: 0.6rem;
   }
 
-  .medicoTituloTextoCel{
-   font-size: 1.0rem;
-   margin-top: 5px;
-   margin-left: 20px; 
+  .medicoTituloTextoCel {
+    font-size: 1.0rem;
+    margin-top: 5px;
+    margin-left: 20px;
   }
 
-  .textAlignCenterCel{
-    text-align: center;    
+  .textAlignCenterCel {
+    text-align: center;
   }
 
-.rodri_button_agenda{
-  background: transparent;
-  border: none;
-  width: 300px;  
-  height: 25px;
-}
+  .rodri_button_agenda {
+    background: transparent;
+    border: none;
+    width: 300px;
+    height: 25px;
+  }
 
-.marginTop50px{
-  margin-top: 50px;
-}
+  .marginTop50px {
+    margin-top: 50px;
+  }
 
-.hiddenLoginCel{
-  visibility: hidden;
-}
-.visibleLoginCel{
-  visibility: visible;
-}
+  .hiddenLoginCel {
+    visibility: hidden;
+  }
 
-.img_home_2{
-  width: 150px;
-  height: 150px;
-  margin-top: 20px;
-  margin-left: 30%;
-}
+  .visibleLoginCel {
+    visibility: visible;
+  }
 
-.mercadoPagoHeaderTO{
-  margin-left: 5px;  
-  top:0;
-}
-.marginTopCel_25px{
-  margin-top: 25px;    
-}
-.marginTopCel_15px{
-  margin-top: 15px;    
-}
+  .img_home_2 {
+    width: 150px;
+    height: 150px;
+    margin-top: 20px;
+    margin-left: 30%;
+  }
 
-.sinBackgroundMp{
-  background-color: transparent;
-  border: none;
-  width: 92px;
-}
+  .mercadoPagoHeaderTO {
+    margin-left: 5px;
+    top: 0;
+  }
 
-.mercadopago_collapse_250px{
- width: 300px; 
-}
+  .marginTopCel_25px {
+    margin-top: 25px;
+  }
 
-.mercadopago_collapse_70px{
- width: 70px; 
-}
+  .marginTopCel_15px {
+    margin-top: 15px;
+  }
 
-.mercadopago_collapse_150px{
- width: 130px; 
-}
+  .sinBackgroundMp {
+    background-color: transparent;
+    border: none;
+    width: 92px;
+  }
 
-.mercadopago_collapse_100px{
- width: 100px;  
-}
+  .mercadopago_collapse_250px {
+    width: 300px;
+  }
 
-.mercadopago_collapse_30px{
- width: 10px; 
-}
+  .mercadopago_collapse_70px {
+    width: 70px;
+  }
 
-.fontVideollamadaTitulo{
-  font-size: 1.4rem;
-  color:#303F9F;
-}
+  .mercadopago_collapse_150px {
+    width: 130px;
+  }
 
-.videollamada_margin_left_50px{  
-  text-align: center;
-}
-.admin_videollamada_sobreturno_cel{
-  visibility: visible;
-  margin-left:10px; 
-}
+  .mercadopago_collapse_100px {
+    width: 100px;
+  }
 
-.admin_videollamada_sobreturno{
-  visibility: hidden; 
+  .mercadopago_collapse_30px {
+    width: 10px;
+  }
 
-}
+  .fontVideollamadaTitulo {
+    font-size: 1.4rem;
+    color: #303F9F;
+  }
+
+  .videollamada_margin_left_50px {
+    text-align: center;
+  }
+
+  .admin_videollamada_sobreturno_cel {
+    visibility: visible;
+    margin-left: 10px;
+  }
+
+  .admin_videollamada_sobreturno {
+    visibility: hidden;
+
+  }
 
 }

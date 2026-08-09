@@ -1,0 +1,64 @@
+# 📦 ARCHIVOS PARA SUBIR A PRODUCCIÓN
+
+## ✅ ARCHIVOS NUEVOS (Crear en producción)
+
+### Vistas (Views)
+- resources/views/turnos/politica_privacidad.blade.php
+- resources/views/turnos/condiciones_servicio.blade.php
+- resources/views/turnos/test_google_calendar.blade.php
+
+### Controladores
+- app/Http/Controllers/GoogleCalendarController.php
+
+### Servicios
+- app/Services/GoogleCalendarService.php (si no existe, o actualizar si existe)
+
+### Helpers
+- app/Helpers/CalendarHelper.php (si no existe, o actualizar si existe)
+
+### Migraciones
+- database/migrations/2026_02_04_000000_add_google_calendar_oauth_to_pacientes_table.php
+
+## ✅ ARCHIVOS MODIFICADOS (Actualizar en producción)
+
+### Rutas
+- routes/web.php
+
+### Controladores
+- app/Http/Controllers/TurnoController.php
+
+### Modelos
+- app/Paciente.php (verificar que tenga los campos: google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expires_at)
+
+### Vistas
+- resources/views/turnos/home.blade.php
+- resources/views/turnos/modelo_plantilla.blade.php
+- resources/views/turnos/seleccionar_dia.blade.php
+
+### Configuración de Composer
+- composer.json (si se agregaron dependencias: google/auth, google/apiclient)
+
+## ⚠️ CONFIGURACIÓN MANUAL EN PRODUCCIÓN (.env)
+
+NO subir el .env, pero agregar estas líneas manualmente en el servidor:
+
+GOOGLE_CALENDAR_CLIENT_ID=<obtener desde Google Cloud Console - proyecto turnosonlinebb>
+GOOGLE_CALENDAR_CLIENT_SECRET=<obtener desde Google Cloud Console - proyecto turnosonlinebb>
+GOOGLE_CALENDAR_REDIRECT_URI=https://turnosonlinebb.com/google-calendar/callback
+GOOGLE_CALENDAR_TEST_TOKEN=<generar un token aleatorio propio>
+
+## 📋 PASOS PARA SUBIR A PRODUCCIÓN
+
+1. Subir todos los archivos listados arriba
+2. Ejecutar migraciones:
+   php artisan migrate
+3. Actualizar dependencias (si se modificó composer.json):
+   composer install --no-dev --optimize-autoloader
+4. Limpiar cache:
+   php artisan config:clear
+   php artisan cache:clear
+   php artisan route:clear
+   php artisan view:clear
+5. Agregar variables de entorno al .env en producción
+6. Verificar permisos de archivos si es necesario
+

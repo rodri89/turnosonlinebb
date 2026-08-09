@@ -22,9 +22,16 @@
     
 </head>
 
+@php
+  $__espFlujo = $especialidad_nombre_flujo ?? '';
+  $__espId = $especialidad_id ?? '';
+@endphp
+
 <div class="row">
   <form method="POST" action="{{ route('tipoturnocardiologo') }}">
       @csrf
+      <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+      <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
       <input type="hidden" name="tipo_turno" value="1"  />           
       <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
       <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  /> 
@@ -42,6 +49,8 @@
 
   <form method="POST" action="{{ route('tipoturnocardiologo') }}">
       @csrf
+      <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+      <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
       <input type="hidden" name="tipo_turno" value="2"  />           
       <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
       <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />                     
@@ -58,6 +67,8 @@
 
    <form method="POST" action="{{ route('tipoturnocardiologo') }}">
       @csrf
+      <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+      <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
       <input type="hidden" name="tipo_turno" value="3"  />           
       <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
       <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />                     
@@ -74,6 +85,8 @@
 
   <form method="POST" action="{{ route('tipoturnocardiologo') }}">
       @csrf
+      <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+      <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
       <input type="hidden" name="tipo_turno" value="4"  />           
       <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
       <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />                     

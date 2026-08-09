@@ -22,6 +22,7 @@
     <script src="{{asset('datePicker/locales/bootstrap-datepicker.es.min.js')}}"></script>
      @include('modal.snackbar')
      @include('modal.modal_recetas')
+     @include('turnos_admin._modal_detalle_pago_reserva')
 </head>
 
 <div class="row">
@@ -44,6 +45,8 @@
         <input type="hidden" id="consultorio" name="consultorio" value="{{$consultorio->id}}"  />
         <input type="hidden" id="medico_id" name="medico_id" value="{{$medico->id}}"  />
         <input type="hidden" id="especialidad_id" name="especialidad_id" value="{{$medico->especialidad}}"  />
+        <input type="hidden" id="modulo_cobro_turnos_mp" value="{{ !empty($moduloCobroTurnosMp) ? 1 : 0 }}">
+        <input type="hidden" id="secretaria_puede_reembolso" value="1">
         <div class="input-group">
         <input type="text" id="dia" class="form-control datepicker editText" name="dia" value="{{$dia}}"
          autocomplete="off" onchange="actualizarListado(this.value)" class="inputTextLogin">        
@@ -69,7 +72,7 @@
        <thead>
           <tr>
             <th class="editText" scope="col">#</th>
-            <th class="editText" scope="col">Tipo</th>
+            <th class="editText" scope="col">@if((int)$medico->id === 3) Especialidad @else Tipo @endif</th>
             <th class="editText" scope="col">Hora</th>
             <th class="editText" scope="col">Paciente</th>                                 
             <th class="editText" scope="col">DNI</th>
@@ -81,6 +84,9 @@
             @endif
             @if($medico->especialidad == 2)
               <th scope="col">Consulta</th>
+            @endif
+            @if(!empty($moduloCobroTurnosMp))
+              <th class="editText" scope="col" title="Reserva pagada online">Reserva</th>
             @endif
             <th class="editText" scope="col">Asistio</th>                     
           </tr>
@@ -326,8 +332,17 @@
           }
         }
 
-        $('#pacientes-list').append(paciente); 
+        $('#pacientes-list').append(insertarColumnaPagoEnFila(paciente, data.turnosPaciente[i])); 
     }
+  }
+
+  function escapeHtml(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   function getTipoTurno(tipoTurno) {
@@ -339,6 +354,20 @@
       return "Ecografia";
     if(tipoTurno == 25)
       return "Consulta + Eco";
+    return "Consulta";
+  }
+
+  /** Médico id 3: columna Tipo muestra turno_registrados.especialidad */
+  function etiquetaTipoFila(row) {
+    var medicoId = parseInt(document.getElementById("medico_id").value, 10);
+    if (medicoId === 3) {
+      var e = row.especialidad;
+      if (e != null && String(e).trim().length > 0) {
+        return escapeHtml(String(e).trim());
+      }
+      return '—';
+    }
+    return getTipoTurno(row.tipo_turno);
   }
   
   function cargarTabla(data){
@@ -350,7 +379,7 @@
         var caja_id = "caja"+data.turnosPaciente[i].trid;
         var comentario_id = "comentario"+data.turnosPaciente[i].trid;
         sumarCaja(data.turnosPaciente[i].caja);
-        var tipoTurno = getTipoTurno(data.turnosPaciente[i].tipo_turno);
+        var tipoTurno = etiquetaTipoFila(data.turnosPaciente[i]);
         if(data.moduloCajaComentario == 1){
           if(data.turnosPaciente[i].dni == 99999){
              var paciente = "<tr><td class='editText'>"+contador+"</td><td>"+tipoTurno+"</td><td class='editText'>"+data.turnosPaciente[i].horario+"</td><td class='editText'>CANCELADO</td><td class='editText'></td><td class='editText'></td><td class='editText'></td><td class='editText'></td><td class='editText'></td><td></td></tr>";
@@ -380,7 +409,7 @@
             }
           }
         }
-        $('#pacientes-list').append(paciente); 
+        $('#pacientes-list').append(insertarColumnaPagoEnFila(paciente, data.turnosPaciente[i])); 
     }
   }
 

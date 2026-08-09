@@ -50,7 +50,9 @@
 <h1 align="center">Turno Cancelado</h1>
 
 <h3> El turno registrado el día {{$fecha}} en el horario: {{$turnoRegistrado->horario}} con el/la especialista {{$medico->apellido}}, {{$medico->nombre}} ha sido cancelado.</h3>
-                               
+@if(!empty($reembolso_mensaje))
+<p class="text-muted">{{ $reembolso_mensaje }}</p>
+@endif
    <br>
   <!-- Footer -->
 

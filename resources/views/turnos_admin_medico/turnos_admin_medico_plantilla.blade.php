@@ -26,11 +26,27 @@
   <link rel="stylesheet" type="text/css" href="{{asset('datatable/jquery.dataTables.min.css')}}">
   @include('modal.snackbar')
   @include('layouts.rodri_style_css')
+  <style>
+    .medico-admin-layout {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .medico-admin-main {
+      flex: 1 0 auto;
+    }
+    .medico-admin-layout footer {
+      flex-shrink: 0;
+    }
+  </style>
 </head>
 
-<body>
+<body class="medico-admin-layout">
 
   <!-- Navigation -->
+  @if(Auth::user()->usuario_tipo == 3 && session()->has('secretaria_context_medico_id'))
+    @include('turnos_admin_secretaria._navbar_secretaria_contexto_medico')
+  @else
   <nav class="navbar navbar-expand-lg fontNav fixed-top fondoNav">
     <div class="container">
       <a class="textheader navbar-brand text-white" href="/homes">Turnos Online</a>      
@@ -160,13 +176,29 @@
                 @if(Auth::user()->perfil == 2 || Auth::user()->perfil == 5 || Auth::user()->perfil == 6 || Auth::user()->perfil == 7 || Auth::user()->perfil == 8 || Auth::user()->perfil == 9)
                   <a class="dropdown-item" href="{{ route('medicoconfiguracion') }}">
                     {{ __('Configuracion') }}
-                  </a>
+                  </a>                  
+                @endif
 
-                  <a class="dropdown-item" href="{{ route('adminhorariosm') }}">
-                    {{ __('Admin Horarios') }}
-                  </a>
+                <form method="POST" action="{{ route('medicoadminhorarios') }}" class="d-inline">
+                    @csrf
+                    <button type="submit" class="dropdown-item">Admin Horarios</button>
+                  </form>
 
-                @endif                
+                <form method="POST" action="{{ route('medicoadminhorariosfijos') }}" class="d-inline">
+                    @csrf
+                    <button type="submit" class="dropdown-item">Admin Horarios Fijos</button>
+                  </form>
+
+                <form method="POST" action="{{ route('medicoadminconfigmensajes') }}" class="d-inline">
+                    @csrf
+                    <button type="submit" class="dropdown-item">Config Mensajes</button>
+                  </form>
+
+                <form method="POST" action="{{ route('medicoadminpagos') }}" class="d-inline">
+                    @csrf
+                    <button type="submit" class="dropdown-item">Pagos / Mercado Pago</button>
+                  </form>
+
                 <form method="POST" action="{{ route('medicoadminobrasocial') }}">                          
                   @csrf                                     
                   <button class="dropdown-item">Obra Social              
@@ -190,11 +222,13 @@
       </div>
     </div>
   </nav>
+  @endif
 
   <!-- Header -->
   
 
   <!-- Page Content -->
+  <main class="medico-admin-main">
   <div class="container">
 
     <div class="row">
@@ -207,6 +241,7 @@
     </div>
 
   </div>
+  </main>
   <!-- /.container -->
 
   <!-- Footer -->
@@ -225,11 +260,12 @@
 
 <script type="text/javascript">
   
-  function checkRecetasPendientes() {   
+  function checkRecetasPendientes() {
+     var _url = @json(Auth::user()->usuario_tipo == 3 ? '/check_recetas_pendientes_secretaria' : '/check_recetas_pendientes');
      $.ajax({
            type:'POST',
            dataType:'JSON',
-           url:'/check_recetas_pendientes',
+           url: _url,
            data:{ _token: '{{csrf_token()}}'},
            success:function(data){                   
             if(data.cantidadRecetasPendientes > 0){
@@ -245,6 +281,13 @@
            }
         });    
   }
+
+  // Mantener el badge actualizado incluso en pantallas que no lo invocan explícitamente.
+  window.addEventListener('load', function () {
+    if (document.getElementById("seccion_cantidad_recetas_pendientes") != null) {
+      checkRecetasPendientes();
+    }
+  });
 
 
 </script>

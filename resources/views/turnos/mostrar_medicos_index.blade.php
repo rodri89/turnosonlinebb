@@ -15,7 +15,9 @@
     @if($medico->castigo_automatico == 1)
      <form method="POST" action="{{ route('ingresarpaciente') }}">
           @csrf
-          <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
+          <input type="hidden" name="medico_id" value="{{$medico->id}}"  />
+          <input type="hidden" name="especialidad_id" value="{{ $medico->especialidad }}" />
+          <input type="hidden" name="especialidad_nombre_flujo" value="{{ $medico->e_nombre ?? '' }}" />
           <button class="btn btn-primary-outline img-responsive img_home">
             <img class="card-img-top " src="images/medicos/{{$medico->foto}}" alt="">
           </button>

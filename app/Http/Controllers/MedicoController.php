@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Especialidad;
 use App\Consultorios;
 use App\Videollamada;
@@ -29,10 +30,40 @@ use App\MedicoPaciente;
 use App\MedicoConfig;
 use App\FechasAgregada;
 use App\HorariosMedicosAgregado;
+use App\HorarioMedico;
 use App\Util\Util;
 
 class MedicoController extends Controller
 {
+    /**
+     * Filtra horarios semanales por vigencia (valido_desde / valido_hasta) para la fecha indicada.
+     * Si no existen columnas, no modifica el resultado.
+     */
+    protected function filtrarVigenciaTurnos($turnos, $fechaSolicitada)
+    {
+        if ($turnos === null) {
+            return $turnos;
+        }
+        if (!Schema::hasColumn('horario_medicos', 'valido_desde')) {
+            return $turnos;
+        }
+
+        $fechaNorm = str_replace('/', '-', (string) $fechaSolicitada);
+        $turnosCol = ($turnos instanceof \Illuminate\Support\Collection) ? $turnos : collect($turnos);
+
+        return $turnosCol->filter(function ($t) use ($fechaNorm) {
+            $desde = $t->valido_desde ?? null;
+            $hasta = $t->valido_hasta ?? null;
+
+            if (!empty($desde) && $desde > $fechaNorm) {
+                return false;
+            }
+            if (!empty($hasta) && $hasta < $fechaNorm) {
+                return false;
+            }
+            return true;
+        })->values();
+    }
 
     public function __construct()
     {
@@ -270,6 +301,7 @@ class MedicoController extends Controller
         }
           // Modulo id: 2 | corresponde a Caja | Comentario
         $moduloCajaComentario = $this->moduloActivo($medico->id, 2);
+        $moduloCobroTurnosMp = $this->moduloActivo($medico->id, 12);
 
         return view('turnos_admin_medico/listado_pacientes')
                 ->with('turnosPaciente',$turnosPaciente)
@@ -277,6 +309,7 @@ class MedicoController extends Controller
                 ->with('consultorio',$consultorio)
                 ->with('contador',$contador)
                 ->with('moduloCajaComentario',$moduloCajaComentario)
+                ->with('moduloCobroTurnosMp',$moduloCobroTurnosMp)
                 ->with('dias_deshabilitados',$dias_deshabilitados)
                 ->with('dia',$dia);
     }
@@ -347,7 +380,7 @@ class MedicoController extends Controller
     public function getTurnosPaciente($medico_id, $consultorio, $dia) {
         $turnosPaciente = DB::table('turno_registrados')                                                      
                         ->join('pacientes','pacientes.id','=','turno_registrados.paciente')
-                        ->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno')
+                        ->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno', 'turno_registrados.especialidad', 'turno_registrados.pago', 'turno_registrados.pago_estado', 'turno_registrados.mercadopago_payment_id', 'turno_registrados.mercadopago_preference_id', 'turno_registrados.importe_reserva')
                         ->where('turno_registrados.medico',$medico_id)
                         ->where('turno_registrados.consultorio', $consultorio)
                         ->where('turno_registrados.fechaTurno', $dia)
@@ -361,7 +394,7 @@ class MedicoController extends Controller
             $fecha = str_replace("/", "-", $dia);
             $turnosPacientePeg = DB::table('turno_registrado_videollamadas')                                                      
                         ->join('pacientes','pacientes.id','=','turno_registrado_videollamadas.paciente')
-                        ->select('turno_registrado_videollamadas.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrado_videollamadas.horario', 'turno_registrado_videollamadas.asistio','pacientes.dni','turno_registrado_videollamadas.sobreturno','turno_registrado_videollamadas.primerControl','pacientes.telefono','turno_registrado_videollamadas.pago as caja','turno_registrado_videollamadas.comentario','turno_registrado_videollamadas.medico as tipo_turno')
+                        ->select('turno_registrado_videollamadas.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrado_videollamadas.horario', 'turno_registrado_videollamadas.asistio','pacientes.dni','turno_registrado_videollamadas.sobreturno','turno_registrado_videollamadas.primerControl','pacientes.telefono','turno_registrado_videollamadas.pago as caja','turno_registrado_videollamadas.comentario','turno_registrado_videollamadas.medico as tipo_turno', DB::raw('NULL as especialidad'), DB::raw('0 as pago'), DB::raw('NULL as pago_estado'), DB::raw('NULL as mercadopago_payment_id'), DB::raw('NULL as mercadopago_preference_id'), DB::raw('NULL as importe_reserva'))
                         ->where('turno_registrado_videollamadas.medico',$medico_id)
                         ->where('turno_registrado_videollamadas.consultorio', $consultorio)
                         ->where('turno_registrado_videollamadas.fechaTurno', $fecha)
@@ -722,7 +755,7 @@ class MedicoController extends Controller
         if($tipoEstudio == 0){
             $turnosPaciente = DB::table('turno_registrados')                                                      
                         ->join('pacientes','pacientes.id','=','turno_registrados.paciente')
-                        ->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno')
+                        ->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno', 'turno_registrados.especialidad', 'turno_registrados.pago', 'turno_registrados.pago_estado', 'turno_registrados.mercadopago_payment_id', 'turno_registrados.mercadopago_preference_id', 'turno_registrados.importe_reserva')
                         ->where('turno_registrados.medico',$medico_id)
                         ->where('turno_registrados.consultorio', $consultorio)
                         ->where('turno_registrados.fechaTurno', $nuevaFecha)
@@ -1207,15 +1240,29 @@ class MedicoController extends Controller
         }
     }
 
-        function checkTurnoLibreEspecialMarina($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
+    function checkTurnoLibreEspecialMarina($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
         $turnos = null;                
-        if($fechaSeleccionada >= '2025-07-01') {
+        if($fechaSeleccionada >= '2026-03-01') {
             // mostrar 9.30 10.00 10.30 11.00 11.30
-            if($diaSeleccionado == 2 || $diaSeleccionado == 4) {
+            if($diaSeleccionado == 2) {
                 $turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.horario','!=' ,'09:00')
+                        ->where('horario_medicos.horario','!=' ,'09:30')
+                        ->where('horario_medicos.horario','!=' ,'10:00')
+                        ->where('horario_medicos.horario','!=' ,'10:30')
+                        ->where('horario_medicos.horario','!=' ,'11:00')
+                        ->where('horario_medicos.horario','!=' ,'11:30')
+                        ->where('horario_medicos.horario','!=' ,'12:00')
+                        ->where('horario_medicos.horario','!=' ,'12:30')
+                        ->where('horario_medicos.horario','!=' ,'13:00')
+                        ->where('horario_medicos.horario','!=' ,'13:30')
+                        ->where('horario_medicos.horario','!=' ,'16:10')
+                        ->where('horario_medicos.horario','!=' ,'16:50')                        
+                        ->where('horario_medicos.horario','!=' ,'18:10')
+                        ->where('horario_medicos.horario','!=' ,'18:50')
                         ->where('horario_medicos.activo', 1)                        
                         ->orderby('horario_medicos.horario')
                         ->get();
@@ -1226,27 +1273,15 @@ class MedicoController extends Controller
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)    
-                        ->where('horario_medicos.horario','!=' ,'12:00')                       
-                        ->where('horario_medicos.horario','!=' ,'12:30')                        
-                        ->where('horario_medicos.horario','!=' ,'13:00')
-                        ->where('horario_medicos.horario','!=' ,'13:30')                                        
+                        ->where('horario_medicos.horario','!=' ,'15:00')                       
+                        ->where('horario_medicos.horario','!=' ,'16:00')                        
+                        ->where('horario_medicos.horario','!=' ,'16:30')
+                        ->where('horario_medicos.horario','!=' ,'17:00')                                        
+                        ->where('horario_medicos.horario','!=' ,'18:00')                        
                         ->where('horario_medicos.activo', 1)         
                         ->orderby('horario_medicos.horario')               
                         ->get(); 
-            }
-            if($diaSeleccionado == 4) {
-                $turnos = DB::table('horario_medicos')
-                        ->where('horario_medicos.medico',$medico_id)
-                        ->where('horario_medicos.consultorio', $consultorio_id)
-                        ->where('horario_medicos.dia', $diaSeleccionado)    
-                        ->where('horario_medicos.horario','!=' ,'11:30')                       
-                        ->where('horario_medicos.horario','!=' ,'12:00')
-                        ->where('horario_medicos.horario','!=' ,'12:30')                                                
-                        ->where('horario_medicos.horario','!=' ,'13:30')                                        
-                        ->where('horario_medicos.activo', 1)         
-                        ->orderby('horario_medicos.horario')               
-                        ->get(); 
-            }                 
+            }                           
         }        
 
         if($turnos != null)
@@ -1859,6 +1894,36 @@ class MedicoController extends Controller
         }
     }
 
+    function checkTurnoLibreEspecialMonica($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
+        $turnos = null;                
+        if($fechaSeleccionada >= '2026-04-01') {
+            
+            if($diaSeleccionado == 3) {
+                $turnos = DB::table('horario_medicos')
+                        ->where('horario_medicos.medico',$medico_id)
+                        ->where('horario_medicos.consultorio', $consultorio_id)
+                        ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.horario','==' ,'99:00')                        
+                        ->where('horario_medicos.activo', 1)                        
+                        ->orderby('horario_medicos.horario')
+                        ->get();
+            }            
+        }                          
+            
+        if($turnos != null)
+            return $turnos;
+        else {
+            $turnos = DB::table('horario_medicos')
+                        ->where('horario_medicos.medico',$medico_id)
+                        ->where('horario_medicos.consultorio', $consultorio_id)
+                        ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.activo', 1)                        
+                        ->orderby('horario_medicos.horario')
+                        ->get();
+            return $turnos;
+        } 
+    }
+
     function checkTurnoLibreEspecialNataliaFerrari($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
         $turnos = null;                
         if($fechaSeleccionada >= '2025-09-01') {
@@ -1973,7 +2038,7 @@ class MedicoController extends Controller
 //$nombreAbreviado = 0 retorno apellido, nombre 
     //$nombreAbreviado = 1 retorno apellido, n                                 // 2021/06/07
     public function createJson($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $nombreAbreviado){
-        if($medico_id == 1 || $medico_id == 2 || $medico_id == 5 || $medico_id == 8 || $medico_id == 11 || $medico_id == 13 || $medico_id == 12 || $medico_id == 14 || $medico_id == 15 || $medico_id == 18 || $medico_id == 19 || $medico_id == 23 || $medico_id == 24 || $medico_id == 26 || $medico_id == 31) {
+        if($medico_id == 1 || $medico_id == 2 || $medico_id == 5 || $medico_id == 8 || $medico_id == 11 || $medico_id == 13 || $medico_id == 12 || $medico_id == 14 || $medico_id == 15 || $medico_id == 18 || $medico_id == 19 || $medico_id == 23 || $medico_id == 24 || $medico_id == 26 || $medico_id == 31 || $medico_id == 38) {
             $fechaSolicitada = str_replace('/','-', $fechaSolicitada);
             if($medico_id == 1)
                 $turnos = $this->checkTurnoLibreEspecialFlor($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
@@ -2005,16 +2070,21 @@ class MedicoController extends Controller
                 $turnos = $this->checkTurnoLibreEspecialSole($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
             if($medico_id == 31)
                 $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
+            if($medico_id == 38)
+                $turnos = $this->checkTurnoLibreEspecialMonica($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
             
         } else {
-            $turnos = DB::table('horario_medicos')
+            $query = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)
-                        ->where('horario_medicos.activo', 1)                        
-                        ->orderby('horario_medicos.horario')
-                        ->get();
+                        ->where('horario_medicos.activo', 1);
+            $query = HorarioMedico::aplicarVigenciaQuery($query, $fechaSolicitada);
+            $turnos = $query->orderby('horario_medicos.horario')->get();
         }
+
+        // Asegura que también se respeten válido_desde / válido_hasta en la rama especial.
+        $turnos = $this->filtrarVigenciaTurnos($turnos, $fechaSolicitada);
 
         // nuevo agregar fecha
         $fechaId = $this->checkFechaAgregada($medico_id, $consultorio_id, $fechaSolicitada);
@@ -2119,6 +2189,9 @@ class MedicoController extends Controller
                         ->where('horario_medicos.activo', 1)
                         ->orderBy('horario_medicos.horario', 'asc')                                            
                         ->get();
+
+        // Vigencia por fecha para los turnos semanales.
+        $turnos = $this->filtrarVigenciaTurnos($turnos, $fechaSolicitada);
 
         $turnosRegistrados = DB::table('turno_registrados')
                         ->join('pacientes','pacientes.id','=','turno_registrados.paciente')
@@ -2238,7 +2311,7 @@ class MedicoController extends Controller
                         ->where('turno_registrado_videollamadas.activo', 1)                        
                         ->get();
         } else {
-            if($medico->id == 1 || $medico->id == 6 || $medico->id == 8 || $medico->id == 11 || $medico->id == 13 || $medico->id == 12 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 23 || $medico->id == 31){
+            if($medico->id == 1 || $medico->id == 6 || $medico->id == 8 || $medico->id == 11 || $medico->id == 13 || $medico->id == 12 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 23 || $medico->id == 31 || $medico->id == 38){
                 if($medico->id == 1)
                     $turnos = $this->checkTurnoLibreEspecialFlor($medico->id, $consultorio->id, $diaSeleccionado, $fecha);     
                 if($medico->id == 6)
@@ -2261,6 +2334,8 @@ class MedicoController extends Controller
                     $turnos = $this->checkTurnoLibreEspecialFonseca($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
                 if($medico->id == 31)
                     $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
+                if($medico->id == 38)
+                    $turnos = $this->checkTurnoLibreEspecialMonica($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
             } else {
                 $turnos = DB::table('horario_medicos')
                             ->where('horario_medicos.medico',$medico->id)
@@ -2489,6 +2564,9 @@ class MedicoController extends Controller
             if($paciente_get == null) {                    
                 $paciente = new Paciente;
                 $paciente->fcm_token = '';
+                $paciente->google_calendar_access_token = '';
+                $paciente->google_calendar_refresh_token = '';
+                $paciente->google_calendar_token_expires_at = '';
             } else {
                 $paciente = Paciente::find($paciente_get->id);
             }
@@ -2623,7 +2701,9 @@ class MedicoController extends Controller
         $turnoRegistrado->otorgado_por = $usuario_actual->email;
         $turnoRegistrado->msj_enviado = 0;
         $turnoRegistrado->comentario = '';
+        $turnoRegistrado->especialidad = '';
         $turnoRegistrado->activo = 1;
+        $turnoRegistrado->google_calendar_event_id = '';
         $turnoRegistrado->save();
 
         $this->vincularMedicoPaciente($medico_id, $paciente_id);
@@ -4071,15 +4151,27 @@ class MedicoController extends Controller
     }
 
     public function getMedico(){
-        $usuario_actual=\Auth::user();        
-        $medico = DB::table('medicos')                                                                
-                ->where('medicos.user_id',$usuario_actual->id)                                                      
-                ->first();
-        return $medico;
+        $usuario_actual = \Auth::user();
+        if ($usuario_actual->usuario_tipo == 3) {
+            $medicoId = (int) session('secretaria_context_medico_id', 0);
+            if ($medicoId && SecretariaController::puedeGestionarMedicoPorId($usuario_actual, $medicoId)) {
+                return DB::table('medicos')->where('id', $medicoId)->first();
+            }
+            return null;
+        }
+        return DB::table('medicos')
+            ->where('medicos.user_id', $usuario_actual->id)
+            ->first();
     }
 
     public function configuracion(){
         $medico = $this->getMedico();
+        if (!$medico) {
+            if (\Auth::user()->usuario_tipo == 3) {
+                return redirect()->route('secretaria_home');
+            }
+            return redirect()->route('medicohome');
+        }
         $medico_id = $medico->id;        
         $videollamada = 0;
         $dias = DB::table('medico_primer_controls')                                                                
@@ -4244,6 +4336,8 @@ class MedicoController extends Controller
         $afiliadoObligatorioCheck = $request->afiliadoObligatorio; // modulo 8
         $ventanaDiasCheck = $request->ventanaDias; // modulo 9
         $extraTurnoCheck = $request->extraTurno; // modulo 10
+        $mostrarDosCheck = $request->input('mostrarDos', 0);
+        $cobroTurnosMpCheck = $request->input('cobroTurnosMp', 0);
      
         $moduloActivarPacienteExiste = $this->moduloExiste($medico_id, 1);
         if($activarPacienteCheck == 1){    
@@ -4340,7 +4434,25 @@ class MedicoController extends Controller
                 $this->eliminarModulo($moduloExtraTurno[0]->id);
         }
 
-        return response()->json(array('response'=>11));    
+        $moduloMostrarDos = $this->moduloExiste($medico_id, 11);
+        if((int)$mostrarDosCheck == 1){    
+            if($moduloMostrarDos->count()==0)
+                $this->agregarModulo($medico_id, 11);
+        } else {
+            if($moduloMostrarDos->count()>0)
+                $this->eliminarModulo($moduloMostrarDos[0]->id);
+        }
+
+        $moduloCobroTurnosMp = $this->moduloExiste($medico_id, 12);
+        if((int)$cobroTurnosMpCheck == 1){
+            if($moduloCobroTurnosMp->count()==0)
+                $this->agregarModulo($medico_id, 12);
+        } else {
+            if($moduloCobroTurnosMp->count()>0)
+                $this->eliminarModulo($moduloCobroTurnosMp[0]->id);
+        }
+
+        return response()->json(array('response'=>11));
     }
 
     public function crearVideollamada($medico_id, $consultorio_id){
@@ -4933,16 +5045,349 @@ class MedicoController extends Controller
 
 // NUEVO FECHAS AGREGADAS
 
+     /**
+      * POST desde menú médico: Admin Horarios (misma pantalla que adminhorariosm).
+      */
+     public function medicoAdminHorarios(Request $request)
+     {
+         return redirect()->route('adminhorariosm');
+     }
+
+     /**
+      * POST desde menú médico: Admin Horarios Fijos.
+      */
+     public function medicoAdminHorariosFijos(Request $request)
+     {
+         return redirect()->route('adminhorariosfijosm');
+     }
+
+     /**
+      * Pantalla Admin Horarios Fijos para el médico logueado.
+      * Carga horarios desde horario_medicos (semana fija: lun-dom).
+      */
+     public function adminHorariosFijos()
+     {
+         $medico = $this->getMedico();
+         if (!$medico) {
+             return redirect()->back()->with('error', 'No se encontró el médico asociado al usuario.');
+         }
+         $consultorio_id = $medico->consultorio;
+         $consultorio = DB::table('consultorios')->where('id', $consultorio_id)->first();
+         $horariosRaw = DB::table('horario_medicos')
+             ->where('horario_medicos.medico', $medico->id)
+             ->where('horario_medicos.consultorio', $consultorio_id)
+             ->where('horario_medicos.activo', 1)
+             ->orderBy('horario_medicos.dia')
+             ->orderBy('horario_medicos.horario')
+             ->get();
+         $horariosPorDia = [];
+         foreach ([1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado', 7 => 'Domingo'] as $num => $nombre) {
+             $horariosPorDia[$num] = [
+                 'nombre' => $nombre,
+                 'horarios' => $horariosRaw->where('dia', $num)->values()->all(),
+             ];
+         }
+         $slotsDisponibles = [];
+         for ($h = 8; $h <= 19; $h++) {
+             $slotsDisponibles[] = sprintf('%02d:00', $h);
+             if ($h < 19) {
+                 $slotsDisponibles[] = sprintf('%02d:30', $h);
+             }
+         }
+         $tieneVigencia = Schema::hasColumn('horario_medicos', 'valido_desde');
+         return view('turnos_admin_medico.admin_horarios_fijos')
+             ->with('medico', $medico)
+             ->with('consultorio', $consultorio)
+             ->with('horariosPorDia', $horariosPorDia)
+             ->with('slotsDisponibles', $slotsDisponibles)
+             ->with('tieneVigencia', $tieneVigencia);
+     }
+
+     /**
+      * Guardar un nuevo horario fijo (dia + horario). Opcional: valido_desde, valido_hasta (YYYY-MM-DD).
+      */
+     public function guardarHorarioFijo(Request $request)
+     {
+         $medico = $this->getMedico();
+         if (!$medico) {
+             return response()->json(['ok' => false, 'mensaje' => 'No se encontró el médico.'], 403);
+         }
+         $dia = (int) $request->input('dia');
+         $horario = $request->input('horario');
+         if ($dia < 1 || $dia > 7 || !preg_match('/^\d{2}:\d{2}$/', $horario)) {
+             return response()->json(['ok' => false, 'mensaje' => 'Datos inválidos.'], 422);
+         }
+         $consultorio_id = $medico->consultorio;
+         $existe = DB::table('horario_medicos')
+             ->where('medico', $medico->id)
+             ->where('consultorio', $consultorio_id)
+             ->where('dia', $dia)
+             ->where('horario', $horario)
+             ->where('activo', 1)
+             ->exists();
+         if ($existe) {
+             return response()->json(['ok' => false, 'mensaje' => 'Ese horario ya está cargado para ese día.'], 422);
+         }
+         $reg = new HorarioMedico();
+         $reg->medico = $medico->id;
+         $reg->consultorio = $consultorio_id;
+         $reg->dia = $dia;
+         $reg->horario = $horario;
+         $reg->doble = 0;
+         $reg->activo = 1;
+         if (Schema::hasColumn('horario_medicos', 'tipo_turno')) {
+             $reg->tipo_turno = 1;
+         }
+         if (Schema::hasColumn('horario_medicos', 'valido_desde')) {
+             $reg->valido_desde = $this->parseFechaVigencia($request->input('valido_desde'));
+             $reg->valido_hasta = $this->parseFechaVigencia($request->input('valido_hasta'));
+         }
+         $reg->save();
+         $resp = ['ok' => true, 'id' => $reg->id, 'horario' => $horario];
+         if (Schema::hasColumn('horario_medicos', 'valido_desde')) {
+             $resp['valido_desde'] = $reg->valido_desde ? $reg->valido_desde : null;
+             $resp['valido_hasta'] = $reg->valido_hasta ? $reg->valido_hasta : null;
+         }
+         return response()->json($resp);
+     }
+
+     /**
+      * Actualizar vigencia de un horario fijo (válido desde / válido hasta).
+      */
+     public function actualizarVigenciaHorarioFijo(Request $request)
+     {
+         $medico = $this->getMedico();
+         if (!$medico) {
+             return response()->json(['ok' => false, 'mensaje' => 'No se encontró el médico.'], 403);
+         }
+         if (!Schema::hasColumn('horario_medicos', 'valido_desde')) {
+             return response()->json(['ok' => false, 'mensaje' => 'No disponible.'], 422);
+         }
+         $id = (int) $request->input('id');
+         $reg = DB::table('horario_medicos')
+             ->where('id', $id)
+             ->where('medico', $medico->id)
+             ->where('consultorio', $medico->consultorio)
+             ->where('activo', 1)
+             ->first();
+         if (!$reg) {
+             return response()->json(['ok' => false, 'mensaje' => 'Horario no encontrado.'], 404);
+         }
+         $upd = [];
+         if ($request->has('valido_desde')) {
+             $upd['valido_desde'] = $this->parseFechaVigencia($request->input('valido_desde'));
+         }
+         if ($request->has('valido_hasta')) {
+             $upd['valido_hasta'] = $this->parseFechaVigencia($request->input('valido_hasta'));
+         }
+         if (empty($upd)) {
+             return response()->json(['ok' => false, 'mensaje' => 'Indicá al menos una fecha.'], 422);
+         }
+         DB::table('horario_medicos')->where('id', $id)->update($upd);
+         return response()->json(['ok' => true, 'valido_desde' => $upd['valido_desde'] ?? $reg->valido_desde, 'valido_hasta' => $upd['valido_hasta'] ?? $reg->valido_hasta]);
+     }
+
+     private function parseFechaVigencia($value)
+     {
+         if ($value === null || $value === '') {
+             return null;
+         }
+         $value = trim($value);
+         if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value)) {
+             return $value;
+         }
+         if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $value, $m)) {
+             return $m[3] . '-' . str_pad($m[2], 2, '0', STR_PAD_LEFT) . '-' . str_pad($m[1], 2, '0', STR_PAD_LEFT);
+         }
+         return null;
+     }
+
+     /**
+      * Eliminar (desactivar) un horario fijo.
+      */
+     public function eliminarHorarioFijo(Request $request)
+     {
+         $medico = $this->getMedico();
+         if (!$medico) {
+             return response()->json(['ok' => false, 'mensaje' => 'No se encontró el médico.'], 403);
+         }
+         $id = (int) $request->input('id');
+         $reg = DB::table('horario_medicos')
+             ->where('id', $id)
+             ->where('medico', $medico->id)
+             ->where('consultorio', $medico->consultorio)
+             ->where('activo', 1)
+             ->first();
+         if (!$reg) {
+             return response()->json(['ok' => false, 'mensaje' => 'Horario no encontrado.'], 404);
+         }
+         DB::table('horario_medicos')->where('id', $id)->update(['activo' => 0]);
+         return response()->json(['ok' => true]);
+     }
+
+     /**
+      * POST desde menú médico: Config Mensajes.
+      */
+     public function medicoAdminConfigMensajes(Request $request)
+     {
+         return redirect()->route('medicoconfigmensajes');
+     }
+
+     /**
+      * Pantalla: avisos / mensajes especiales del médico (tabla medico_mensajes_especiales).
+      */
+     public function adminMensajesEspeciales(Request $request)
+     {
+         $medico = $this->getMedico();
+         if (!$medico) {
+             return redirect()->back()->with('error', 'No se encontró el médico asociado al usuario.');
+         }
+         if (!Schema::hasTable('medico_mensajes_especiales')) {
+             return view('turnos_admin_medico.admin_mensajes_especiales')
+                 ->with('medico', $medico)
+                 ->with('mensajes', collect())
+                 ->with('mensajeEdit', null)
+                 ->with('tablaInexistente', true);
+         }
+         $mensajes = DB::table('medico_mensajes_especiales')
+             ->where('medico_id', $medico->id)
+             ->orderByDesc('activo')
+             ->orderByDesc('id')
+             ->get();
+         $mensajeEdit = null;
+         $editId = (int) $request->query('edit', 0);
+         if ($editId > 0) {
+             $mensajeEdit = $mensajes->firstWhere('id', $editId);
+         }
+         return view('turnos_admin_medico.admin_mensajes_especiales')
+             ->with('medico', $medico)
+             ->with('mensajes', $mensajes)
+             ->with('mensajeEdit', $mensajeEdit)
+             ->with('tablaInexistente', false);
+     }
+
+     public function guardarMensajeEspecial(Request $request)
+     {
+         $medico = $this->getMedico();
+         if (!$medico) {
+             return redirect()->back()->with('error', 'No se encontró el médico.');
+         }
+         if (!Schema::hasTable('medico_mensajes_especiales')) {
+             return redirect()->back()->with('error', 'La tabla de mensajes no existe. Ejecutá las migraciones.');
+         }
+         $request->validate([
+             'titulo' => 'required|string|max:255',
+             'descripcion' => 'required|string',
+             'valido_desde' => 'nullable|string',
+             'valido_hasta' => 'nullable|string',
+         ]);
+         $desde = $this->parseFechaVigencia($request->input('valido_desde'));
+         $hasta = $this->parseFechaVigencia($request->input('valido_hasta'));
+         if ($desde !== null && $hasta !== null && $hasta < $desde) {
+             return redirect()->route('medicoconfigmensajes')->with('error', 'La fecha "válido hasta" no puede ser anterior a "válido desde".');
+         }
+         DB::table('medico_mensajes_especiales')->insert([
+             'medico_id' => $medico->id,
+             'titulo' => $request->titulo,
+             'descripcion' => $request->descripcion,
+             'valido_desde' => $desde,
+             'valido_hasta' => $hasta,
+             'activo' => 1,
+             'created_at' => now(),
+             'updated_at' => now(),
+         ]);
+         return redirect()->route('medicoconfigmensajes')->with('success', 'Mensaje creado.');
+     }
+
+     public function actualizarMensajeEspecial(Request $request)
+     {
+         $medico = $this->getMedico();
+         if (!$medico) {
+             return redirect()->back()->with('error', 'No se encontró el médico.');
+         }
+         if (!Schema::hasTable('medico_mensajes_especiales')) {
+             return redirect()->back()->with('error', 'La tabla de mensajes no existe.');
+         }
+         $request->validate([
+             'id' => 'required|integer',
+             'titulo' => 'required|string|max:255',
+             'descripcion' => 'required|string',
+             'valido_desde' => 'nullable|string',
+             'valido_hasta' => 'nullable|string',
+         ]);
+         $id = (int) $request->input('id');
+         $row = DB::table('medico_mensajes_especiales')
+             ->where('id', $id)
+             ->where('medico_id', $medico->id)
+             ->first();
+         if (!$row) {
+             return redirect()->route('medicoconfigmensajes')->with('error', 'Mensaje no encontrado.');
+         }
+         $desde = $this->parseFechaVigencia($request->input('valido_desde'));
+         $hasta = $this->parseFechaVigencia($request->input('valido_hasta'));
+         if ($desde !== null && $hasta !== null && $hasta < $desde) {
+             return redirect()->route('medicoconfigmensajes', ['edit' => $id])->with('error', 'La fecha "válido hasta" no puede ser anterior a "válido desde".');
+         }
+         $activo = ($request->input('activo') == 1 || $request->input('activo') === '1') ? 1 : 0;
+         DB::table('medico_mensajes_especiales')->where('id', $id)->update([
+             'titulo' => $request->titulo,
+             'descripcion' => $request->descripcion,
+             'valido_desde' => $desde,
+             'valido_hasta' => $hasta,
+             'activo' => $activo,
+             'updated_at' => now(),
+         ]);
+         return redirect()->route('medicoconfigmensajes')->with('success', 'Mensaje actualizado.');
+     }
+
+     public function toggleActivoMensajeEspecial(Request $request)
+     {
+         $medico = $this->getMedico();
+         if (!$medico) {
+             return redirect()->back()->with('error', 'No se encontró el médico.');
+         }
+         if (!Schema::hasTable('medico_mensajes_especiales')) {
+             return redirect()->back()->with('error', 'La tabla de mensajes no existe.');
+         }
+         $request->validate([
+             'id' => 'required|integer',
+             'activo' => 'required|in:0,1',
+         ]);
+         $id = (int) $request->input('id');
+         $activo = (int) $request->input('activo');
+         $row = DB::table('medico_mensajes_especiales')
+             ->where('id', $id)
+             ->where('medico_id', $medico->id)
+             ->first();
+         if (!$row) {
+             return redirect()->route('medicoconfigmensajes')->with('error', 'Mensaje no encontrado.');
+         }
+         DB::table('medico_mensajes_especiales')->where('id', $id)->update(['activo' => $activo, 'updated_at' => now()]);
+         return redirect()->route('medicoconfigmensajes')->with('success', $activo ? 'Mensaje activado.' : 'Mensaje desactivado.');
+     }
+
      function adminHorarios(){
-        //$medicos = $this->getMedico();
-    
-        $especialistas = DB::table('medicos')                                                
-                        ->where('medicos.perfil', '!=',0)
-                        ->where('medicos.activo', 1)                        
-                        ->get();
+        $soloMedicoLogueado = request()->route()->getName() === 'adminhorariosm';
+
+        if ($soloMedicoLogueado) {
+            $medico = $this->getMedico();
+            if (!$medico) {
+                return redirect()->back()->with('error', 'No se encontró el médico asociado al usuario.');
+            }
+            $especialistas = collect([$medico]);
+            return view('turnos_admin_medico.admin_horarios')
+                ->with('especialistas', $especialistas)
+                ->with('solo_medico_logueado', true);
+        }
+
+        $especialistas = DB::table('medicos')
+            ->where('medicos.perfil', '!=', 0)
+            ->where('medicos.activo', 1)
+            ->get();
 
         return view('turnos_admin.admin_horarios')
-                    ->with('especialistas',$especialistas);
+            ->with('especialistas', $especialistas)
+            ->with('solo_medico_logueado', false);
     }
 
     function existeFechaAgregada($fecha, $medico, $consultorio) {

@@ -18,9 +18,10 @@ class AppServiceProvider extends ServiceProvider
             return new \App\Services\OneSignalService();
         });
         
-        $this->app->singleton('firebase', function() {
-            return new \App\Services\FirebaseMessagingService();
-        });
+        // COMENTADO: Servicio Firebase FCM - Removido porque no funciona en iOS
+        // $this->app->singleton('firebase', function() {
+        //     return new \App\Services\FirebaseMessagingService();
+        // });
         
         $this->app->singleton('google-calendar', function() {
             return new \App\Services\GoogleCalendarService();

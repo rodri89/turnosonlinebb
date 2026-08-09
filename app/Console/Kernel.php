@@ -14,7 +14,8 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         //        
-        Commands\recordatorioMail::class
+        Commands\recordatorioMail::class,
+        Commands\ReconcileMercadoPagoPayments::class,
     ];
 
     /**
@@ -29,6 +30,8 @@ class Kernel extends ConsoleKernel
          //         ->hourly();
         //$schedule->command('registered:users')->dailyAt('18:00');
         $schedule->command('registered:users')->everyMinute();
+        $schedule->job(new \App\Jobs\RefreshMercadoPagoOAuthTokensJob())->daily();
+        $schedule->command('payments:reconcile-mercadopago')->everyFifteenMinutes();
     }
 
     /**

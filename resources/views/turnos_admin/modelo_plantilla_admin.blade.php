@@ -13,10 +13,10 @@
   <link rel="shortcut icon" type="image/x-icon" href="/images/iconos/turnosonlinebb_icon.png" />
 
   <!-- Bootstrap core CSS -->
-  <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
 
   <!-- Custom styles for this template -->
-  <link href="css/business-frontpage.css" rel="stylesheet">
+  <link href="{{ asset('css/business-frontpage.css') }}" rel="stylesheet">
   @include('layouts.rodri_style_css')
 
   <!-- Google Add Sense -->
@@ -68,6 +68,9 @@
           </li>
           <li class="nav-item">
             <a class="nav-link text-white" href="/admin_extras">Extras</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link text-white" href="{{ route('admin.mercadopago.settings') }}">Mercado Pago</a>
           </li>
           <li class="nav-item">
             <a class="nav-link text-white" href="{{ route('register') }}">Registrar Usuario</a>
@@ -135,8 +138,8 @@
   </footer>
 
   <!-- Bootstrap core JavaScript -->
-  <script src="vendor/jquery/jquery.min.js"></script>
-  <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ asset('vendor/jquery/jquery.min.js') }}"></script>
+  <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 
 </body>
 

@@ -11,10 +11,10 @@
   <title>@yield('title','Turnos Online')</title>
   
   <!-- Bootstrap core CSS -->
-  <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
 
   <!-- Custom styles for this template -->
-  <link href="css/business-frontpage.css" rel="stylesheet">
+  <link href="{{ asset('css/business-frontpage.css') }}" rel="stylesheet">
 
   @include('layouts.rodri_style_css')
   <!-- Para mediaquery debo agregar estos dos. Mediaquery es para que se ve bien en el telefono -->
@@ -42,6 +42,53 @@
       flex-shrink: 0;
     }
   </style>
+
+  {{-- Estilos dinámicos del consultorio (si existe config) --}}
+  @if(isset($consultorio) && $consultorio && !empty($consultorio->config))
+  @php
+    $rawConfig = $consultorio->config;
+    // Si es string (viene de DB::table), decodificar; si ya es array (vía Eloquent accessor), usarlo directo
+    $cfg = is_string($rawConfig) ? json_decode($rawConfig, true) : $rawConfig;
+    $colorPrimario   = $cfg['color_primario'] ?? '#1a5276';
+    $colorSecundario = $cfg['color_secundario'] ?? '#2e86c1';
+    $colorTerciario  = $cfg['color_terciario'] ?? '#85c1e9';
+    $tituloColor     = $cfg['titulo_color'] ?? '#ffffff';
+    $subtituloColor  = $cfg['subtitulo_color'] ?? '#d4e6f1';
+    $tipoLetra       = $cfg['titulo_tipo_letra'] ?? 'Arial, sans-serif';
+  @endphp
+  <style>
+    :root {
+      --color-primario: {{ $colorPrimario }};
+      --color-secundario: {{ $colorSecundario }};
+      --color-terciario: {{ $colorTerciario }};
+      --titulo-color: {{ $tituloColor }};
+      --subtitulo-color: {{ $subtituloColor }};
+      --titulo-tipo-letra: {{ $tipoLetra }};
+    }
+    .fondoNav,
+    .bg-dark.footerBackground,
+    footer.py-5.bg-dark {
+      background: var(--color-primario) !important;
+    }
+    .fondoHeader {
+      background: var(--color-secundario) !important;
+    }
+    .fontColorHeader {
+      color: var(--titulo-color) !important;
+    }
+    .fontHomeTitulo {
+      color: var(--titulo-color) !important;
+    }
+    .fontNav {
+      font-family: var(--titulo-tipo-letra) !important;
+    }
+  </style>
+  @endif
+
+  {{-- jQuery y Bootstrap una sola vez (en el <head>) para que plugins como bootstrap-datepicker
+      cargados en las vistas no se pierdan al volver a incluir jQuery al final del <body>. --}}
+  <script src="{{ asset('vendor/jquery/jquery.min.js') }}"></script>
+  <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 </head>
 
 <body>
@@ -49,8 +96,9 @@
   <!-- Navigation -->
    <nav class="navbar navbar-expand-lg fontNav fixed-top fondoNav">
     <div class="container">
-      <a class="textheader navbar-brand text-white" href="homes">Turnos Online</a>
-      <button class="navbar-toggler ml-auto buttonMenuSizeMarco" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <a class="textheader navbar-brand text-white" href="{{ url('/homes') }}">Turnos Online</a>
+      <button class="navbar-toggler ml-auto" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarSupportedContent">
         <ul class="navbar-nav ml-auto fondoNavMenu">
@@ -70,7 +118,7 @@
           </li>
           @if(Auth::user() == null)
           <li class="nav-item">
-            <a href="/login" class="text-white menuAlineacion visibleLoginCel">Login</a>
+            <a href="/login" class="text-white nav-link ">Login</a>
           </li>
           @endif
           <!--<li class="nav-item">
@@ -93,7 +141,7 @@
                 </a>
                 @endif
                 @if(Auth::user()->usuario_tipo==3)
-                <a class="dropdown-item" href="secretaria_home">
+                <a class="dropdown-item" href="{{ url('/secretaria_home') }}">
                   {{ __('Mi Panel') }}
                 </a>
                 @endif
@@ -113,20 +161,30 @@
         </ul>        
       </div>  
     </div>
-    @if(Auth::user() == null)
-    <a href="/login" class="text-white textheaderLogin hiddenLoginCel">Login</a>
-    @endif
+    
   </nav>  
   
   <div class="main-content">
     <!-- Header -->  
     <header class="fondoHeader py-5 mb-5 sizeHeader">  
-      <div class="container h-100">
-        <div class="row h-100 align-items-center">
+      <div class="container">
+        <div class="row align-items-center">
           <div class="col-lg-12">
-            <h4 class="display-4 mt-5 mb-2 fontColorHeader">@yield('titulo_header','Turnos Online')</h4>
-             <p class="lead mb-2 fontColorHeader">@yield('descripcion_header','')</p>          
-              @yield('headerContainer')      
+            <div class="d-flex flex-column flex-lg-row align-items-center">
+              @if(isset($consultorio) && $consultorio && !empty($consultorio->foto) && $consultorio->foto != 'consultorio_sin_foto.png')
+                <div class="mb-3 mb-lg-0 mr-lg-4 flex-shrink-0">
+                  <img src="{{ asset('images/consultorios/' . $consultorio->foto) }}" 
+                       alt="Logo {{ $consultorio->nombre }}" 
+                       style="max-width: 100px; max-height: 100px;">
+                </div>
+              @endif
+              <div class="text-center text-lg-left">
+                <br>              
+                <h4 class="display-4 mt-5 mb-2 fontColorHeader">@yield('titulo_header','Turnos Online')</h4>
+                <p class="lead mb-2 fontColorHeader">@yield('descripcion_header','')</p>          
+                @yield('headerContainer')
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -156,16 +214,18 @@
 @yield('contenedorFooter')
     <div class="container">
       <p class="m-0 text-center text-white createdby ">Created by &copy; Rodrigo Banegas</p>
-      <p class="text-center"><a data-target=".bd-example-modal-xl" data-toggle="modal" class="letrasblancas" id="MainNavHelp" 
-       href="#modalAyuda"><u>Términos y Condiciones</u></a></p>
+      <p class="text-center">
+        <a data-target=".bd-example-modal-xl" data-toggle="modal" class="letrasblancas" id="MainNavHelp" 
+         href="#modalAyuda"><u>Términos y Condiciones</u></a>
+        <span class="text-white mx-2">|</span>
+        <a href="{{ url('/politica-privacidad') }}" class="letrasblancas"><u>Política de Privacidad</u></a>
+        <span class="text-white mx-2">|</span>
+        <a href="{{ url('/condiciones-servicio') }}" class="letrasblancas"><u>Condiciones del Servicio</u></a>
+      </p>
       <!--<button type="button" class="sinBackgroundAzul editText text-center" data-toggle="modal" data-target=".bd-example-modal-xl">Términos y Condiciones </button>-->
     </div>
     <!-- /.container -->
   </footer>
-
-  <!-- Bootstrap core JavaScript -->
-  <script src="vendor/jquery/jquery.min.js"></script>
-  <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 
 </body>
 

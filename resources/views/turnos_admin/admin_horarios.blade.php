@@ -29,10 +29,10 @@
     <div class="row">
         <div class="col-md-4">
             <br>
-            <label>Seleccionar especialista</label>            
-            <select class="form-control margin_top_menos_5px" id="select_especialista" name="select_especialista" onchange="actualizarListado()">
+            <label>Seleccionar especialista</label>
+            <select class="form-control margin_top_menos_5px" id="select_especialista" name="select_especialista" onchange="actualizarListado()" @if(!empty($solo_medico_logueado)) disabled @endif>
                 @foreach($especialistas as $especialista)
-                    <option value="{{$especialista->id}}">{{$especialista->apellido.', '.$especialista->nombre}}</option>                
+                    <option value="{{$especialista->id}}" @if(!empty($solo_medico_logueado)) selected @endif>{{$especialista->apellido.', '.$especialista->nombre}}</option>
                 @endforeach
             </select>
 
@@ -221,9 +221,11 @@
            dataType:'JSON',
            url:'/registrar_nuevo_horario',
            data:{medico_id: medico_id, fecha :fecha, horario:horario, _token: '{{csrf_token()}}'},
-           success:function(data){              
-              actualizarTabla(data);  
-              // mostrarSnackbar("Nuevo horario agregado");
+           success:function(data){
+              actualizarTabla(data);
+              if (data.listadoHorarios && data.listadoHorarios.length) {
+                actualizarTablaHorarios(data);
+              }
            }
         });
     }

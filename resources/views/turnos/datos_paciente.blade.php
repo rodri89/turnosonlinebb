@@ -80,9 +80,10 @@
 <div class="row">
       <div class="col-md-6">
               
-        <form method="POST" action="{{ route('altapaciente') }}" enctype="multipart/form-data">
+        <form id="formAltaPaciente" method="POST" action="{{ route('altapaciente') }}" enctype="multipart/form-data" onsubmit="return prepararEnvioPaciente(this)">
           @csrf
           <input type="hidden" id="especialidad_id" name="especialidad_id" value="{{$especialidad_id}}"  />
+          <input type="hidden" name="especialidad_nombre_flujo" value="{{ $especialidad_nombre_flujo ?? '' }}" />
           <input type="hidden" id="consultorio" name="consultorio" value="{{$medico->consultorio}}"  />
           <input type="hidden" id="consultorio_telefono" name="consultorio_telefono" value="{{$consultorio->telefono}}"  />
           <input type="hidden" id="medico_id" name="medico_id" value="{{$medico->id}}"  />          
@@ -283,6 +284,15 @@
 </div>
 
 <script type="text/javascript">  
+
+  function prepararEnvioPaciente(form) {
+    var btn = document.getElementById('btnContinuar');
+    if (btn && !btn.hidden) {
+      btn.disabled = true;
+      btn.textContent = 'Procesando...';
+    }
+    return true;
+  }
 
   $.ajaxSetup({
     headers: {

@@ -34,13 +34,24 @@
 @endif
 @section('contenedor')
 
-<head>        
-    <!-- Optional theme -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
-    <!-- Latest compiled and minified JavaScript -->
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
-    <!-- Jquery -->
-    <script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
+@if(!empty($modoPruebaMedico))
+<div class="alert alert-warning border-warning mb-4" role="alert">
+    @if(!empty($modoPruebaCompartida))
+    <strong>Reserva de prueba con pago.</strong>
+    Dr/a. {{ $medico->apellido }}, {{ $medico->nombre }} — paciente <strong>{{ $paciente->apellido }}, {{ $paciente->nombre }}</strong> (DNI {{ $paciente->dni }}).
+    Elegí fecha y horario, confirmá y completá el pago con tu cuenta de Mercado Pago.
+    @else
+    <strong>Modo prueba — vista del paciente.</strong>
+    Estás viendo la misma pantalla que verá quien reserve un turno presencial con pago online.
+    Paciente: <strong>{{ $paciente->apellido }}, {{ $paciente->nombre }}</strong> (DNI {{ $paciente->dni }}).
+    <a class="alert-link ml-1" href="{{ session('mp_prueba_volver_url', url('/medico_config_pagos')) }}">Volver a Pagos / Mercado Pago</a>
+    @endif
+</div>
+@endif
+
+<head>
+    {{-- jQuery/Bootstrap: ya cargados en turnos/modelo_plantilla (head). No volver a cargar jQuery aquí:
+        si se hace, se pierde bootstrap-datepicker ($.fn.datepicker). --}}
     <!-- Datepicker Files -->
     <link rel="stylesheet" href="{{asset('datePicker/css/bootstrap-datepicker3.css')}}">
     <link rel="stylesheet" href="{{asset('datePicker/css/bootstrap-datepicker.standalone.css')}}">
@@ -133,7 +144,13 @@
       
       #datepicker-container .datepicker table {
         margin: 0 auto;
-      }            
+      }
+
+      /* Espacio para que el nav fixed no tape el inicio de la sección */
+      #seccionTurnosMedicos {
+        scroll-margin-top: 80px;
+      }
+
     </style>
 </head>
 
@@ -143,7 +160,7 @@
 <div class="row">
   <div class="col-md-2 mb-3">
       <div>     
-          <img class="card-img-top img_medico_center" src="images/medicos/{{$medico->foto}}" alt="">
+          <img class="card-img-top img_medico_center" src="{{ asset('images/medicos/' . $medico->foto) }}" alt="">
       </div>
     </div>
 
@@ -162,10 +179,65 @@
            <div class="row">
             <h5 class="fontColorHeader fontMedicoNombre textoReceta">Solicitar receta:</h5> 
              <input type="hidden" name="paciente_domicilio" id="paciente_domicilio" value="{{$paciente->domicilio}}" />                                                
-              <button onclick="modalRecetas()" class="rodri_button_receta divMarginCel botonReceta"><img class="card-img-top" src="images/iconos/receta1.png"/></button>                                             
+              <button onclick="modalRecetas()" class="rodri_button_receta divMarginCel botonReceta"><img class="card-img-top" src="{{ asset('images/iconos/receta1.png') }}"/></button>                                             
           </div>  
           @endif
+          
+          {{-- Mensajes de éxito/error --}}
+          @if(session('success'))
+          <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-bottom: 1rem;">
+            {{ session('success') }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          @endif
+          @if(session('error'))
+          <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 1rem;">
+            {{ session('error') }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          @endif
+          
+          {{-- Sección de Google Calendar --}}
+          @if(!$paciente->google_calendar_access_token)
+          <div hidden class="card-body mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 1rem;">
+            <div class="d-flex align-items-center">
+              <div class="flex-grow-1">
+                <h6 class="fontColorHeader mb-1" style="font-weight: bold;">
+                  📅 Recordatorios automáticos
+                </h6>
+                <p class="fontColorHeader mb-0" style="font-size: 0.9rem;">
+                  Conecta tu Google Calendar para recibir recordatorios automáticos de tus turnos.
+                </p>
+              </div>
+              <div class="ml-3">
+                <button onclick="$('#modalGoogleCalendar').modal('show');" 
+                        class="btn btn-primary btn-sm" 
+                        style="white-space: nowrap;">
+                  Conectar Google Calendar
+                </button>
+              </div>
+            </div>
+          </div>
+          @else
+          <div hidden class="card-body mb-2" style="background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 0.25rem; padding: 0.75rem;">
+            <div class="d-flex align-items-center">
+              <span style="color: #155724; font-size: 1.2rem; margin-right: 0.5rem;">✅</span>
+              <span style="color: #155724; font-size: 0.9rem; font-weight: 500;">
+                Google Calendar conectado. Tus turnos se guardarán automáticamente.
+              </span>
+            </div>
+          </div>
+          @endif
+          
           <div class="card-body">
+            <div id="aviso_cobro_banner" class="aviso-cobro-banner" role="alert" aria-live="polite">
+              <strong id="aviso_cobro_banner_titulo"></strong>
+              <p id="aviso_cobro_banner_texto" class="aviso-cobro-banner-texto mb-0"></p>
+            </div>
             <h5 class="fontColorHeader fontMedicoNombre">Seleccione un dia:</h5>            
             @if($esVideollamada == 0)
               <form method="POST" action="{{ route('seleccionarturnohorario') }}">            
@@ -195,11 +267,13 @@
               <input type="hidden" id="tipoTurno" name="tipoTurno" value="{{$tipoTurno}}" />
               <input type="hidden" id="especialidad_id" name="especialidad" value="{{$medico->especialidad}}" />
               <input type="hidden" id="consultorio_id" name="consultorio" value="{{$consultorio->id}}" />
-              <input type="hidden" id="paciente_id" name="paciente_id" value="{{$paciente->id}}" />               
+              <input type="hidden" id="paciente_id" name="paciente_id" value="{{$paciente->id}}" />
+              <input type="hidden" name="especialidad_nombre_flujo" id="especialidad_nombre_flujo" value="{{ $especialidad_nombre_flujo ?? '' }}" />
+              <input type="hidden" name="especialidad_id" value="{{ $especialidad_id ?? '' }}" />
               <input type="hidden" name="primer_control" id="primer_control" value="{{$primerControl}}" />
               <input type="hidden" id="diferencia_dias_id" value="{{$diferenciaDias}}" />
               <div class="input-group">
-                  <input type="text" class="form-control editText" name="fecha_seleccionada" id="fecha_seleccionada" placeholder="Click aqui para seleccionar la fecha" required autocomplete="off" onchange="actualizarHorarios()">                                
+                  <input type="text" class="form-control editText" name="fecha_seleccionada" id="fecha_seleccionada" placeholder="Click aqui para seleccionar la fecha" required autocomplete="off">
               </div>
               <div class="row">
                 <div class="col-md-7">
@@ -211,20 +285,23 @@
                     <p hidden class="letrasrojo"><i hidden>En {{$diferenciaDias}} dias se habilitaran nuevos turnos</i></p>
                   @else
                     <p class="fontColorHeader"><i><strong>Sugerencia: fechas disponibles más cercanas</strong></i></p>
-                    <ul>
-                      <li class="fontColorHeader">{{$fechaLibreDisponible}}</li>
-                      @if($fechaLibreDisponible1 != null)
-                        <li class="fontColorHeader">{{$fechaLibreDisponible1}}</li>
-                      @endif
-                      @if($fechaLibreDisponible2 != null)
-                        <li class="fontColorHeader">{{$fechaLibreDisponible2}}</li>
-                      @endif
+                    <ul id="sugerencia-fechas-list" class="fontColorHeader">
+                      <li class="fontColorHeader">Cargando...</li>
                     </ul>
                   @endif
                 </div>
-              </div>
-              @if($medico->id == 2 && $tipoTurno == 24)              
-                <p><i>Para conocer el valor de la consulta segun su obra social haga <a style="color:red; cursor:pointer" onclick="showObraSocialDiferncial()">clic aqui</a></i></p>
+              </div>                                            
+              @if(($medico->id == 2 && $tipoTurno == 24) || $medico->id == 39)
+                @if(isset($diferencialPaciente) && $diferencialPaciente->encontrado)
+                  <p class="fontColorHeader mb-1"><strong>Valor diferencial para su obra social ({{ $diferencialPaciente->nombre_obra }}):</strong> ${{ number_format($diferencialPaciente->importe, 0, ',', '.') }}</p>
+                  <p class="fontColorHeader small mb-0"><i>Otras obras sociales: <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">ver listado completo</a>.</i></p>
+                @elseif(isset($diferencialPaciente) && ($diferencialPaciente->mensaje ?? '') === 'sin_obra')
+                  <p class="fontColorHeader"><i>No tenemos cargada una obra social en su perfil. Para ver los valores <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">clic aquí</a>.</i></p>
+                @elseif(isset($diferencialPaciente) && ($diferencialPaciente->mensaje ?? '') === 'no_tabla')
+                  <p class="fontColorHeader"><i>No hay un valor cargado para «{{ $diferencialPaciente->nombre_obra }}». <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">Ver listado de obras sociales</a>.</i></p>
+                @else
+                  <p class="fontColorHeader"><i>Para conocer el valor de la consulta según su obra social haga <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">clic aquí</a>.</i></p>
+                @endif
               @endif
               <br>
                  <div hidden class="contenedor3">                           
@@ -240,9 +317,7 @@
 </div>
 
 <div class="row">  
-  <div id="seccionTurnosMedicos">
-  </div>
-
+  <div id="seccionTurnosMedicos" class="col-12"></div>
 </div>
 
 <div id="snackbar"><p>La receta ha sido solicitada</p></div>
@@ -257,6 +332,90 @@
 @include('modal.modals_confirm_fail_turnos')
 @include('modal.modal_obra_social_diferencial')
 
+{{-- Modal de Google Calendar --}}
+@if(!$paciente->google_calendar_access_token)
+<div class="modal fade" id="modalGoogleCalendar" tabindex="-1" role="dialog" aria-labelledby="modalGoogleCalendarLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header" style="background-color: #4285f4; color: white;">
+        <h4 class="modal-title" id="modalGoogleCalendarLabel" style="font-weight: bold;">
+          📅 Recordatorios Automáticos de Turnos
+        </h4>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: white; opacity: 0.8;">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 1.5rem;">
+        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin-bottom: 1.5rem; border-radius: 0.25rem;">
+          <p class="mb-1" style="font-size: 1rem; color: #856404; font-weight: 600;">
+          <strong>⚠️ Información importante sobre la autorización:</strong>
+          </p>
+          <p class="mb-0" style="font-size: 0.95rem; color: #856404; line-height: 1.6;">
+            Para poder agregar recordatorios automáticos de tus turnos en tu Google Calendar, necesitamos tu autorización. 
+            Al hacer clic en "Autorizar y Conectar", serás redirigido a Google para que autorices el acceso a tu calendario. 
+            <strong>Este proceso es seguro y solo necesitas hacerlo una vez.</strong>
+          </p>
+        </div>
+        
+        <div style="margin-bottom: 1.5rem;">
+          <h5 style="color: #333; font-weight: 600; margin-bottom: 1rem;">
+            ¿Qué beneficios obtienes?
+          </h5>
+          <ul style="font-size: 0.95rem; line-height: 1.8; color: #555; padding-left: 1.5rem;">
+            <li><strong>Recordatorios automáticos</strong> el día anterior a tu turno</li>
+            <li><strong>Sin esfuerzo:</strong> No necesitas hacer nada más, se guarda automáticamente</li>
+            <li><strong>Acceso desde cualquier dispositivo:</strong> Puedes ver tus turnos en tu celular, tablet o computadora</li>
+            <li><strong>Integración completa:</strong> Tus turnos aparecen directamente en tu calendario de Google</li>
+          </ul>
+        </div>
+        
+        <div style="background-color: #e7f3ff; border: 1px solid #b3d9ff; padding: 1rem; border-radius: 0.25rem; margin-bottom: 1.5rem;">
+          <p class="mb-0" style="font-size: 0.9rem; color: #004085;">
+            <strong>🔒 Seguridad:</strong> Solo solicitamos acceso para agregar eventos a tu calendario. 
+            No accedemos a tus datos personales ni a otros eventos de tu calendario.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top: 1px solid #dee2e6; padding: 1rem 1.5rem;">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal" style="font-weight: 500;">
+          Cancelar
+        </button>
+        <a href="{{ url('/google-calendar/authorize?paciente_id=' . $paciente->id . '&return_url=' . urlencode(request()->url())) }}" 
+           class="btn btn-primary" 
+           style="font-weight: 600; padding: 0.5rem 1.5rem;"
+           onclick="event.preventDefault(); window.location.href = this.href;">
+          🔗 Autorizar y Conectar Google Calendar
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // TEMPORALMENTE DESHABILITADO: No mostrar el modal de autorización de Google Calendar al cargar
+  // $(document).ready(function() {
+  //   setTimeout(function() {
+  //     $('#modalGoogleCalendar').modal('show');
+  //   }, 500);
+  // });
+</script>
+@endif
+
+@php
+    $confirmDiferencialPayload = null;
+    if (isset($diferencialPaciente)) {
+        $confirmDiferencialPayload = [
+            'encontrado' => (bool) ($diferencialPaciente->encontrado ?? false),
+            'nombre_obra' => $diferencialPaciente->nombre_obra ?? null,
+            'importe' => isset($diferencialPaciente->importe) ? (float) $diferencialPaciente->importe : null,
+            'mensaje' => $diferencialPaciente->mensaje ?? null,
+        ];
+    }
+    $logEspecialidadNombre = $especialidad_nombre_flujo ?? \Illuminate\Support\Facades\DB::table('especialidads')
+        ->where('id', $medico->especialidad)
+        ->value('nombre');
+@endphp
+
 <script type="text/javascript">  
 
 $.ajaxSetup({
@@ -265,7 +424,14 @@ $.ajaxSetup({
     }
   });
 
+  var confirmDiferencialOs = @json($confirmDiferencialPayload);
+
   var medico_id = document.getElementById("medico_id").value;
+  console.log('[Seleccionar día] Especialidad del especialista', {
+    medico_id: medico_id,
+    especialidad_id: document.getElementById('especialidad_id').value,
+    especialidad_nombre: @json($logEspecialidadNombre)
+  });
 
   var dias_deshabilitados = document.getElementById("dias_deshabilitados").value;
   var dias_habilitados = document.getElementById("dias_habilitados").value;
@@ -281,6 +447,35 @@ $.ajaxSetup({
   var end_date = document.getElementById("end_date").value;  
   var fechasDisponibles = [];
   var fechasSinTurnos = [];
+  /** Evita recursión: setDate dispara changeDate en ambos pickers y llamaba otra vez a manejarSeleccionFecha. */
+  var _sincronizandoFechaDatepicker = false;
+
+  function manejarSeleccionFecha(fechaDate) {
+    if (!fechaDate) return;
+    if (_sincronizandoFechaDatepicker) return;
+    _sincronizandoFechaDatepicker = true;
+    try {
+      var fecha = ('0' + fechaDate.getDate()).slice(-2) + '/' + ('0' + (fechaDate.getMonth() + 1)).slice(-2) + '/' + fechaDate.getFullYear();
+
+      $('#fecha_seleccionada').val(fecha);
+
+      if ($('#datepicker-container').data('datepicker')) {
+        $('#datepicker-container').datepicker('setDate', fechaDate);
+      }
+      if ($('#fecha_seleccionada').data('datepicker')) {
+        $('#fecha_seleccionada').datepicker('setDate', fechaDate);
+      }
+    } finally {
+      _sincronizandoFechaDatepicker = false;
+    }
+
+    setTimeout(function() {
+      var fechaActual = $('#fecha_seleccionada').val();
+      if (fechaActual) {
+        actualizarHorarios();
+      }
+    }, 200);
+  }
   
   // Cargar fechas disponibles desde el endpoint
   function cargarFechasDisponibles() {
@@ -330,7 +525,21 @@ $.ajaxSetup({
         fechasDisponibles = data.fechas || [];
         fechasSinTurnos = data.fechasSinTurnos || [];
         
-        // Actualizar ambos datepickers para que muestren los días en verde y rojo
+        // Actualizar lista "Sugerencia: fechas disponibles más cercanas" con las mismas fechas del datepicker
+        var $lista = $('#sugerencia-fechas-list');
+        if ($lista.length) {
+          $lista.empty();
+          if (fechasDisponibles.length === 0) {
+            $lista.append('<li class="fontColorHeader">No hay fechas disponibles en el rango mostrado.</li>');
+          } else {
+            var maxSugerencias = Math.min(3, fechasDisponibles.length);
+            for (var s = 0; s < maxSugerencias; s++) {
+              $lista.append('<li class="fontColorHeader">' + fechasDisponibles[s] + '</li>');
+            }
+          }
+        }
+        
+        // Refrescar celdas (verde/rojo); luego una sola sincronización de fecha (manejarSeleccionFecha carga horarios)
         setTimeout(function() {
           if ($('#datepicker-container').data('datepicker')) {
             $('#datepicker-container').datepicker('update');
@@ -338,41 +547,13 @@ $.ajaxSetup({
           if ($('#fecha_seleccionada').data('datepicker')) {
             $('#fecha_seleccionada').datepicker('update');
           }
-        }, 100);
-        
-        // Seleccionar automáticamente el primer día disponible
-        if (fechasDisponibles.length > 0) {
-          var primeraFecha = fechasDisponibles[0]; // Formato: DD/MM/YYYY
-          var fechaArray = primeraFecha.split('/');
-          var fechaDate = new Date(fechaArray[2], fechaArray[1] - 1, fechaArray[0]);
-          
-          // Establecer el valor en el input y seleccionar en ambos datepickers
-          setTimeout(function() {
-            // Establecer el valor en el input primero
-            $('#fecha_seleccionada').val(primeraFecha);
-            
-            // Seleccionar en ambos datepickers
-            if ($('#datepicker-container').data('datepicker')) {
-              $('#datepicker-container').datepicker('setDate', fechaDate);
-            }
-            if ($('#fecha_seleccionada').data('datepicker')) {
-              $('#fecha_seleccionada').datepicker('setDate', fechaDate);
-            }
-            
-            // Actualizar ambos datepickers para que se muestren los estilos
-            setTimeout(function() {
-              $('#datepicker-container').datepicker('update');
-              $('#fecha_seleccionada').datepicker('update');
-              
-              // Usar la función manejarSeleccionFecha para actualizar horarios
-              setTimeout(function() {
-                if ($('#fecha_seleccionada').val()) {
-                  actualizarHorarios();
-                }
-              }, 300);
-            }, 200);
-          }, 400);
-        }
+          if (fechasDisponibles.length > 0) {
+            var primeraFecha0 = fechasDisponibles[0];
+            var fa = primeraFecha0.split('/');
+            var fd = new Date(parseInt(fa[2], 10), parseInt(fa[1], 10) - 1, parseInt(fa[0], 10));
+            manejarSeleccionFecha(fd);
+          }
+        }, 120);
       },
       error: function(xhr, status, error) {
         console.error('Error al cargar fechas disponibles:', error);
@@ -394,6 +575,14 @@ $.ajaxSetup({
       daysOfWeekHighlighted: dias_habilitados, 
       daysOfWeekDisabled: dias_deshabilitados,
       beforeShowDay: function(date) {
+        // Médico 1: no permitir seleccionar fechas a partir de abril
+        if (medico_id == 1) {
+          var abrilPrimero = new Date(date.getFullYear(), 3, 1); // mes 3 = abril
+          if (date >= abrilPrimero) {
+            return { enabled: false };
+          }
+        }
+
         // Formatear fecha como DD/MM/YYYY
         var fechaStr = ('0' + date.getDate()).slice(-2) + '/' + ('0' + (date.getMonth() + 1)).slice(-2) + '/' + date.getFullYear();
         
@@ -429,6 +618,14 @@ $.ajaxSetup({
       daysOfWeekHighlighted: dias_habilitados, 
       daysOfWeekDisabled: dias_deshabilitados,
       beforeShowDay: function(date) {
+        // Médico 1: no permitir seleccionar fechas a partir de abril
+        if (medico_id == 1) {
+          var abrilPrimero = new Date(date.getFullYear(), 3, 1); // mes 3 = abril
+          if (date >= abrilPrimero) {
+            return { enabled: false };
+          }
+        }
+
         var fechaStr = ('0' + date.getDate()).slice(-2) + '/' + ('0' + (date.getMonth() + 1)).slice(-2) + '/' + date.getFullYear();
         var disponible = fechasDisponibles.indexOf(fechaStr) !== -1;
         var sinTurnos = fechasSinTurnos.indexOf(fechaStr) !== -1;
@@ -441,29 +638,6 @@ $.ajaxSetup({
         return result;
       }
     });
-    
-    // Función para manejar la selección de fecha
-    function manejarSeleccionFecha(fechaDate) {
-      if (!fechaDate) return;
-      
-      var fecha = ('0' + fechaDate.getDate()).slice(-2) + '/' + ('0' + (fechaDate.getMonth() + 1)).slice(-2) + '/' + fechaDate.getFullYear();
-      
-      // Establecer el valor en el input
-      $('#fecha_seleccionada').val(fecha);
-      
-      // Asegurar que ambos datepickers tengan la fecha seleccionada
-      if ($('#fecha_seleccionada').data('datepicker')) {
-        $('#fecha_seleccionada').datepicker('setDate', fechaDate);
-      }
-      
-      // Actualizar horarios después de un pequeño delay
-      setTimeout(function() {
-        var fechaActual = $('#fecha_seleccionada').val();
-        if (fechaActual) {
-          actualizarHorarios();
-        }
-      }, 200);
-    }
     
     // Cuando se seleccione una fecha en el datepicker inline
     $('#datepicker-container').on('changeDate', function(e) {
@@ -489,9 +663,10 @@ $.ajaxSetup({
       }
     });
     
-    // Capturar clicks directos en los días del datepicker (fallback adicional)
+    // Un solo refuerzo por clic: changeDate ya sincroniza; evitar segunda llamada a manejarSeleccionFecha
     $(document).on('click', '#datepicker-container .datepicker-days tbody td:not(.old):not(.new):not(.disabled)', function() {
       setTimeout(function() {
+        if (_sincronizandoFechaDatepicker) return;
         var selectedDate = $('#datepicker-container').datepicker('getDate');
         if (selectedDate) {
           manejarSeleccionFecha(selectedDate);
@@ -548,6 +723,13 @@ $.ajaxSetup({
     mostrarArancelDiferencial()
   }
 
+  function turnoReservaOnlineActiva(t) {
+    if (!t || t.reserva_online === undefined || t.reserva_online === null) {
+      return true;
+    }
+    return parseInt(t.reserva_online, 10) === 1;
+  }
+
   function actualizarHorarios() {
     var medico = document.getElementById("medico_id").value;    
     var fecha_seleccionada = document.getElementById("fecha_seleccionada").value;
@@ -560,6 +742,8 @@ $.ajaxSetup({
       
     let [dia, mes, anio] = fecha_seleccionada.split("/");    
     let fechaFormateada = `${anio}-${mes}-${dia}`;
+
+    // Mensaje especial del médico: solo al cargar la vista (window.onload), no en cada cambio de fecha.
 
     /*if(medico == 29 && fechaFormateada >= '2025-10-01') {      
       document.getElementById("modalMensajeTitulo").innerHTML = "AVISO";
@@ -576,7 +760,7 @@ $.ajaxSetup({
        data:{paciente_id:paciente_id, medico:medico, fecha_seleccionada:fecha_seleccionada, tipoTurno:tipoTurno, primer_control:primer_control, dias_deshabilitados:dias_deshabilitados, esVideollamada:esVideollamada, consultorio:consultorio ,_token: '{{csrf_token()}}'},
        success:function(data){        
           //document.getElementById("seccionTurnosMedicos").scrollIntoView({ behavior: 'smooth' });
-          navigateToSeccion('seccionTurnosMedicos', this);
+          navigateToSeccion('seccionTurnosMedicos');
           borrarSeccion("seccionTurnosMedicos");
           var seccion = document.getElementById("seccionTurnosMedicos");
           var h1 = document.createElement("h5");
@@ -594,34 +778,46 @@ $.ajaxSetup({
               seccion.appendChild(h1);
               seccion.appendChild(br);
 
-              for(let i = 0; i < data.turnos.length; i++) {                                     
+              for(let i = 0; i < data.turnos.length; i++) {
+                var row = data.turnos[i];
                 var button1 = document.createElement("button");
-                button1.setAttribute("class", "btn btn-primary-outline");                
-                if(primer_control == 1){
+                button1.setAttribute("class", "btn btn-primary-outline");
+                var usaBloqueDoble = (primer_control == 1 && parseInt(data.moduloPrimerControlDoble, 10) === 1 && row.horario2);
+                if(usaBloqueDoble){
+                  let h1b = row.horario;
+                  let h2b = row.horario2;
                   button1.onclick = function() {
-                    console.log(data.turnos[i].horario);
-                    console.log(data.turnos[i+1].horario);
-                    modalConfirmarPrimerControl(data.turnos[i].horario, data.turnos[i+1].horario);
+                    modalConfirmarPrimerControl(h1b, h2b);
+                  };
+                } else if(primer_control == 1){
+                  let hb = row.horario;
+                  button1.onclick = function() {
+                    modalConfirmar(hb);
                   };
                 } else {
-                  button1.onclick = function() {                                  
-                    console.log("modalConfirmar(data.turnos[i].horario);");
-                    modalConfirmar(data.turnos[i].horario);
-                  };  
-                }                
-                var h1 = document.createElement("h1");
-                h1.setAttribute("class", "turno_text_size");
-                h1.innerHTML = data.turnos[i].horario;
+                  let hb = row.horario;
+                  button1.onclick = function() {
+                    modalConfirmar(hb);
+                  };
+                }
+                var h1el = document.createElement("h1");
+                h1el.setAttribute("class", "turno_text_size");
+                h1el.innerHTML = row.horario;
                 var div = document.createElement("div");
-                if(data.turnos[i].libre == 1){
-                  div.setAttribute("class", "circulo img_turno");
-
-                } else {
+                var ocupado = (parseInt(row.libre, 10) !== 1);
+                var puedeReservar = (!ocupado && turnoReservaOnlineActiva(row));
+                var fueraVentana = (!ocupado && !turnoReservaOnlineActiva(row));
+                if(ocupado){
                   div.setAttribute("class", "circulo circulo_ocupado img_turno");
                   button1.disabled = true;
+                } else if(fueraVentana){
+                  div.setAttribute("class", "circulo circulo_fuera_ventana img_turno");
+                  button1.disabled = true;
+                } else {
+                  div.setAttribute("class", "circulo img_turno");
                 }
-                
-                div.appendChild(h1);
+
+                div.appendChild(h1el);
                 button1.appendChild(div);
 
                 seccion.appendChild(button1);
@@ -645,14 +841,49 @@ $.ajaxSetup({
     });
   }
 
-  function navigateToSeccion(seccion, object){
-    $('html, body').animate({
-    scrollTop: $("#"+seccion).offset().top - 100
-    }, 2000);                
+  function navigateToSeccion(seccion) {
+    var target = document.getElementById(seccion);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   function formatearNumero(numero) {
         return numero.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+
+  function mostrarArancelDiferencial() {
+    var medico_id = document.getElementById("medico_id").value;    
+    var tipoTurno = document.getElementById("tipoTurno").value;
+    if (medico_id == 2 && tipoTurno == 24) {      
+      return true;
+    }
+    if(medico_id == 39) {     
+      return true;
+    }
+    return false;
+  }
+
+  function textoHtmlDiferencialObraSocialConfirm() {
+    var mid = parseInt(document.getElementById('medico_id').value, 10);
+    var tt = parseInt(document.getElementById('tipoTurno').value, 10);
+    //if (mid !== 2 || tt !== 24 || !confirmDiferencialOs) {
+    if(mostrarArancelDiferencial() === false) {
+      return '';
+    }
+    if (confirmDiferencialOs.encontrado && confirmDiferencialOs.importe != null) {
+      var nombre = String(confirmDiferencialOs.nombre_obra || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      var imp = formatearNumero(Math.round(Number(confirmDiferencialOs.importe)));
+      return '<br><br><b>Valor diferencial para su obra social (' + nombre + '): $' + imp + '</b>';
+    }
+    if (confirmDiferencialOs.mensaje === 'sin_obra') {
+      return '<br><br><i>No tenemos cargada una obra social en su perfil; consulte el valor con el consultorio.</i>';
+    }
+    if (confirmDiferencialOs.mensaje === 'no_tabla') {
+      return '<br><br><i>No hay un valor cargado para su obra social en el sistema.</i>';
+    }
+    return '';
   }
 
   function modalConfirmarPrimerControl(horario1,horario2){
@@ -670,7 +901,7 @@ $.ajaxSetup({
          type:'POST',
          dataType:'JSON',
          url:'/registrar_turno_primer_control',
-         data:{paciente_id :paciente_id, medico_id:medico_id, consultorio:consultorio, dia:fechaTurno, fechaTurno:fechaTurno, horario1:horario1,horario2:horario2, primerControl: primerControl, tipoTurno:tipoTurno, esVideollamada:esVideollamada, _token: '{{csrf_token()}}'},
+         data:{paciente_id :paciente_id, medico_id:medico_id, consultorio:consultorio, dia:fechaTurno, fechaTurno:fechaTurno, horario1:horario1,horario2:horario2, primerControl: primerControl, tipoTurno:tipoTurno, esVideollamada:esVideollamada, especialidad_nombre_flujo: document.getElementById('especialidad_nombre_flujo').value, _token: '{{csrf_token()}}'},
          success:function(data){              
            if(data.turnoRegistrado == 0){                      
               $('#modalTurnoFail').modal();                  
@@ -699,6 +930,7 @@ $.ajaxSetup({
                   modalConfirmar_texto += "<br><br><b>El valor de la consulta es de $"+formatearNumero(valorNumerico)+"</b><br>";
                 }                                
                 modalConfirmar_texto += extraMensaje;
+                modalConfirmar_texto += textoHtmlDiferencialObraSocialConfirm();
 
                 document.getElementById("modalConfirmar_texto").innerHTML = modalConfirmar_texto;
                 
@@ -706,6 +938,38 @@ $.ajaxSetup({
                 document.getElementById("modalTurnoOk_horario").innerHTML = "<b>Horario: </b>" + horario;
                 document.getElementById("modalTurnoOk_medico").innerHTML = "<b>Especialista: </b>" + medico;
                 var consultorio = data.consultorio.direccion;
+                
+                if(data.medico.id == 12){
+                  if(data.datosTurno.dia == 5) {
+                    consultorio = "Garibaldi 44";
+                  } else {
+                    consultorio = "Blandengues 505";
+                  }
+                }
+                
+                if(data.medico.id == 24){
+                  if(data.datosTurno.dia == 1 || data.datosTurno.dia == 5) {
+                    consultorio = "Luiggi 463";
+                  }
+                }
+
+                if(data.medico.id == 43) {
+                  if(data.datosTurno.dia == 1 || data.datosTurno.dia == 3 || data.datosTurno.dia == 5) {
+                    consultorio = "Luiggi 463";
+                  }
+                  if(data.datosTurno.dia == 2) {
+                    consultorio = "Gimnasio EFI (Jorge Walsh 31)";
+                  }
+                  if(data.datosTurno.dia == 4) {
+                    const horarioTarde = ['15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30'];
+                    if (horario && horarioTarde.includes(horario)) {                        
+                      consultorio = "Gimnasio EFI (Jorge Walsh 31)";
+                    } else {
+                      consultorio = "Luiggi 463";    
+                    }                    
+                  }
+                }
+
                 if(data.medico.id == 2) {                  
                   consultorio = "Equipo Dubie ";
                 }              
@@ -716,13 +980,41 @@ $.ajaxSetup({
                   document.getElementById("seccion_tipo_turnos").hidden = false;
                 }
 
-                // Si el evento ya se agregó automáticamente a Google Calendar, no hacer nada más
+                // Guardar URL del recordatorio para abrir cuando se confirme el modal
+                // Si el evento ya se agregó automáticamente a Google Calendar, mostrar mensaje de éxito
                 if(data.calendar_event_added) {
                     console.log('✅ Evento agregado automáticamente a Google Calendar');
-                } else if(data.calendar_reminder_url) {
-                    // Si no tiene OAuth, abrir Google Calendar directamente con el evento pre-cargado
-                    // Abrir en nueva ventana/pestaña para que el usuario pueda guardar el evento
-                    window.open(data.calendar_reminder_url, '_blank');
+                    // Mostrar mensaje de éxito en el modal
+                    var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
+                    if(calendarMessage) {
+                        calendarMessage.style.display = 'block';
+                    }
+                    // Limpiar URLs guardadas
+                    window.calendarReminderUrl = null;
+                    window.calendarIcsContent = null;
+                } else {
+                    // Ocultar mensaje si no se agregó automáticamente
+                    var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
+                    if(calendarMessage) {
+                        calendarMessage.style.display = 'none';
+                    }
+                }
+                
+                if(data.google_calendar_reminder_url && data.google_calendar_reminder_url !== null && data.google_calendar_reminder_url !== 'null') {
+                    // Guardar URL del recordatorio para abrir cuando se confirme el modal
+                    window.calendarReminderUrl = data.google_calendar_reminder_url;
+                    window.calendarIcsContent = null;
+                    console.log('📅 URL de recordatorio guardada. Se abrirá cuando confirmes el turno.');
+                    console.log('URL:', data.google_calendar_reminder_url);
+                } else if(data.ics_content) {
+                    // Fallback: Guardar contenido .ics para abrir cuando se confirme
+                    window.calendarReminderUrl = null;
+                    window.calendarIcsContent = data.ics_content;
+                    console.log('📅 Contenido .ics guardado. Se abrirá cuando confirmes el turno.');
+                } else {
+                    // Limpiar URLs guardadas
+                    window.calendarReminderUrl = null;
+                    window.calendarIcsContent = null;
                 }
 
                 $('#modalConfirmar').modal();
@@ -734,25 +1026,118 @@ $.ajaxSetup({
       });
   }
 
-  function modalConfirmar(horario) {
-    var paciente_id = document.getElementById("paciente_id").value;         
+  window.turnoRequierePago = false;
+  window.horarioPagoPendiente = null;
+
+  function mostrarModalPreviewPago(horario, importeReserva) {
+    var paciente_id = document.getElementById("paciente_id").value;
+    var medico_id = document.getElementById("medico_id").value;
+    var fechaTurno = document.getElementById("fecha_seleccionada").value;
+    var fechaAux = fechaTurno.split("/");
+    var fecha = fechaAux[0] + "/" + fechaAux[1] + "/" + fechaAux[2];
+    var importeFmt = parseFloat(importeReserva) || 0;
+
+    document.getElementById("modalConfirmar_texto").innerHTML =
+      "Para confirmar su turno el <b>" + fecha + "</b> a las <b>" + horario + " hs</b> " +
+      "debe abonar la reserva online de <b>$" + formatearNumero(importeFmt) + "</b>. " +
+      "Será redirigido a Mercado Pago al continuar.";
+
+    document.getElementById("turno_id").value = '';
+    window.horarioPagoPendiente = horario;
+    window.turnoRequierePago = true;
+    $('#modalConfirmar').modal();
+  }
+
+  function iniciarPagoReserva(horario) {
+    var paciente_id = document.getElementById("paciente_id").value;
     var medico_id = document.getElementById("medico_id").value;
     var consultorio = document.getElementById("consultorio_id").value;
-    //var dia = document.getElementById("dia").value;   
     var fechaTurno = document.getElementById("fecha_seleccionada").value;
-    var primerControl = document.getElementById("primer_control").value;        
-    var esVideollamada = document.getElementById("esVideollamada").value;  
-    var tipoTurno = document.getElementById("tipoTurno").value;  
+    var primerControl = document.getElementById("primer_control").value;
+    var esVideollamada = document.getElementById("esVideollamada").value;
+    var tipoTurno = document.getElementById("tipoTurno").value;
 
-    document.getElementById('horario_seleccionado').value = horario;
+    $.ajax({
+      type: 'POST',
+      dataType: 'JSON',
+      url: '/turno/iniciar_pago',
+      data: {
+        paciente_id: paciente_id,
+        medico_id: medico_id,
+        consultorio: consultorio,
+        fechaTurno: fechaTurno,
+        horario: horario,
+        primerControl: primerControl,
+        esVideollamada: esVideollamada,
+        tipoTurno: tipoTurno,
+        especialidad_nombre_flujo: document.getElementById('especialidad_nombre_flujo').value,
+        _token: '{{csrf_token()}}'
+      },
+      success: function(data) {
+        if (data.ok && data.init_point) {
+          sessionStorage.setItem('mp_pending_intent', String(data.intent_id || ''));
+          sessionStorage.setItem('mp_pending_paciente', String(paciente_id));
+          window.location.href = data.init_point;
+        } else {
+          document.getElementById('modalTurnoFailMP_texto').innerText = data.message || 'No se pudo iniciar el pago.';
+          $('#modalTurnoFailMP').modal();
+        }
+      }
+    });
+  }
 
-    //alert("primerControl");
+  function cancelarPagoPendienteAlmacenado() {
+    var intentId = sessionStorage.getItem('mp_pending_intent');
+    var pacienteId = sessionStorage.getItem('mp_pending_paciente') || document.getElementById('paciente_id').value;
+    sessionStorage.removeItem('mp_pending_intent');
+    sessionStorage.removeItem('mp_pending_paciente');
+    if (!intentId) {
+      return;
+    }
+    $.ajax({
+      type: 'POST',
+      dataType: 'JSON',
+      url: '/turno/cancelar_pago_pendiente',
+      data: {
+        intent_id: intentId,
+        paciente_id: pacienteId,
+        _token: '{{csrf_token()}}'
+      }
+    });
+  }
+
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted && sessionStorage.getItem('mp_pending_intent')) {
+      cancelarPagoPendienteAlmacenado();
+      window.turnoRequierePago = false;
+      window.horarioPagoPendiente = null;
+    }
+  });
+
+  function ejecutarRegistrarTurno(horario) {
+    var paciente_id = document.getElementById("paciente_id").value;
+    var medico_id = document.getElementById("medico_id").value;
+    var consultorio = document.getElementById("consultorio_id").value;
+    var fechaTurno = document.getElementById("fecha_seleccionada").value;
+    var primerControl = document.getElementById("primer_control").value;
+    var esVideollamada = document.getElementById("esVideollamada").value;
+    var tipoTurno = document.getElementById("tipoTurno").value;
+
+    window.turnoRequierePago = false;
+    window.horarioPagoPendiente = null;
+
      $.ajax({
          type:'POST',
          dataType:'JSON',
          url:'/registrar_turno',
-         data:{paciente_id :paciente_id, medico_id:medico_id, consultorio:consultorio, fechaTurno:fechaTurno, horario:horario,primerControl:primerControl, esVideollamada:esVideollamada, tipoTurno:tipoTurno, _token: '{{csrf_token()}}'},
-         success:function(data){                 
+         data:{paciente_id :paciente_id, medico_id:medico_id, consultorio:consultorio, fechaTurno:fechaTurno, horario:horario,primerControl:primerControl, esVideollamada:esVideollamada, tipoTurno:tipoTurno, especialidad_nombre_flujo: document.getElementById('especialidad_nombre_flujo').value, _token: '{{csrf_token()}}'},
+         success:function(data){
+           procesarRespuestaRegistrarTurno(data, horario);
+         }
+      });
+  }
+
+  function procesarRespuestaRegistrarTurno(data, horario) {
            if(data.turnoRegistrado == 1){          
                 $('#horario').val(data.horario);
                 $('#turno_id').val(data.turno_id);
@@ -780,6 +1165,7 @@ $.ajaxSetup({
                   modalConfirmar_texto += "<br><br><b>El valor de la consulta es de $"+formatearNumero(valorNumerico)+"</b><br>";
                 }                                
                 modalConfirmar_texto += extraMensaje;
+                modalConfirmar_texto += textoHtmlDiferencialObraSocialConfirm();
 
                 document.getElementById("modalConfirmar_texto").innerHTML = modalConfirmar_texto;
                 
@@ -815,26 +1201,73 @@ $.ajaxSetup({
                     consultorio = "Blandengues 505";
                   }
                 }
-                if(data.medico.id == 24){
+                if(data.medico.id == 24) {
                   if(data.datosTurno.dia == 1 || data.datosTurno.dia == 5) {
                     consultorio = "Luiggi 463";
+                  }
+                }
+                if(data.medico.id == 43) {
+                  if(data.datosTurno.dia == 1 || data.datosTurno.dia == 3 || data.datosTurno.dia == 5) {
+                    consultorio = "Luiggi 463";
+                  }
+                  if(data.datosTurno.dia == 2) {
+                    consultorio = "Gimnasio EFI (Jorge Walsh 31)";
+                  }
+                  if(data.datosTurno.dia == 4) {
+                    const horarioTarde = ['15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30'];
+                    if (horario && horarioTarde.includes(horario)) {                        
+                      consultorio = "Gimnasio EFI (Jorge Walsh 31)";
+                    } else {
+                      consultorio = "Luiggi 463";    
+                    }                    
                   }
                 }
                 if(data.medico.id == 25) {                   
                   consultorio = "Blandengues 505";                  
                 }
-                if(tipoTurno == 24) {                   
+                if(document.getElementById("tipoTurno").value == 24) {                   
                   consultorio = "Florida 700";                  
                 }
                 document.getElementById("modalTurnoOk_direccion").innerHTML = "<b>Dirección: </b>" + consultorio;            
 
-                // Si el evento ya se agregó automáticamente a Google Calendar, no hacer nada más
+                // Guardar URL del recordatorio para abrir cuando se confirme el modal
+                // Si el evento ya se agregó automáticamente a Google Calendar, mostrar mensaje de éxito
                 if(data.calendar_event_added) {
                     console.log('✅ Evento agregado automáticamente a Google Calendar');
-                } else if(data.calendar_reminder_url) {
-                    // Si no tiene OAuth, abrir Google Calendar directamente con el evento pre-cargado
-                    // Abrir en nueva ventana/pestaña para que el usuario pueda guardar el evento
-                    window.open(data.calendar_reminder_url, '_blank');
+                    // Guardar estado para mostrar en el modal final
+                    window.calendarEventAdded = true;
+                    // Mostrar mensaje de éxito en el modal
+                    var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
+                    if(calendarMessage) {
+                        calendarMessage.style.display = 'block';
+                    }
+                    // Limpiar URLs guardadas
+                    window.calendarReminderUrl = null;
+                    window.calendarIcsContent = null;
+                } else {
+                    // Ocultar mensaje si no se agregó automáticamente
+                    window.calendarEventAdded = false;
+                    var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
+                    if(calendarMessage) {
+                        calendarMessage.style.display = 'none';
+                    }
+                }
+                
+                if(data.google_calendar_reminder_url && data.google_calendar_reminder_url !== null && data.google_calendar_reminder_url !== 'null') {
+                    // Guardar URL del recordatorio para abrir cuando se confirme el modal
+                    window.calendarReminderUrl = data.google_calendar_reminder_url;
+                    window.calendarIcsContent = null;
+                    console.log('📅 URL de recordatorio guardada. Se abrirá cuando confirmes el turno.');
+                    console.log('URL:', data.google_calendar_reminder_url);
+                } else if(data.ics_content) {
+                    // Fallback: Guardar contenido .ics para abrir cuando se confirme
+                    window.calendarReminderUrl = null;
+                    window.calendarIcsContent = data.ics_content;
+                    console.log('📅 Contenido .ics guardado. Se abrirá cuando confirmes el turno.');
+                } else {
+                    // Limpiar URLs guardadas
+                    window.calendarReminderUrl = null;
+                    window.calendarIcsContent = null;
                 }
 
                 $('#modalConfirmar').modal();
@@ -853,9 +1286,45 @@ $.ajaxSetup({
             }
             if(data.turnoRegistrado == 5){                      
               $('#modalTurnoFail5').modal();                  
-            }                 
-          }
-      });
+            }
+            if(data.turnoRegistrado == 6){
+              document.getElementById('modalTurnoFailMP_texto').innerText = data.message || 'Debe completar el pago online.';
+              $('#modalTurnoFailMP').modal();
+            }
+  }
+
+  function modalConfirmar(horario) {
+    var medico_id = document.getElementById("medico_id").value;
+    var paciente_id = document.getElementById("paciente_id").value;
+    var esVideollamada = document.getElementById("esVideollamada").value;
+    document.getElementById('horario_seleccionado').value = horario;
+    window.turnoRequierePago = false;
+    window.horarioPagoPendiente = null;
+
+    $.ajax({
+      type: 'POST',
+      dataType: 'JSON',
+      url: '/turno/preview_reserva',
+      data: {
+        medico_id: medico_id,
+        paciente_id: paciente_id,
+        esVideollamada: esVideollamada,
+        fechaTurno: $('#fecha_seleccionada').val(),
+        _token: '{{csrf_token()}}'
+      },
+      success: function(preview) {
+        if (preview.blocked) {
+          document.getElementById('modalTurnoFailMP_texto').innerText = preview.message;
+          $('#modalTurnoFailMP').modal();
+          return;
+        }
+        if (preview.requires_payment) {
+          mostrarModalPreviewPago(horario, preview.importe_reserva);
+          return;
+        }
+        ejecutarRegistrarTurno(horario);
+      }
+    });
   }
 
   function actualizarTipoTurno(turno_id, tipoTurno) {
@@ -871,10 +1340,101 @@ $.ajaxSetup({
   }
 
   function confirmarTurno() {
+    if (window.turnoRequierePago && window.horarioPagoPendiente) {
+      iniciarPagoReserva(window.horarioPagoPendiente);
+      return;
+    }
+
+    var turno_id = document.getElementById("turno_id").value;
+    if (!turno_id) {
+      document.getElementById('modalTurnoFailMP_texto').innerText = 'Debe completar el pago online para confirmar este turno.';
+      $('#modalTurnoFailMP').modal();
+      return;
+    }
+
     var esVideollamada = document.getElementById("esVideollamada").value;
     var especialidad_id = document.getElementById("especialidad_id").value;  
     var medico_id = document.getElementById("medico_id").value;
     var turno_id = document.getElementById("turno_id").value;    
+
+    // TEMPORALMENTE DESHABILITADO: Abrir calendario cuando se confirma el modal
+    // console.log('🔍 Verificando calendarReminderUrl:', window.calendarReminderUrl);
+    // console.log('🔍 Tipo:', typeof window.calendarReminderUrl);
+    // 
+    // var reminderUrl = window.calendarReminderUrl;
+    // var isValidUrl = reminderUrl && 
+    //                  reminderUrl !== null && 
+    //                  reminderUrl !== 'null' && 
+    //                  reminderUrl !== undefined &&
+    //                  String(reminderUrl).trim() !== '' &&
+    //                  String(reminderUrl).indexOf('http') === 0;
+    // 
+    // if(isValidUrl) {
+    //   // Abrir solo el recordatorio del día anterior en un popup
+    //   var urlToOpen = String(reminderUrl);
+    //   console.log('✅ Abriendo URL válida:', urlToOpen);
+    //   setTimeout(function() {
+    //     // Abrir en un popup centrado (no en nueva pestaña completa)
+    //     var width = 800;
+    //     var height = 600;
+    //     var left = (screen.width / 2) - (width / 2);
+    //     var top = (screen.height / 2) - (height / 2);
+    //     var popup = window.open(
+    //       urlToOpen, 
+    //       'GoogleCalendar',
+    //       'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes'
+    //     );
+    //     
+    //     // Verificar si el popup se abrió correctamente (puede estar bloqueado)
+    //     if (popup) {
+    //       popup.focus();
+    //       console.log('📅 Recordatorio del día anterior abierto en Google Calendar. Por favor, haz clic en "Guardar" y luego cierra la ventana para volver.');
+    //     } else {
+    //       // Si el popup está bloqueado, abrir en nueva pestaña como fallback
+    //       window.open(urlToOpen, '_blank');
+    //       console.log('📅 Recordatorio del día anterior abierto en nueva pestaña. Por favor, haz clic en "Guardar".');
+    //     }
+    //   }, 500);
+    //   
+    //   // Limpiar URLs después de abrirlas
+    //   window.calendarReminderUrl = null;
+    //   window.calendarTurnoUrl = null;
+    // } else {
+    //   console.warn('⚠️ URL de recordatorio no válida o no disponible:', reminderUrl);
+    //   // Limpiar URLs inválidas
+    //   window.calendarReminderUrl = null;
+    //   window.calendarTurnoUrl = null;
+    // }
+    // 
+    // if(window.calendarIcsContent) {
+    //   // Fallback: Usar archivo .ics para calendario nativo
+    //   setTimeout(function() {
+    //     var encodedContent = encodeURIComponent(window.calendarIcsContent);
+    //     var dataUri = 'data:text/calendar;charset=utf-8,' + encodedContent;
+    //     
+    //     // Crear enlace temporal con data URI
+    //     var link = document.createElement('a');
+    //     link.href = dataUri;
+    //     link.target = '_blank';
+    //     link.style.display = 'none';
+    //     document.body.appendChild(link);
+    //     
+    //     // Hacer click programático
+    //     link.click();
+    //     
+    //     // Remover el enlace después de un momento
+    //     setTimeout(function() {
+    //       if (link.parentNode) {
+    //         document.body.removeChild(link);
+    //       }
+    //     }, 1000);
+    //     
+    //     console.log('📅 Se abrió el calendario nativo. Por favor, haz clic en "Guardar" o "Agregar" para agregar el evento con recordatorio.');
+    //     
+    //     // Limpiar contenido después de abrirlo
+    //     window.calendarIcsContent = null;
+    //   }, 500);
+    // }
 
     if(esVideollamada == 0 || especialidad_id == 2) {        
       var tipoTurno = obtenerRadioSeleccionado();
@@ -882,6 +1442,16 @@ $.ajaxSetup({
         document.getElementById("modalTurnoOk_tipo_turno").innerHTML = "<b>Tipo Turno: </b>" + obtenerTextoSeleccionado();
         actualizarTipoTurno(turno_id, tipoTurno);
       }        
+      // Mostrar/ocultar mensaje de calendario según el estado
+      var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
+      if(calendarMessage) {
+          if(window.calendarEventAdded) {
+              calendarMessage.style.display = 'block';
+          } else {
+              calendarMessage.style.display = 'none';
+          }
+      }
+      
       $('#modalTurnoOk').modal();
     } else {
     //  var turno_id = document.getElementById("turno_id").value;    
@@ -918,8 +1488,17 @@ $.ajaxSetup({
 
 
   function cancelarTurno() {
-    var turno_id = document.getElementById("turno_id").value;  
-    var esVideollamada = document.getElementById("esVideollamada").value;  
+    if (window.turnoRequierePago) {
+      cancelarPagoPendienteAlmacenado();
+      window.turnoRequierePago = false;
+      window.horarioPagoPendiente = null;
+      return;
+    }
+    var turno_id = document.getElementById("turno_id").value;
+    if (!turno_id) {
+      return;
+    }
+    var esVideollamada = document.getElementById("esVideollamada").value;
     
     $.ajax({
            type:'POST',
@@ -1025,85 +1604,79 @@ $.ajaxSetup({
     }    
   }
 
-  function mostrarMsjEspecial(){
-    var medico_id = document.getElementById("medico_id").value;    
-    var tipoTurno = document.getElementById("tipoTurno").value;    
-    
-    if(medico_id == 17) { // sofia vanzini
-      //document.getElementById("modalMensajeTitulo").innerHTML = "ATENCION";
-      //document.getElementById("modalMensajeTexto").innerHTML = "En el mes de enero, atenderemos excepcionalmente el miércoles 15. Este será el único miércoles disponible durante el mes. Los días martes continuarán con su atención habitual. <br><br>¡Gracias por su comprensión!";            
-      //$('#modalMensaje').modal();      
+  function htmlMensajeEspecialConSaltos(texto) {
+    if (texto == null || texto === '') {
+      return '';
+    }
+    return String(texto)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/\r\n|\r|\n/g, '<br>');
+  }
+
+  function mostrarAvisoCobroBanner(aviso) {
+    var banner = document.getElementById('aviso_cobro_banner');
+    if (!banner) {
+      return;
+    }
+    window.avisoCobroData = aviso || null;
+    if (!aviso) {
+      banner.style.display = 'none';
+      if (typeof actualizarAvisoCobroModal === 'function') {
+        actualizarAvisoCobroModal(null);
+      }
+      return;
+    }
+    document.getElementById('aviso_cobro_banner_titulo').innerHTML = aviso.titulo || 'Aviso';
+    document.getElementById('aviso_cobro_banner_texto').innerHTML = htmlMensajeEspecialConSaltos(aviso.descripcion || '');
+    banner.style.display = 'block';
+    if (typeof actualizarAvisoCobroModal === 'function') {
+      actualizarAvisoCobroModal(aviso);
+    }
+  }
+
+  function cargarAvisoCobro() {
+    var medico_id = document.getElementById("medico_id").value;
+
+    $.ajax({
+      type: 'POST',
+      dataType: 'JSON',
+      url: '/get_mensaje_medico_especial',
+      data: { medico_id: medico_id, _token: '{{csrf_token()}}' },
+      success: function(data) {
+        mostrarAvisoCobroBanner(data && data.aviso_cobro ? data.aviso_cobro : null);
+      }
+    });
+  }
+
+  function mostrarMsjEspecial(fechaDDMMAAAA){
+    var medico_id = document.getElementById("medico_id").value;
+    var fecha = fechaDDMMAAAA;
+    if(!fecha || fecha.length === 0){
+      var hoy = new Date();
+      fecha = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '/' + hoy.getFullYear();
     }
 
-    if(medico_id == 24) { // pablo prado
-      //document.getElementById("modalMensajeTitulo").innerHTML = "ATENCION";
-      //document.getElementById("modalMensajeTexto").innerHTML = "A partir del mes de marzo los lunes estaré atendiendo en Luiggi 463 y los miércoles en Blandengues 505. Muchas Gracias.";            
-      //$('#modalMensaje').modal();      
-    }
-
-    if(medico_id == 11) {      
-      if(tipoTurno == 22) {
-        document.getElementById("modalMensajeTitulo").innerHTML = "AVISO";
-        document.getElementById("modalMensajeTexto").innerHTML = "La especialista se comunicará con usted a traves de un llamado el dia del turno";            
-        $('#modalMensaje').modal();      
-      } else {
-        document.getElementById("modalMensajeTitulo").innerHTML = "ATENCION";
-        document.getElementById("modalMensajeTexto").innerHTML = "Los turnos correspondientes a cada mes seran habilitados mas cerncanos a la fecha. Muchas Gracias!";            
-        $('#modalMensaje').modal();      
-      } 
-    }
-
-    if(medico_id == 12) {      
-      document.getElementById("modalMensajeTitulo").innerHTML = "Aviso";
-      document.getElementById("modalMensajeTexto").innerHTML = "Antes de asistir a la consulta por favor consulte por la cobertura de su obra social. Muchas Gracias.";
-      $("#modalMensaje").modal();
-    }
-
-    if(medico_id == 35) {      
-      document.getElementById("modalMensajeTitulo").innerHTML = "Aviso";
-      document.getElementById("modalMensajeTexto").innerHTML = "El especialista no trabaja con las obras sociales, solo atiende de manera PARTICULAR. Muchas Gracias.";
-      $("#modalMensaje").modal();
-    }
-
-    if(medico_id == 15) {      
-      document.getElementById("modalMensajeTitulo").innerHTML = "Aviso";
-      document.getElementById("modalMensajeTexto").innerHTML = "El modo de pago para las consultas es unicamente en EFECTIVO. Muchas Gracias.";
-      $("#modalMensaje").modal();
-    }
-    
-    if(medico_id == 3) {      
-      document.getElementById("modalMensajeTitulo").innerHTML = "Aviso";
-      document.getElementById("modalMensajeTexto").innerHTML = "A partir de Enero 2025 el profesional NO va a trabajar mas con la obra social IOSFA. Muchas Gracias!";
-      $("#modalMensaje").modal();
-    }
-    if(medico_id == 18) {      
-      document.getElementById("modalMensajeTitulo").innerHTML = "Aviso";
-      document.getElementById("modalMensajeTexto").innerHTML =     
-      "Por excepción las atención del viernes 2 de mayo se atenderá durante la mañana y no a la tarde! Para solicitar turno comunicarse al telefono 4814538 o <a href='https://api.whatsapp.com/send?phone=2915107335' target='_blank'>2915107335</a> (Lunes, martes y jueves de 15 a 19, miércoles de 9:30 a 15)"  +
-      "Saludos!!";
-      $("#modalMensaje").modal();
-    }    
-    if(medico_id == 1) {      
-      document.getElementById("modalMensajeTitulo").innerHTML = "Aviso";
-      document.getElementById("modalMensajeTexto").innerHTML = 
-      "<strong>📢 NUEVA MODALIDAD DE RESERVA DE TURNOS – Desde el 1/1/26</strong><br><br>" +
-      "Debido al aumento de inasistencias, los turnos pediátricos se confirmarán solo con pago o validación previa ⏰<br><br>" +
-      "🔹 La semana previa a la consulta, la secretaria (📞 291-6450538) se comunicará para:<br><br>" +
-      "<ul style='text-align: left;'>" +
-      "<li>Solicitar token o código de la obra social, o</li>" +
-      "<li>En caso de consulta particular, transferencia de una seña.</li>" +
-      "</ul>" +
-      "⚠️ Si no hay respuesta, el turno se cancelará automáticamente.<br><br>" +
-      "📅 Reprogramaciones: solo con aviso de 24 hs de anticipación.<br><br>" +
-      "🩺🩺 UNICA Excepción: turnos por enfermedad otorgados el mismo día de la consulta<br><br>" +
-      "Gracias por su comprensión y por cuidar nuestro tiempo y trabajo 💙<br><br>" +
-      "<strong>Dra. Florencia García Elliot</strong>";
-      $("#modalMensaje").modal();
-    }
-
-    if(medico_id == 2 && tipoTurno == 24) {
-      showObraSocialDiferncial();
-    }
+    $.ajax({
+      type:'POST',
+      dataType:'JSON',
+      url:'/get_mensaje_medico_especial',
+      data:{medico_id: medico_id, fecha: fecha, _token: '{{csrf_token()}}'},
+      success:function(data){
+        if(!data || !data.mensajes || data.mensajes.length === 0){
+          return;
+        }
+        var msg = data.mensajes[0];
+        document.getElementById("modalMensajeTitulo").innerHTML = msg.titulo || "Aviso";
+        document.getElementById("modalMensajeTexto").innerHTML = htmlMensajeEspecialConSaltos(msg.descripcion || "");
+        $("#modalMensaje").modal();
+      },
+      error:function(){
+        // no interrumpir el flujo si falla
+      }
+    });
   }
 
 
@@ -1113,7 +1686,8 @@ $.ajaxSetup({
 
     var especialidad_id = document.getElementById("especialidad_id").value;
     mostrarMensajeCeci();
-    mostrarMsjEspecial();
+    cargarAvisoCobro();
+    mostrarMsjEspecial($('#fecha_seleccionada').val());
     if(consultorio_id == 7 && especialidad_id == 1){
       if(medico_id == 1){
         $("#modalCoronavirus2").modal(); 
@@ -1198,424 +1772,11 @@ $.ajaxSetup({
 
 </script>
 
-<!-- Firebase Cloud Messaging (FCM) - Inicialización y obtención de token -->
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-messaging.js";
-
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyBLLw7_0CJZ4mepUZjWbdHN9SAwFbZTtz0",
-    authDomain: "turnosonlinebb-8406b.firebaseapp.com",
-    projectId: "turnosonlinebb-8406b",
-    storageBucket: "turnosonlinebb-8406b.firebasestorage.app",
-    messagingSenderId: "991206372015",
-    appId: "1:991206372015:web:0ef83da53a43d5a3f11a5a",
-    measurementId: "G-KBD5NC6E1V"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  
-  // Variable para almacenar la instancia de messaging
-  let messaging = null;
-  let serviceWorkerRegistration = null;
-
-  // Función para detectar si es móvil
-  function esDispositivoMovil() {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  }
-
-  // Función para detectar el sistema operativo
-  function obtenerSistemaOperativo() {
-    const userAgent = navigator.userAgent;
-    if (/iPhone|iPad|iPod/i.test(userAgent)) {
-      return 'iOS';
-    } else if (/Android/i.test(userAgent)) {
-      return 'Android';
-    }
-    return 'Desktop';
-  }
-
-  // Función para mostrar modal informativo sobre notificaciones
-  function mostrarModalNotificaciones() {
-    if (typeof document !== 'undefined' && document.getElementById('modalMensajeTitulo')) {
-      const esMovil = esDispositivoMovil();
-      const sistema = obtenerSistemaOperativo();
-      
-      let mensaje = 'Para recibir recordatorios de tus turnos, necesitamos tu permiso para enviar notificaciones.<br><br>';
-      
-      if (esMovil) {
-        mensaje += '<strong>📱 Instrucciones para ' + (sistema === 'iOS' ? 'iPhone/iPad' : 'Android') + ':</strong><br>';
-        
-        if (sistema === 'iOS') {
-          mensaje += '1. Cuando aparezca la ventana, toca "Permitir"<br>' +
-                     '2. Si no aparece, ve a Configuración > Safari > Notificaciones<br>' +
-                     '3. Activa las notificaciones para este sitio<br>';
-        } else {
-          mensaje += '1. Cuando aparezca la ventana, toca "Permitir" o "Permitir notificaciones"<br>' +
-                     '2. Si no aparece, toca el menú (⋮) en Chrome > Configuración > Notificaciones<br>' +
-                     '3. Activa las notificaciones para este sitio<br>';
-        }
-      } else {
-        mensaje += 'Cuando aparezca la ventana, haz clic en "Permitir" para activar las notificaciones.<br>';
-      }
-      
-      mensaje += '<br><strong>¿Qué recibirás?</strong><br>' +
-                 '• Recordatorios automáticos de tus turnos programados<br>' +
-                 '• Notificaciones cuando se acerque la fecha de tu consulta<br>' +
-                 '• Avisos importantes sobre tus turnos<br><br>' +
-                 'Las notificaciones te ayudarán a no olvidar tus citas médicas.';
-      
-      document.getElementById('modalMensajeTitulo').innerHTML = '🔔 Recordatorios de Turnos';
-      document.getElementById('modalMensajeTexto').innerHTML = mensaje;
-      
-      // Mostrar el modal
-      $('#modalMensaje').modal('show');
-    }
-  }
-
-  // Función para mostrar modal cuando las notificaciones están bloqueadas
-  function mostrarModalNotificacionesBloqueadas() {
-    if (typeof document !== 'undefined' && document.getElementById('modalMensajeTitulo')) {
-      const esMovil = esDispositivoMovil();
-      const sistema = obtenerSistemaOperativo();
-      
-      let mensaje = 'Las notificaciones están bloqueadas. Para recibir recordatorios de tus turnos, necesitas habilitarlas manualmente.<br><br>';
-      
-      if (esMovil) {
-        mensaje += '<strong>📱 Cómo habilitar notificaciones en ' + (sistema === 'iOS' ? 'iPhone/iPad' : 'Android') + ':</strong><br><br>';
-        
-        if (sistema === 'iOS') {
-          mensaje += '<strong>En iPhone/iPad (Safari):</strong><br>' +
-                     '1. Abre Configuración en tu iPhone<br>' +
-                     '2. Desplázate y toca "Safari"<br>' +
-                     '3. Toca "Notificaciones"<br>' +
-                     '4. Busca "turnosonlinebb.com" y actívalo<br>' +
-                     '5. Vuelve a esta página y recárgala<br><br>';
-        } else {
-          mensaje += '<strong>En Android (Chrome):</strong><br>' +
-                     '1. Toca el menú (⋮) en la esquina superior derecha de Chrome<br>' +
-                     '2. Toca "Configuración"<br>' +
-                     '3. Toca "Configuración del sitio"<br>' +
-                     '4. Toca "Notificaciones"<br>' +
-                     '5. Busca "turnosonlinebb.com" y cámbialo a "Permitir"<br>' +
-                     '6. Vuelve a esta página y recárgala<br><br>';
-        }
-      } else {
-        mensaje += '<strong>En computadora:</strong><br>' +
-                   '1. Haz clic en el ícono de candado 🔒 o información ℹ️ en la barra de direcciones<br>' +
-                   '2. Busca la opción "Notificaciones"<br>' +
-                   '3. Cambia el estado a "Permitir"<br>' +
-                   '4. Recarga la página<br><br>';
-      }
-      
-      mensaje += '<strong>✅ Beneficios de activar las notificaciones:</strong><br>' +
-                 '• Recordatorios automáticos de tus turnos programados<br>' +
-                 '• No olvidarás tus citas médicas<br>' +
-                 '• Avisos importantes sobre cambios en tus turnos<br>' +
-                 '• Te avisaremos cuando se acerque la fecha de tu consulta';
-      
-      document.getElementById('modalMensajeTitulo').innerHTML = '⚠️ Notificaciones Bloqueadas';
-      document.getElementById('modalMensajeTexto').innerHTML = mensaje;
-      
-      // Mostrar el modal
-      $('#modalMensaje').modal('show');
-    }
-  }
-
-  // Función para mostrar confirmación cuando se activan las notificaciones
-  function mostrarModalNotificacionesActivadas() {
-    if (typeof document !== 'undefined' && document.getElementById('modalMensajeTitulo')) {
-      document.getElementById('modalMensajeTitulo').innerHTML = '✅ Notificaciones Activadas';
-      document.getElementById('modalMensajeTexto').innerHTML = 
-        '¡Perfecto! Las notificaciones han sido activadas correctamente.<br><br>' +
-        '<strong>Ahora recibirás:</strong><br>' +
-        '• Recordatorios automáticos de tus turnos programados<br>' +
-        '• Notificaciones cuando se acerque la fecha de tu consulta<br>' +
-        '• Avisos importantes sobre tus turnos<br><br>' +
-        'Los recordatorios te ayudarán a no olvidar tus citas médicas. ¡Gracias por activar las notificaciones!';
-      
-      // Mostrar el modal brevemente (se cierra automáticamente después de 3 segundos)
-      $('#modalMensaje').modal('show');
-      setTimeout(function() {
-        $('#modalMensaje').modal('hide');
-      }, 4000);
-    }
-  }
-
-  // Función para solicitar permisos de notificación
-  function requestNotificationPermission() {
-    return Notification.requestPermission().then((permission) => {
-      if (permission === 'granted') {
-        console.log('Permiso de notificación concedido');
-        return true;
-      } else {
-        console.log('Permiso de notificación denegado:', permission);
-        return false;
-      }
-    });
-  }
-
-  // Función para obtener el token FCM
-  async function getFCMToken() {
-    try {
-      // Verificar que messaging esté inicializado
-      if (!messaging) {
-        console.error('Messaging no está inicializado');
-        return;
-      }
-
-      // Verificar el estado actual de permisos
-      let permission = Notification.permission;
-      
-      // Si el permiso está en "default" (no se ha preguntado), mostrar mensaje informativo primero
-      if (permission === 'default') {
-        // Mostrar modal informativo sobre las notificaciones
-        mostrarModalNotificaciones();
-        
-        // Esperar un momento para que el usuario lea el mensaje
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        console.log('🔔 Solicitando permisos de notificación...');
-        permission = await Notification.requestPermission();
-      }
-      
-      // Si el permiso fue denegado, mostrar mensaje explicativo
-      if (permission === 'denied') {
-        console.warn('⚠️ Permisos de notificación bloqueados.');
-        mostrarModalNotificacionesBloqueadas();
-        return;
-      }
-      
-      // Si el permiso no fue concedido, salir
-      if (permission !== 'granted') {
-        console.log('Permiso de notificación no concedido:', permission);
-        return;
-      }
-      
-      console.log('✅ Permisos de notificación concedidos');
-
-      // IMPORTANTE: Necesitas obtener tu VAPID Key desde Firebase Console
-      // Ve a Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
-      // Si no tienes una, haz clic en "Generate key pair"
-      const vapidKey = 'BGCdVTZQ0UMPueqSKR-T-swAeBH48-ZJ1GsPEobFw3X8JsuOo00fm03tWd6WUx6uB9RwybXsZ52FMRg-_u3Ae8w';
-      
-      // Esperar a que el service worker esté listo
-      if (serviceWorkerRegistration) {
-        await serviceWorkerRegistration.update();
-      }
-
-      // Verificar que tengamos el service worker registration
-      if (!serviceWorkerRegistration) {
-        console.log('Obteniendo service worker registration...');
-        try {
-          serviceWorkerRegistration = await navigator.serviceWorker.ready;
-          console.log('Service Worker ready:', serviceWorkerRegistration);
-        } catch (error) {
-          console.error('Error al obtener service worker ready:', error);
-          // Intentar obtener el registration de Firebase específicamente
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          const firebaseSW = registrations.find(reg => reg.active && reg.active.scriptURL.includes('firebase-messaging-sw'));
-          if (firebaseSW) {
-            serviceWorkerRegistration = firebaseSW;
-            console.log('✅ Encontrado service worker de Firebase:', firebaseSW);
-          } else {
-            throw new Error('No se encontró el service worker de Firebase');
-          }
-        }
-      }
-
-      console.log('🔑 Intentando obtener token con VAPID Key:', vapidKey.substring(0, 20) + '...');
-      console.log('📋 Service Worker Registration:', {
-        scope: serviceWorkerRegistration.scope,
-        active: serviceWorkerRegistration.active ? serviceWorkerRegistration.active.state : 'null'
-      });
-      
-      // Verificar que el service worker esté activo
-      if (serviceWorkerRegistration.active) {
-        console.log('✅ Service Worker activo, estado:', serviceWorkerRegistration.active.state);
-      } else {
-        console.warn('⚠️ Service Worker no está activo');
-      }
-      
-      const currentToken = await getToken(messaging, { 
-        vapidKey: vapidKey,
-        serviceWorkerRegistration: serviceWorkerRegistration
-      });
-
-      if (currentToken) {
-        console.log('✅ FCM Token obtenido:', currentToken);
-        // Enviar token al servidor
-        sendTokenToServer(currentToken);
-        
-        // Mostrar mensaje de confirmación
-        mostrarModalNotificacionesActivadas();
-      } else {
-        console.log('No se pudo obtener el token. El usuario debe otorgar permisos.');
-      }
-    } catch (err) {
-      console.error('Error al obtener el token:', err);
-      console.error('Código del error:', err.code);
-      console.error('Mensaje del error:', err.message);
-      
-      // Manejo específico de errores
-      if (err.code === 'messaging/invalid-vapid-key') {
-        console.error('❌ VAPID Key inválida. Verifica que la clave sea correcta.');
-      } else if (err.code === 'messaging/permission-blocked') {
-        console.error('❌ Permisos de notificación bloqueados por el usuario.');
-      } else if (err.code === 'messaging/permission-default') {
-        console.error('❌ Permisos de notificación no otorgados. El usuario debe aceptar.');
-      } else if (err.code === 'messaging/unsupported-browser') {
-        console.error('❌ Navegador no compatible con FCM.');
-      } else {
-        console.error('❌ Error desconocido:', err);
-      }
-    }
-  }
-
-  // Registrar service worker y luego inicializar messaging
-  async function initializeFCM() {
-    try {
-      console.log('🚀 Iniciando FCM en:', window.location.href);
-      
-      // Verificar que estemos en localhost o HTTPS
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const isSecure = window.location.protocol === 'https:' || isLocalhost;
-      
-      if (!isSecure) {
-        console.warn('⚠️ FCM requiere HTTPS o localhost. Protocolo actual:', window.location.protocol);
-      }
-      
-      // Registrar service worker primero
-      if ('serviceWorker' in navigator) {
-        try {
-          // Verificar si ya hay un service worker registrado (puede ser OneSignal)
-          const existingRegistrations = await navigator.serviceWorker.getRegistrations();
-          console.log('Service Workers existentes:', existingRegistrations.length);
-          
-          // Registrar el service worker de Firebase
-          serviceWorkerRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-            scope: '/'
-          });
-          console.log('✅ Service Worker de Firebase registrado:', serviceWorkerRegistration);
-          
-          // Esperar a que el service worker esté activo
-          let swState = serviceWorkerRegistration.installing || serviceWorkerRegistration.waiting || serviceWorkerRegistration.active;
-          
-          if (serviceWorkerRegistration.installing) {
-            console.log('Service Worker instalando...');
-            await new Promise((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                reject(new Error('Timeout esperando service worker'));
-              }, 10000); // 10 segundos timeout
-              
-              serviceWorkerRegistration.installing.addEventListener('statechange', function() {
-                console.log('Estado del SW:', this.state);
-                if (this.state === 'activated') {
-                  clearTimeout(timeout);
-                  resolve();
-                } else if (this.state === 'redundant') {
-                  clearTimeout(timeout);
-                  reject(new Error('Service worker se volvió redundante'));
-                }
-              });
-            });
-          } else if (serviceWorkerRegistration.waiting) {
-            console.log('Service Worker esperando, activando...');
-            serviceWorkerRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-            await serviceWorkerRegistration.update();
-          } else if (serviceWorkerRegistration.active) {
-            console.log('✅ Service Worker ya está activo');
-          }
-          
-          // Esperar un momento adicional para que el service worker se estabilice
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-        } catch (swError) {
-          console.error('❌ Error al registrar Service Worker:', swError);
-          // Continuar de todas formas, puede que funcione sin el SW en algunos casos
-        }
-      } else {
-        console.error('❌ Service Workers no están soportados en este navegador');
-        return;
-      }
-
-      // Inicializar messaging después de que el service worker esté listo
-      messaging = getMessaging(app);
-      console.log('✅ Messaging inicializado');
-      
-      // Intentar obtener el token con un pequeño delay adicional
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await getFCMToken();
-      
-    } catch (error) {
-      console.error('❌ Error al inicializar FCM:', error);
-      console.error('Stack trace:', error.stack);
-    }
-  }
-
-  // Función para enviar el token al servidor
-  function sendTokenToServer(token) {
-    var paciente_id = document.getElementById("paciente_id") ? document.getElementById("paciente_id").value : null;
-    
-    if (paciente_id) {
-      fetch('/save_fcm_token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
-        body: JSON.stringify({
-          fcm_token: token,
-          paciente_id: paciente_id
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Token FCM guardado:', data);
-      })
-      .catch(error => {
-        console.error('Error al guardar token FCM:', error);
-      });
-    } else {
-      console.log('No se encontró paciente_id, el token se guardará cuando haya un paciente disponible');
-      // Guardar token temporalmente en localStorage para enviarlo después
-      localStorage.setItem('fcm_token_pending', token);
-    }
-  }
-
-  // Verificar si hay un token pendiente cuando se carga la página
-  window.addEventListener('load', function() {
-    // Inicializar FCM (esto registrará el service worker y obtendrá el token)
-    initializeFCM();
-    
-    // Si hay un token pendiente en localStorage, intentar enviarlo
-    var pendingToken = localStorage.getItem('fcm_token_pending');
-    if (pendingToken) {
-      var paciente_id = document.getElementById("paciente_id") ? document.getElementById("paciente_id").value : null;
-      if (paciente_id) {
-        sendTokenToServer(pendingToken);
-        localStorage.removeItem('fcm_token_pending');
-      }
-    }
-  });
-
-  // Escuchar mensajes cuando la aplicación está en primer plano
-  onMessage(messaging, (payload) => {
-    console.log('Mensaje recibido:', payload);
-    // Mostrar notificación personalizada
-    if (payload.notification) {
-      const notificationTitle = payload.notification.title;
-      const notificationOptions = {
-        body: payload.notification.body,
-        icon: payload.notification.icon || '/images/iconos/turnosonlinebb_icon.png'
-      };
-      new Notification(notificationTitle, notificationOptions);
-    }
-  });
-</script>
+{{-- 
+  Firebase Cloud Messaging (FCM) - ELIMINADO
+  Esta funcionalidad fue removida porque no funciona correctamente en iOS.
+  Se implementará una solución alternativa en el futuro.
+--}}
 
 @endsection
 

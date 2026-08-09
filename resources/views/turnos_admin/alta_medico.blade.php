@@ -240,6 +240,8 @@
     var afiliadoObligatorioCheck = document.getElementById("checkModulo8").checked;
     var ventanaDiasCheck = document.getElementById("checkModulo9").checked;
     var extraTurnoCheck = document.getElementById("checkModulo10").checked;
+    var mostrarDosCheck = document.getElementById("checkModulo11").checked;
+    var cobroTurnosMpCheck = document.getElementById("checkModulo12").checked;
 
     var activarPaciente = 0;
     var cajaComentario = 0;
@@ -251,6 +253,8 @@
     var afiliadoObligatorio = 0;
     var ventanaDias = 0;
     var extraTurno = 0;
+    var mostrarDos = 0;
+    var cobroTurnosMp = 0;
 
     if(activarPacienteCheck)
       activarPaciente = 1;
@@ -272,12 +276,16 @@
       ventanaDias = 1;
     if(extraTurnoCheck)
       extraTurno = 1;
+    if(mostrarDosCheck)
+      mostrarDos = 1;
+    if(cobroTurnosMpCheck)
+      cobroTurnosMp = 1;
 
     $.ajax({
          type:'POST',
          dataType:'JSON',
          url:'/admin_modulo_medico',
-         data:{medico_id:medico_id,consultorio_id:consultorio_id,activarPaciente:activarPaciente, cajaComentario:cajaComentario, primerControlDoble:primerControlDoble, soloUnTurno:soloUnTurno, recetas:recetas, videollamadas:videollamadas, mercadopago:mercadopago, afiliadoObligatorio:afiliadoObligatorio, ventanaDias:ventanaDias,extraTurno:extraTurno, _token: '{{csrf_token()}}'},
+         data:{medico_id:medico_id,consultorio_id:consultorio_id,activarPaciente:activarPaciente, cajaComentario:cajaComentario, primerControlDoble:primerControlDoble, soloUnTurno:soloUnTurno, recetas:recetas, videollamadas:videollamadas, mercadopago:mercadopago, afiliadoObligatorio:afiliadoObligatorio, ventanaDias:ventanaDias,extraTurno:extraTurno, mostrarDos:mostrarDos, cobroTurnosMp:cobroTurnosMp, _token: '{{csrf_token()}}'},
          success:function(data){                          
               alert("Los modulos fueron actualizados");
            }

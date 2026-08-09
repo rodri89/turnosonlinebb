@@ -43,10 +43,17 @@
 }
 </style>
 
+@php
+  $__espFlujo = $especialidad_nombre_flujo ?? '';
+  $__espId = $especialidad_id ?? '';
+@endphp
+
 <div class="row">
       @if($especialidad_id != 18)        
     <form method="POST" action="{{ route('tipoturno') }}">
         @csrf
+        <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+        <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
         <input type="hidden" name="tipo_turno" value="1"  />           
         <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
         <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />                     
@@ -64,6 +71,8 @@
     @if($moduloVideollamadas == 1) 
      <form method="POST" action="{{ route('tipoturno') }}">
         @csrf
+        <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+        <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
         <input type="hidden" name="tipo_turno" value="2"  />           
         <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
         <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />                     
@@ -122,6 +131,8 @@
     @if($medico->id == 11) 
         <form method="POST" hidden action="{{ route('tipoturno') }}">
           @csrf
+          <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+          <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
           <input type="hidden" name="tipo_turno" value="22"  />           
           <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
           <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />                     
@@ -151,6 +162,8 @@
           
             <form method="POST" action="{{ route('tipoturno') }}">
               @csrf
+              <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+              <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
               <input type="hidden" name="tipo_turno" value="24"  />           
               <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
               <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />                     
@@ -210,6 +223,8 @@
     @if($medico->id == 13)
     <form hidden method="POST" action="{{ route('tipoturno') }}">
           @csrf
+          <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+          <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
           <input type="hidden" name="tipo_turno" value="23"  />           
           <input type="hidden" name="medico_id" value="{{$medico->id}}"  />           
           <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />                     

@@ -38,10 +38,33 @@ class GoogleCalendarService
      */
     public function getAuthUrl($state = null)
     {
+        // Validar que las credenciales estén configuradas
+        if (empty($this->clientId) || empty($this->clientSecret)) {
+            \Log::error('Google Calendar OAuth: Faltan credenciales. CLIENT_ID: ' . (!empty($this->clientId) ? 'configurado' : 'FALTANTE') . ', CLIENT_SECRET: ' . (!empty($this->clientSecret) ? 'configurado' : 'FALTANTE'));
+            throw new \Exception('Google Calendar no está configurado correctamente. Por favor, contacta al administrador.');
+        }
+        
+        // Log de las credenciales que se están usando
+        \Log::info('Google Calendar OAuth - Generando URL de autorización', [
+            'client_id' => $this->clientId,
+            'redirect_uri' => $this->redirectUri,
+            'client_id_starts_with' => substr($this->clientId, 0, 20)
+        ]);
+        
         if ($state) {
             $this->client->setState($state);
         }
-        return $this->client->createAuthUrl();
+        
+        $authUrl = $this->client->createAuthUrl();
+        
+        // Log de la URL generada para verificar
+        \Log::info('Google Calendar OAuth - URL de autorización generada', [
+            'url_length' => strlen($authUrl),
+            'url_preview' => substr($authUrl, 0, 300),
+            'contains_client_id' => strpos($authUrl, $this->clientId) !== false
+        ]);
+        
+        return $authUrl;
     }
 
     /**
@@ -163,15 +186,26 @@ class GoogleCalendarService
 
     /**
      * Crear evento de recordatorio (día previo)
+     * Método público para crear solo el recordatorio sin el evento del turno
      */
-    private function createReminderEvent($reminderDate, $reminderTime, $originalTitle, $originalDescription, $location, $turnoDate, $turnoTime)
+    public function createReminderEvent($reminderDate, $reminderTime, $originalTitle, $originalDescription, $location, $turnoDate, $turnoTime)
     {
         try {
             $service = new Google_Service_Calendar($this->client);
 
             $event = new Google_Service_Calendar_Event();
             $event->setSummary("Recordatorio: " . $originalTitle);
-            $event->setDescription("Recordatorio: Tienes un turno mañana.\n\n" . $originalDescription);
+            
+            // Mejorar la descripción del recordatorio
+            $description = "Recordatorio: Tienes un turno mañana a las {$turnoTime} con el Dr. " . str_replace("Turno con Dr. ", "", $originalTitle);
+            $description .= "\n\n📅 Fecha del turno: " . date('d/m/Y', strtotime($turnoDate));
+            $description .= "\n🕐 Horario: {$turnoTime}";
+            $description .= "\n📍 Consultorio: {$location}";
+            if (!empty($originalDescription)) {
+                $description .= "\n\n" . $originalDescription;
+            }
+            
+            $event->setDescription($description);
             $event->setLocation($location);
 
             $startDateTime = new Google_Service_Calendar_EventDateTime();
@@ -205,6 +239,32 @@ class GoogleCalendarService
 
         // Verificar si el token expiró (con margen de 5 minutos)
         return strtotime($expiresAt) > (time() + 300);
+    }
+
+    /**
+     * Eliminar evento de Google Calendar
+     */
+    public function deleteEvent($eventId, $accessToken = null, $refreshToken = null, $expiresAt = null)
+    {
+        try {
+            // Si se proporcionan tokens, configurarlos
+            if ($accessToken) {
+                $this->setAccessToken($accessToken, $refreshToken, $expiresAt);
+            }
+            
+            $service = new Google_Service_Calendar($this->client);
+            
+            // Eliminar el evento
+            $service->events->delete('primary', $eventId);
+            
+            \Log::info("Evento de Google Calendar eliminado exitosamente: {$eventId}");
+            return true;
+        } catch (\Exception $e) {
+            \Log::error('Error eliminando evento de Google Calendar: ' . $e->getMessage());
+            \Log::error('Event ID: ' . $eventId);
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return false;
+        }
     }
 }
 

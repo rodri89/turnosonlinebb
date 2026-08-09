@@ -28,6 +28,7 @@
 @if($medico->id == 2)
   @if($tipoTurno == 24)
     <ul>              
+      <li class="fontColorHeader">Jueves: 09:30 a 11:30</li>  
       <li class="fontColorHeader">Viernes: 11:00 a 15:00</li>          
     </ul>
     <div class="col-md-8 mb-3">
@@ -111,11 +112,10 @@
   @if($tipoTurno == 1)
     <ul>              
       <li class="fontColorHeader">Horarios para el mes de Enero</li>      
-      <li class="fontColorHeader">Lunes: 09:00 a 15:00</li>      
-      <li class="fontColorHeader">Martes: 14:00 a 18:30</li>      
-      <li class="fontColorHeader">Miercoles: 09:00 a 15:00</li>      
-      <li class="fontColorHeader">Jueves: 14:00 a 18:30</li>      
-      <li class="fontColorHeader">Viernes: 14:00 a 18:30</li>      
+      <li class="fontColorHeader">Lunes: 11:00 a 13:45 - 16:00 a 19:00</li>      
+      <li class="fontColorHeader">Martes: 08:15 a 14:15 - 16:00 a 19:00</li>      
+      <li class="fontColorHeader">Miercoles: 08:15 a 13:30 - 16:00 a 19:45</li>      
+      <li class="fontColorHeader">Jueves: 08:15 a 13:30</li>      
     </ul>
     <div class="col-md-8 mb-3">
       <h6 class="fontColorHeader">Consultorio: {{$consultorio->direccion}}</h6>        
@@ -129,6 +129,28 @@
         <h6 class="fontColorHeader">Telefono {{$consultorio->telefono}}</h6>
       </div>
   @endif
+@else
+
+@if($medico->id == 43)
+  <ul>              
+    <li class="fontColorHeader">Martes: 15:00 a 19:00</li>
+    <li class="fontColorHeader">Jueves: 15:00 a 19:00</li>      
+  </ul>
+  <div class="col-md-8 mb-3">
+    <h6 class="fontColorHeader">Consultorio: Gimnasio EFI - Jorge Walsh 31 </h6>    
+    <h6 class="fontColorHeader">Telefono 2914236530 </h6>
+  </div>
+  <p>---------------------------------------</p>
+  <ul>              
+    <li class="fontColorHeader letrasrojo">Lunes: 15:00 a 19:00</li>          
+    <li class="fontColorHeader letrasrojo">Miercoles: 08:30 a 12:30</li>  
+    <li class="fontColorHeader letrasrojo">Jueves: 08:00 a 12:30</li>          
+    <li class="fontColorHeader letrasrojo">Viernes: 08:00 a 12:30</li>      
+  </ul>
+  <div class="col-md-8 mb-3">
+    <h6 class="fontColorHeader letrasrojo">Consultorio: Ing. Luiggi 463 </h6>
+    <h6 class="fontColorHeader letrasrojo">Telefono 2914236530 </h6>
+  </div>
 @else
 
 <!-- Erica Pacheco -->
@@ -203,6 +225,7 @@
       @endif
     @endif
   @endif
+@endif
 @endif
 @endif
 @endif

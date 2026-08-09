@@ -5,18 +5,18 @@
 
 @section('descripcion_header','En esta sección deberá ingresar los datos del paciente.')
 @section('headerContainer')
-<ul>  
+<ul class="list-unstyled mb-0" style="word-break: break-word;">
   @if($moduloActivarPaciente == 0)
-  <li class="lead fontColorHeader">Si es la primera vez que utiliza el sitio, ingrese sus datos y click en "Continuar". sus datos serán guardados para poder realizar la reserva de su turno. </li>
+  <li class="fontColorHeader header-instruction-text">Si es la primera vez que utiliza el sitio, ingrese sus datos y click en "Continuar". sus datos serán guardados para poder realizar la reserva de su turno. </li>
   @endif
   @if($moduloActivarPaciente == 1)
-  <li class="lead fontColorHeader">Si es la primera vez que utiliza el sitio, ingrese sus datos y click en "Registrarme". Una registración quedará pendiente y la secretaria se comunicará con usted para completarla y así asignar su turno. </li>
+  <li class="fontColorHeader header-instruction-text">Si es la primera vez que utiliza el sitio, ingrese sus datos y click en "Registrarme". Una registración quedará pendiente y la secretaria se comunicará con usted para completarla y así asignar su turno. </li>
   @endif
-  <li class="lead fontColorHeader">Si usted ya ha utilizado el sitio, solo deberá ingresar el DNI y click en "Continuar".</li>
+  <li class="fontColorHeader header-instruction-text">Si usted ya ha utilizado el sitio, solo deberá ingresar el DNI y click en "Continuar".</li>
   @if($especialidad == 1)
-  <li class="lead fontColorHeader">Por urgencias o recien nacido llame al consultorio (Tel: {{$consultorio->telefono}}).</li>
+  <li class="fontColorHeader header-instruction-text">Por urgencias o recien nacido llame al consultorio (Tel: {{$consultorio->telefono}}).</li>
   @endif
-  <li class="lead fontColorHeader">¿No puedo registrarme? <a data-target="#modalAyuda" data-toggle="modal" class="MainNavText" id="MainNavHelp" 
+  <li class="fontColorHeader header-instruction-text">¿No puedo registrarme? <a data-target="#modalAyuda" data-toggle="modal" class="MainNavText" id="MainNavHelp" 
        href="#modalAyuda">Click aquí</a></li>
 </ul>
 
@@ -35,8 +35,10 @@
 <div class="row">
       <div class="col-md-6">
               
-        <form method="POST" action="{{ route('altapaciente') }}" enctype="multipart/form-data">
+        <form id="formAltaPaciente" method="POST" action="{{ route('altapaciente') }}" enctype="multipart/form-data" onsubmit="return prepararEnvioPaciente(this)">
           @csrf
+          <input type="hidden" id="especialidad_id" name="especialidad_id" value="{{ $especialidad_id ?? '' }}" />
+          <input type="hidden" name="especialidad_nombre_flujo" value="{{ $especialidad_nombre_flujo ?? '' }}" />
           <input type="hidden" id="consultorio" name="consultorio" value="{{$medico->consultorio}}"  />
           <input type="hidden" id="consultorio_telefono" name="consultorio_telefono" value="{{$consultorio->telefono}}"  />
           <input type="hidden" id="medico_id" name="medico_id" value="{{$medico->id}}"  />          
@@ -69,8 +71,8 @@
             <input type="hidden" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento"  />
          </div>
 
-         <label for="text" class="col-sm-0 control-label editText">* Celular</label>      
-          <input onchange="validarDatos()" type="number" class="form-control editText" id="telefono" name="telefono"  placeholder="Telefono solo numeros (EJ: 2915050050)"  />
+          <label for="text" class="col-sm-0 control-label editText">* Celular</label>      
+          <input onchange="validarDatos()" type="number" class="form-control editText" id="telefono" name="telefono"  placeholder="Tel. solo numeros (ej: 2915050050)"  />
 
           <label for="text" class="col-sm-0 control-label editText">* Localidad</label>      
           <input onchange="validarDatos()" type="text" class="form-control editText" id="localidad" name="localidad"  placeholder="Localidad"  />
@@ -148,8 +150,8 @@
 
 </div>
 <br>
-@if($moduloActivarPaciente == 0)
-<div class="contenedor3">            
+  @if($moduloActivarPaciente == 0)
+  <div class="contenedor3">
   <button hidden id="btnContinuar" class="rodri_button contenido3 fontNav">Continuar</button>
 </div>
 </form>
@@ -248,6 +250,15 @@
 </div>
 
 <script type="text/javascript">  
+
+  function prepararEnvioPaciente(form) {
+    var btn = document.getElementById('btnContinuar');
+    if (btn && !btn.hidden) {
+      btn.disabled = true;
+      btn.textContent = 'Procesando...';
+    }
+    return true;
+  }
 
   $.ajaxSetup({
     headers: {

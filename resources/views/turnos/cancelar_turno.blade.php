@@ -206,9 +206,8 @@
         id="modalTitleMensaje">Turno Cancelado</h4>
       </div>      
        	<div class="modal-body">
-       		
-        	<!--<img id="modalImagenMensaje" class="card-img-top" src="images/iconos/ic_ok.png" alt="">                       -->
-        	<p>Su turno ha sido cancelado.</p>
+        	<p id="modalCancelarTurnoMensaje">Su turno ha sido cancelado.</p>
+        	<p id="modalReembolsoMensaje" class="text-muted small mb-0" style="display: none;"></p>
        	</div>
       	<div class="modal-footer">
         	<button class="rodri_button_aceptar" data-dismiss="modal">Finalizar</button>            
@@ -245,6 +244,16 @@ function cancelarTurno(turno_id, dni){
             //alert(fechaMostrar);
             var paciente = "<tr><td>"+contador+"</td><td>"+data.turnosRegistrados[i].papellido+", "+data.turnosRegistrados[i].pnombre+"</td><td>"+data.turnosRegistrados[i].apellido+", "+data.turnosRegistrados[i].nombre+"</td><td>"+fechaMostrar+"</td><td>"+data.turnosRegistrados[i].horario+"<td><button class='rodri_button_cancelar' onclick='cancelarTurno("+data.turnosRegistrados[i].trid+","+data.dni_paciente+")'>Cancelar</button></td></tr>";                                
             $('#pacientes-list').append(paciente); 
+        }
+        var reembolsoMsg = document.getElementById('modalReembolsoMensaje');
+        if (reembolsoMsg) {
+            if (data.reembolso_mensaje) {
+                reembolsoMsg.textContent = data.reembolso_mensaje;
+                reembolsoMsg.style.display = '';
+            } else {
+                reembolsoMsg.textContent = '';
+                reembolsoMsg.style.display = 'none';
+            }
         }
         $('#modalCancelarTurno').modal();
    }

@@ -16,10 +16,24 @@
 
           <label for="text" class="col-sm-0 control-label editText">DNI</label> 
           @if($paciente_dni==null)
-          <input type="text" class="form-control editText" id="dni" name="dni" placeholder="DNI" value="{{old('input_dni')}}" onchange="validarPacienteExiste(this.value)" required/>
+          <div class="input-group">
+            <input type="text" class="form-control editText" id="dni" name="dni" placeholder="DNI" value="{{old('input_dni')}}" onchange="validarPacienteExiste(this.value)" required/>
+            <div class="input-group-append">
+              <button class="btn btn-light" type="button" onclick="mostrarModalBuscar()" title="Buscar paciente">
+                <img class="card-img-top" style="width:22px;" src="images/iconos/buscar.png" alt="Buscar">
+              </button>
+            </div>
+          </div>
           {!! $errors->first('dni','<small>:message</small><br>') !!}                     
           @else
-            <input type="text" class="form-control editText" id="dni" name="dni" value="{{$paciente_dni}}" required/>
+            <div class="input-group">
+              <input type="text" class="form-control editText" id="dni" name="dni" value="{{$paciente_dni}}" required/>
+              <div class="input-group-append">
+                <button class="btn btn-light" type="button" onclick="mostrarModalBuscar()" title="Buscar paciente">
+                  <img class="card-img-top" style="width:22px;" src="images/iconos/buscar.png" alt="Buscar">
+                </button>
+              </div>
+            </div>
           @endif
           <label for="text" class="col-sm-0 control-label editText">Nombre</label>      
           <input type="text" class="form-control editText" id="nombre" name="nombre"  placeholder="Nombre Paciente" value="" required />
@@ -122,6 +136,7 @@
 
 @include('modal.modal_ver_imagen')
 @include('modal.snackbar')
+@include('modal.modal_buscar_paciente')
 <div id="snackbar"><p><input class="input_snackbar_220" id="snackbar_msj" name="snackbar_msj"></input></p></div>
 
 
@@ -137,6 +152,19 @@ function mostrarSnackbar(cs) {
     var x = document.getElementById("snackbar");    
     x.className = "show";
     setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+  }
+
+  function mostrarModalBuscar(){
+    // Asegura que el modal no quede debajo del backdrop por z-index/contexto de apilado.
+    var $m = $("#modalBuscarPaciente");
+    $m.appendTo("body");
+    $m.modal('show');
+  }
+
+  function seleccionarPaciente(dni){
+    document.getElementById("dni").value = dni;
+    $("#modalBuscarPaciente").modal('hide');
+    validarPacienteExiste();
   }
 
  function actualizarPaciente(){     

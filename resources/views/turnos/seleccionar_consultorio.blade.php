@@ -5,11 +5,15 @@
 
 @section('headerContainer')
   <div class="col-md-2 mb-5">
+    <img class="img-fluid" src="images/iconos/paula_clinica.png" alt="Consultorio" style="max-height: 120px;">
+  </div>
 @endsection
 
 @section('descripcion_header','En esta sección podrá elegir el consultorio que desee.')
 
-@section('body_titulo','Click en el consultorio para continuar.')
+@section('body_titulo')
+<span class="fontColorHeader">Seleccione el médico en este consultorio.</span>
+@endsection
 
 @section('contenedor')
 

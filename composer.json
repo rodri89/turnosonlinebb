@@ -49,9 +49,6 @@
         "classmap": [
             "database/seeds",
             "database/factories"
-        ],
-        "files": [
-            "app/Helpers/CalendarHelper.php"
         ]
     },
     "autoload-dev": {

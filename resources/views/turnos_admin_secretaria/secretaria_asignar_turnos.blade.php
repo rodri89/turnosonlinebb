@@ -121,13 +121,13 @@
                       <td> {{$turno["nombre"]}}</td>
                       @if($medico->especialidad == 2)
                         <td> {{$turno["tipo_turno"]}}</td>
-                        <td class="editText"><input type="text" onchange="guardarComentario('{{$turno['trid']}}')" id="comentario{{$turno['trid']}}" name="comentario" value="{{$turno['comentario']}}"/></td> 
+                        <td class="editText"><input type="text" onchange="guardarComentario('{{ $turno['trid'] ?? '' }}')" id="comentario{{ $turno['trid'] ?? '' }}" name="comentario" value="{{ $turno['comentario'] ?? '' }}"/></td> 
                       @endif
                       @if($turno["dni"] == 99999)               
                         <td></td>               
                       @else
                         <td><button onclick="modalCancelarTurno('{{$turno['horario']}}')" class="rodri_button_cancelar_no">X</button></td>
-                        <td><button onclick="modalModificarTurno('{{$turno['horario']}}', '{{$turno['trid']}}', '{{$turno['dni']}}')" class="rodri_button_aceptar_si">M</button></td>
+                        <td><button onclick="modalModificarTurno('{{$turno['horario']}}', '{{ $turno['trid'] ?? '' }}', '{{$turno['dni']}}')" class="rodri_button_aceptar_si">M</button></td>
                       @endif 
                     @endif
               </tr>
@@ -147,13 +147,13 @@
 		              <td> {{$turno["nombre"]}}</td>
                   @if($medico->especialidad == 2)                    
                     <td> {{$turno["tipo_turno"]}}</td>
-                    <td class="editText"><input type="text" onchange="guardarComentario('{{$turno['trid']}}')" id="comentario{{$turno['trid']}}" name="comentario" value="{{$turno['comentario']}}"/></td> 
+                    <td class="editText"><input type="text" onchange="guardarComentario('{{ $turno['trid'] ?? '' }}')" id="comentario{{ $turno['trid'] ?? '' }}" name="comentario" value="{{ $turno['comentario'] ?? '' }}"/></td> 
                   @endif
                   @if($turno["dni"] == 99999)               
                     <td></td>               
                   @else
                     <td><button onclick="modalCancelarTurno('{{$turno['horario']}}')" class="rodri_button_cancelar_no">X</button></td>               
-                    <td><button onclick="modalModificarTurno('{{$turno['horario']}}', '{{$turno['trid']}}', , '{{$turno['dni']}}')" class="rodri_button_aceptar_si">M</button></td>
+                    <td><button onclick="modalModificarTurno('{{$turno['horario']}}', '{{ $turno['trid'] ?? '' }}', '{{$turno['dni']}}')" class="rodri_button_aceptar_si">M</button></td>
                   @endif 
                 @endif
 		          </tr>

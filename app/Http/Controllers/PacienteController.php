@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Paciente;
 use App\Medico;
 use App\Receta;
@@ -12,6 +14,9 @@ use Image;
 use Storage;
 use App\PacienteSecretaria;
 use App\MedicoPaciente;
+use App\Helpers\EspecialidadFlujoHelper;
+use App\Helpers\TurnoTestMedicoHelper;
+use App\Services\DisponibilidadTurnoService;
 
 class PacienteController extends Controller
 {
@@ -22,6 +27,10 @@ class PacienteController extends Controller
      */
     public function index(Request $request)
     {
+        if (!Auth::check()) {
+            session()->forget(['mp_prueba_medico', 'mp_prueba_compartida', 'mp_prueba_volver_url']);
+        }
+
         $medico_id = $request->get('medico_id');
         $medico = medico::find($medico_id);
         $consultorio = DB::table('consultorios')
@@ -42,12 +51,19 @@ class PacienteController extends Controller
         $moduloActivarPaciente = $this->moduloActivo($medico->id, 1);
         $moduloAfiliadoObligatorio = $this->moduloActivo($medico->id, 8);
         $especialidad = $medico->especialidad;
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            $request->input('especialidad_txt'),
+            $especialidad_id,
+            $medico->especialidad
+        );
 
         if($moduloAfiliadoObligatorio == 0){            
             return view('turnos.datos_paciente')
                 ->with('medico',$medico)
                 ->with('especialidad',$especialidad)
                 ->with('obraSociales',$obraSociales)
+                ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
                 ->with('especialidad_id',$especialidad_id)
                 ->with('moduloActivarPaciente',$moduloActivarPaciente)
                 ->with('moduloAfiliadoObligatorio',$moduloAfiliadoObligatorio)
@@ -57,6 +73,7 @@ class PacienteController extends Controller
                 ->with('medico',$medico)
                 ->with('especialidad',$especialidad)
                 ->with('obraSociales',$obraSociales)
+                ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
                 ->with('especialidad_id',$especialidad_id)
                 ->with('moduloActivarPaciente',$moduloActivarPaciente)
                 ->with('moduloAfiliadoObligatorio',$moduloAfiliadoObligatorio)
@@ -86,6 +103,12 @@ class PacienteController extends Controller
         ], 200);
     }
 
+    /**
+     * Método para guardar token FCM - COMENTADO
+     * Esta funcionalidad fue removida porque no funciona correctamente en iOS.
+     * Se implementará una solución alternativa en el futuro.
+     */
+    /*
     public function saveFcmToken(Request $request)
     {
         // Validar los datos recibidos
@@ -106,6 +129,7 @@ class PacienteController extends Controller
             'message' => 'FCM Token guardado correctamente.'
         ], 200);
     }
+    */
 
     function test() {        
         $medico = medico::find(1);
@@ -153,6 +177,63 @@ class PacienteController extends Controller
     }
 
     /**
+     * Resuelve varios módulos del médico en una sola query.
+     *
+     * @param  int  $medico_id
+     * @param  int[]  $modulo_ids
+     * @return array<int, int>
+     */
+    public function modulosActivosBatch($medico_id, array $modulo_ids)
+    {
+        if (empty($modulo_ids)) {
+            return [];
+        }
+
+        $activos = DB::table('modulo_medicos')
+            ->where('modulo_medicos.medico', $medico_id)
+            ->whereIn('modulo_medicos.modulo', $modulo_ids)
+            ->where('modulo_medicos.activo', 1)
+            ->pluck('modulo')
+            ->flip()
+            ->all();
+
+        $result = [];
+        foreach ($modulo_ids as $modulo_id) {
+            $result[$modulo_id] = isset($activos[$modulo_id]) ? 1 : 0;
+        }
+
+        return $result;
+    }
+
+    public function proximasFechasSugeridas(Request $request)
+    {
+        $request->validate([
+            'medico_id' => 'required|integer',
+        ]);
+
+        date_default_timezone_set('America/Argentina/Buenos_Aires');
+        $diaInicio = $request->input('dia_inicio', date('Y-m-d'));
+        $cantidad = (int) $request->input('cantidad', 3);
+        $medicoId = (int) $request->input('medico_id');
+
+        if ($medicoId === 9) {
+            $cantidad = 1;
+        }
+
+        $result = app(DisponibilidadTurnoService::class)->buscarProximasFechasLibres(
+            $medicoId,
+            $request->input('primer_control', 0),
+            (int) $request->input('es_videollamada', 0),
+            $diaInicio,
+            max(1, min($cantidad, 3))
+        );
+
+        return response()->json([
+            'fechas' => $result['fechas'],
+        ]);
+    }
+
+    /**
      * Show the form for creating a new resource.
      *
      * @return \Illuminate\Http\Response
@@ -166,6 +247,9 @@ class PacienteController extends Controller
 
         $paciente = new paciente;
         $paciente->fcm_token = '';
+        $paciente->google_calendar_access_token = '';
+        $paciente->google_calendar_refresh_token = '';
+        $paciente->google_calendar_token_expires_at = '';
         $paciente->nombre = $request->get('nombre');
         $paciente->apellido = $request->get('apellido');
         $paciente->fecha_nacimiento = $request->get('fecha_nacimiento');
@@ -231,13 +315,59 @@ class PacienteController extends Controller
     }
 
 
-    public function diasHabilitados($medico_id, $consultorio_id, $esVideollamada, $tipoTurno) {        
+    public function diasHabilitados($medico_id, $consultorio_id, $esVideollamada, $tipoTurno, $fechaInicio = null, $fechaFin = null) {        
         if($esVideollamada == 1) {
-        $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medico_videollamadas where consultorio= ? and medico = ? and activo=1 order by dia',    
-            [$consultorio_id , $medico_id]);
+            $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medico_videollamadas where consultorio= ? and medico = ? and activo=1 order by dia',    
+                [$consultorio_id , $medico_id]);
         } else {
-            $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = ? and activo=1 order by dia',    
-            [$consultorio_id , $medico_id, $tipoTurno]);
+            if ($fechaInicio && $fechaFin && Schema::hasColumn('horario_medicos', 'valido_desde')) {
+                $horarios = DB::table('horario_medicos')
+                    ->where('horario_medicos.consultorio', $consultorio_id)
+                    ->where('horario_medicos.medico', $medico_id)
+                    ->where('horario_medicos.tipo_turno', $tipoTurno)
+                    ->where('horario_medicos.activo', 1)
+                    ->select('dia', 'valido_desde', 'valido_hasta')
+                    ->get();
+
+                $porDia = [];
+                foreach ($horarios as $h) {
+                    $porDia[(int)$h->dia][] = $h;
+                }
+
+                $diasValidos = [];
+                $fecha = new DateTime($fechaInicio);
+                $fin = new DateTime($fechaFin);
+                while ($fecha <= $fin) {
+                    $f = $fecha->format('Y-m-d');
+                    $diaNum = $this->getDiaSeleccionado2($f);
+
+                    if (!isset($diasValidos[$diaNum]) && isset($porDia[$diaNum])) {
+                        foreach ($porDia[$diaNum] as $row) {
+                            $desdeOk = empty($row->valido_desde) || $row->valido_desde <= $f;
+                            $hastaOk = empty($row->valido_hasta) || $row->valido_hasta >= $f;
+                            if ($desdeOk && $hastaOk) {
+                                $diasValidos[$diaNum] = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (count($diasValidos) >= 7) {
+                        break;
+                    }
+                    $fecha->modify('+1 day');
+                }
+
+                $diasValidosKeys = array_keys($diasValidos);
+                sort($diasValidosKeys, SORT_NUMERIC);
+                $diasAtencionAux = [];
+                foreach ($diasValidosKeys as $d) {
+                    $diasAtencionAux[] = (object)['dia' => $d];
+                }
+            } else {
+                $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = ? and activo=1 order by dia',    
+                    [$consultorio_id , $medico_id, $tipoTurno]);
+            }
         }
         $diasAtencion = array();
         $dias_habilitados = "";
@@ -276,14 +406,23 @@ class PacienteController extends Controller
         }
 
         $dateHoy = date("Y-m-d");
-        $fechasAgregadas = DB::table('fechas_agregadas')
-                        ->select('dia')
-                        ->where('fechas_agregadas.medico',$medico_id)
-                        ->where('fechas_agregadas.consultorio', $consultorio_id)
-                        ->where('fechas_agregadas.fecha', '>',$dateHoy)                        
-                        ->where('fechas_agregadas.activo', 1)                        
-                        ->distinct()
-                        ->get();
+        $fechasAgregadasQuery = DB::table('fechas_agregadas')
+            ->select('dia')
+            ->where('fechas_agregadas.medico',$medico_id)
+            ->where('fechas_agregadas.consultorio', $consultorio_id)
+            ->where('fechas_agregadas.activo', 1)
+            ->distinct();
+
+        if ($fechaInicio) {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '>=', $fechaInicio);
+        } else {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '>', $dateHoy);
+        }
+        if ($fechaFin) {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '<=', $fechaFin);
+        }
+
+        $fechasAgregadas = $fechasAgregadasQuery->get();
 
         foreach ($fechasAgregadas as $valor){
             if($valor->dia == 1){
@@ -344,13 +483,59 @@ class PacienteController extends Controller
     }
 
     // $esVideollamada 1 quiere decir que si, 0 que no
-    public function diasAtencion($medico_id, $consultorio_id, $esVideollamada, $tipoTurno) {
+    public function diasAtencion($medico_id, $consultorio_id, $esVideollamada, $tipoTurno, $fechaInicio = null, $fechaFin = null) {
+        $diasAtencionAux = [];
         if($esVideollamada == 1 || $tipoTurno == 4) {
             $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medico_videollamadas where consultorio= ? and medico = ? and activo=1 order by dia',    
-            [$consultorio_id , $medico_id]);
+                [$consultorio_id , $medico_id]);
         } else {
-            $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = ? and activo=1 order by dia',    
-            [$consultorio_id , $medico_id, $tipoTurno]);
+            if ($fechaInicio && $fechaFin && Schema::hasColumn('horario_medicos', 'valido_desde')) {
+                $horarios = DB::table('horario_medicos')
+                    ->where('horario_medicos.consultorio', $consultorio_id)
+                    ->where('horario_medicos.medico', $medico_id)
+                    ->where('horario_medicos.tipo_turno', $tipoTurno)
+                    ->where('horario_medicos.activo', 1)
+                    ->select('dia', 'valido_desde', 'valido_hasta')
+                    ->get();
+
+                $porDia = [];
+                foreach ($horarios as $h) {
+                    $porDia[(int)$h->dia][] = $h;
+                }
+
+                $diasValidos = [];
+                $fecha = new DateTime($fechaInicio);
+                $fin = new DateTime($fechaFin);
+                while ($fecha <= $fin) {
+                    $f = $fecha->format('Y-m-d');
+                    $diaNum = $this->getDiaSeleccionado2($f);
+
+                    if (!isset($diasValidos[$diaNum]) && isset($porDia[$diaNum])) {
+                        foreach ($porDia[$diaNum] as $row) {
+                            $desdeOk = empty($row->valido_desde) || $row->valido_desde <= $f;
+                            $hastaOk = empty($row->valido_hasta) || $row->valido_hasta >= $f;
+                            if ($desdeOk && $hastaOk) {
+                                $diasValidos[$diaNum] = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (count($diasValidos) >= 7) {
+                        break;
+                    }
+                    $fecha->modify('+1 day');
+                }
+
+                $diasValidosKeys = array_keys($diasValidos);
+                sort($diasValidosKeys, SORT_NUMERIC);
+                foreach ($diasValidosKeys as $d) {
+                    $diasAtencionAux[] = (object)['dia' => $d];
+                }
+            } else {
+                $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = ? and activo=1 order by dia',    
+                    [$consultorio_id , $medico_id, $tipoTurno]);
+            }
         }
 
         $diasAtencion = array();        
@@ -384,14 +569,23 @@ class PacienteController extends Controller
         }    
 
         $dateHoy = date("Y-m-d");
-        $fechasAgregadas = DB::table('fechas_agregadas')
-                        ->select('dia')
-                        ->where('fechas_agregadas.medico',$medico_id)
-                        ->where('fechas_agregadas.consultorio', $consultorio_id)
-                        ->where('fechas_agregadas.fecha', '>',$dateHoy)                        
-                        ->where('fechas_agregadas.activo', 1)                        
-                        ->distinct()
-                        ->get();
+        $fechasAgregadasQuery = DB::table('fechas_agregadas')
+            ->select('dia')
+            ->where('fechas_agregadas.medico',$medico_id)
+            ->where('fechas_agregadas.consultorio', $consultorio_id)
+            ->where('fechas_agregadas.activo', 1)
+            ->distinct();
+
+        if ($fechaInicio) {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '>=', $fechaInicio);
+        } else {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '>', $dateHoy);
+        }
+        if ($fechaFin) {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '<=', $fechaFin);
+        }
+
+        $fechasAgregadas = $fechasAgregadasQuery->get();
 
         foreach ($fechasAgregadas as $valor){
             if($valor->dia == 1){
@@ -456,6 +650,9 @@ class PacienteController extends Controller
     public function crearPaciente($request){
         $paciente = new paciente;
         $paciente->fcm_token = '';
+        $paciente->google_calendar_access_token = '';
+        $paciente->google_calendar_refresh_token = '';
+        $paciente->google_calendar_token_expires_at = '';
         $paciente->nombre = $request->get('nombre');
         $paciente->apellido = $request->get('apellido');
         $paciente->dni = $request->get('dni');
@@ -647,31 +844,10 @@ class PacienteController extends Controller
      */
     public function store(Request $request)
     {   
-
-        $especialidades= DB::table('especialidads')->get();
         $primerControl =  $request->get('radio');        
         $especialidad_id = $request->especialidad_id;
         
         date_default_timezone_set('America/Argentina/Buenos_Aires');
-        $aPartirDia = date("Y-m-d");
-
-        $fechaLibreDisponible_aux1 = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControl, 0, $aPartirDia); 
-        
-        $fechaLibreDisponible1Aux = explode('-', $fechaLibreDisponible_aux1);     
-        $fechaLibreDisponible1 = $this->convertirFechaMostrar($fechaLibreDisponible_aux1);
-
-        if($request->get('medico_id') != 9){
-            $siguienteDia = date('Y-m-d', strtotime('+1 day' , strtotime ( $fechaLibreDisponible_aux1 )));            
-            $fechaLibreDisponible_aux = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControl, 0, $siguienteDia);
-            $fechaLibreDisponible2 = $this->convertirFechaMostrar($fechaLibreDisponible_aux);
-
-            $siguienteDia = date('Y-m-d', strtotime('+1 day' , strtotime ( $fechaLibreDisponible_aux )));            
-            $fechaLibreDisponible_aux = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControl, 0, $siguienteDia);
-            $fechaLibreDisponible3 = $this->convertirFechaMostrar($fechaLibreDisponible_aux);
-        } else {
-            $fechaLibreDisponible2 = null;
-            $fechaLibreDisponible3 = null;
-        }
 
         $request->validate([
             'dni' => 'required|numeric'
@@ -699,23 +875,32 @@ class PacienteController extends Controller
         }
          
         $dni_paciente = $request->get('dni');
-        $medico = DB::select('select * from medicos where id = ? and activo=1', [$request->get('medico_id')]);
+        $medicoRow = TurnoTestMedicoHelper::resolverMedicoFlujoPaciente((int) $request->get('medico_id'));
+        if (!$medicoRow) {
+            abort(404);
+        }
+        $medico = [$medicoRow];
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            $request->input('especialidad_txt'),
+            $request->input('especialidad_id'),
+            $medico[0]->especialidad
+        );
         $consultorio = DB::select('select * from consultorios where id = ? and activo=1', [$medico[0]->consultorio]);
-        $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = 1 and activo=1 order by dia',    
-            [$medico[0]->consultorio , $request->get('medico_id')]);
         
         $dias_habilitados = $this->diasHabilitados($medico[0]->id, $consultorio[0]->id, 0, 1);
         
         $diasAtencion = $this->diasAtencion($medico[0]->id, $consultorio[0]->id, 0, 1);
         
         $dias_deshabilitados= $this->diasDeshabilitados($diasAtencion);
-            
-        $moduloRecetas = $this->moduloActivo($medico[0]->id, 5);  // el 5 corresponde a las recetas               
-        $moduloVideollamadas = $this->moduloActivo($medico[0]->id, 6);  // el 6 corresponde a las videollamadas               
+
+        $modulosActivos = $this->modulosActivosBatch($medico[0]->id, [5, 6, 10]);
+        $moduloRecetas = $modulosActivos[5];
+        $moduloVideollamadas = $modulosActivos[6];
+        $moduloExtraTurnos = $modulosActivos[10];
         
         $modulo = 9; // corresponde a ventana dias
         $medicoConfigAux = $this->getMedicoConfig($medico[0]->id, $modulo);
-        $moduloExtraTurnos = $this->moduloActivo($medico[0]->id, 10);  // el 10 corresponde a turnos extras
 
         $valorConsulta = 0;
         if($medicoConfigAux != null){
@@ -727,13 +912,13 @@ class PacienteController extends Controller
             $end_date_integer = '180';       
         }
 
-        $diaHoy = date("Y-m-d");
-        $ventanaTiempoTope = date('Y-m-d', strtotime('+'.$end_date_integer.' day' , strtotime ( $diaHoy )));
-
-        $fechaLibreDisponibleAux= $fechaLibreDisponible1Aux[2].'-'.$fechaLibreDisponible1Aux[1].'-'.$fechaLibreDisponible1Aux[0];                          
-        $diferenciaDias = $this->getDiferenciaDiasFechas($fechaLibreDisponibleAux, $ventanaTiempoTope);
+        $diferenciaDias = 0;
+        $fechaLibreDisponible1 = null;
+        $fechaLibreDisponible2 = null;
+        $fechaLibreDisponible3 = null;
 
         $obrasSociales = $this->getDiferencialObraSocial($medico[0]->id);
+        $diferencialPaciente = app(\App\Http\Controllers\TurnoController::class)->getImporteDiferencialParaPaciente($medico[0]->id, $paciente);
 
         // especialidad 2 es cardiologo
         if($medico[0]->especialidad == 2) {
@@ -742,7 +927,9 @@ class PacienteController extends Controller
                     ->with('consultorio',$consultorio[0])                    
                     ->with('paciente',$paciente)                    
                     ->with('primerControl',$primerControl)                    
-                    ->with('moduloRecetas',$moduloRecetas);
+                    ->with('moduloRecetas',$moduloRecetas)
+                    ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
+                    ->with('especialidad_id', $especialidad_id);
         }
 
         if(($moduloVideollamadas == 1)||($moduloRecetas == 1) || ($moduloExtraTurnos == 1)) {            
@@ -754,6 +941,7 @@ class PacienteController extends Controller
                     ->with('diasAtencion',$diasAtencion)
                     ->with('obrasSociales',$obrasSociales)
                     ->with('paciente',$paciente)
+                    ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
                     ->with('especialidad_id',$especialidad_id)
                     ->with('fechaLibreDisponible',$fechaLibreDisponible1)
                     ->with('primerControl',$primerControl)
@@ -767,10 +955,12 @@ class PacienteController extends Controller
                     ->with('tipoTurno', 1)
                     ->with('end_date', $end_date)
                     ->with('obrasSociales',$obrasSociales)
+                    ->with('diferencialPaciente', $diferencialPaciente)
                     ->with('diferenciaDias',$diferenciaDias)
                     ->with('medico',$medico[0])
                     ->with('consultorio',$consultorio[0])
                     ->with('diasAtencion',$diasAtencion)
+                    ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
                     ->with('especialidad_id',$especialidad_id)
                     ->with('paciente',$paciente)
                     ->with('valorConsulta',$valorConsulta)
@@ -815,6 +1005,12 @@ class PacienteController extends Controller
         $primerControl = $request->primerControl;
         $moduloRecetas = $request->moduloRecetas;
         $tipoTurno = 0;
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            $request->input('especialidad_txt'),
+            $request->input('especialidad_id'),
+            $medico->especialidad
+        );
         
         $modulo = 9; // corresponde a ventana dias
         $medicoConfigAux = $this->getMedicoConfig($medico->id, $modulo);
@@ -851,8 +1047,8 @@ class PacienteController extends Controller
             $fechaLibreDisponible3 = null;
         }
 
-        $dias_habilitados = $this->diasHabilitados($medico->id, $consultorio[0]->id, 0, $opcion);            
-        $diasAtencion = $this->diasAtencion($medico->id, $consultorio[0]->id, 0, $opcion);
+        $dias_habilitados = $this->diasHabilitados($medico->id, $consultorio[0]->id, 0, $opcion, $aPartirDia, $ventanaTiempoTope);
+        $diasAtencion = $this->diasAtencion($medico->id, $consultorio[0]->id, 0, $opcion, $aPartirDia, $ventanaTiempoTope);
         
         $dias_deshabilitados = $this->diasDeshabilitados($diasAtencion);
 
@@ -860,10 +1056,12 @@ class PacienteController extends Controller
         $diferenciaDias = $this->getDiferenciaDiasFechas($fechaLibreDisponible2Aux, $ventanaTiempoTope);
         $valorConsulta = 0;
         $obrasSociales = $this->getDiferencialObraSocial($medico->id);
+        $diferencialPaciente = app(\App\Http\Controllers\TurnoController::class)->getImporteDiferencialParaPaciente($medico->id, $paciente);
         return view('turnos.seleccionar_dia')
                         ->with('esVideollamada', $esVideollamada)
                         ->with('tipoTurno', $opcion)
-                        ->with('obrasSociales', $obrasSociales)                        
+                        ->with('obrasSociales', $obrasSociales)
+                        ->with('diferencialPaciente', $diferencialPaciente)
                         ->with('end_date', $end_date)
                         ->with('medico', $medico)
                         ->with('consultorio',$consultorio[0])
@@ -877,7 +1075,9 @@ class PacienteController extends Controller
                         ->with('dias_habilitados',$dias_habilitados)
                         ->with('moduloRecetas',$moduloRecetas)
                         ->with('valorConsulta',$valorConsulta)
-                        ->with('dias_deshabilitados',$dias_deshabilitados);
+                        ->with('dias_deshabilitados',$dias_deshabilitados)
+                        ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
+                        ->with('especialidad_id', $request->input('especialidad_id'));
     }
 
     function getDiferencialObraSocial($medico_id) {
@@ -925,6 +1125,12 @@ class PacienteController extends Controller
         $primerControl = $request->primerControl;
         $moduloRecetas = $request->moduloRecetas;
         $tipoTurno = 1;
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            $request->input('especialidad_txt'),
+            $request->input('especialidad_id'),
+            $medico->especialidad
+        );
         
         $modulo = 9; // corresponde a ventana dias
         $medicoConfigAux = $this->getMedicoConfig($medico->id, $modulo);
@@ -999,12 +1205,14 @@ class PacienteController extends Controller
             $diferenciaDias = $this->getDiferenciaDiasFechas($fechaLibreDisponible2Aux, $ventanaTiempoTope);          
         }        
         $obrasSociales = $this->getDiferencialObraSocial($medico->id);
+        $diferencialPaciente = app(\App\Http\Controllers\TurnoController::class)->getImporteDiferencialParaPaciente($medico->id, $paciente);
         //return $dias_deshabilitados; 
         return view('turnos.seleccionar_dia')
                         ->with('esVideollamada', $esVideollamada)
                         ->with('tipoTurno', 1)
                         ->with('end_date', $end_date)
                         ->with('obrasSociales', $obrasSociales)
+                        ->with('diferencialPaciente', $diferencialPaciente)
                         ->with('medico', $medico)
                         ->with('consultorio',$consultorio[0])
                         ->with('diasAtencion',$diasAtencion)
@@ -1017,7 +1225,9 @@ class PacienteController extends Controller
                         ->with('primerControl',$primerControl)
                         ->with('dias_habilitados',$dias_habilitados)
                         ->with('moduloRecetas',$moduloRecetas)
-                        ->with('dias_deshabilitados',$dias_deshabilitados);
+                        ->with('dias_deshabilitados',$dias_deshabilitados)
+                        ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
+                        ->with('especialidad_id', $request->input('especialidad_id'));
     }
 
     function turnoLibreMasCercanoCardiologoTipoTurnoConsulta($medicoId, $tipoTurno, $primerControl){
@@ -1152,7 +1362,13 @@ class PacienteController extends Controller
         $paciente = paciente::find($request->paciente_id);
         $primerControl = $request->primerControl;
         $moduloRecetas = $request->moduloRecetas;
-            
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            $request->input('especialidad_txt'),
+            $request->input('especialidad_id'),
+            $medico->especialidad
+        );
+                     
         $esVideollamada = 0;
         if($tipoTurno == 4)
             $esVideollamada = 1;
@@ -1206,7 +1422,9 @@ class PacienteController extends Controller
                         ->with('primerControl',$primerControl)
                         ->with('dias_habilitados',$dias_habilitados)
                         ->with('moduloRecetas',$moduloRecetas)
-                        ->with('dias_deshabilitados',$dias_deshabilitados);
+                        ->with('dias_deshabilitados',$dias_deshabilitados)
+                        ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
+                        ->with('especialidad_id', $request->input('especialidad_id'));
     }
 
     public function crearPacienteConsultorio($paciente_id, $medico_id){
@@ -1310,8 +1528,9 @@ class PacienteController extends Controller
         $medicos = DB::select('select * from medicos where especialidad = ? and activo=1', [$request->get('especialidad_id')]);
         $dni_paciente = $request->get('dni_paciente');
         $especialidad_id = $request->especialidad_id;
+        $nombreLista = EspecialidadFlujoHelper::nombreParaTurno(null, null, $especialidad_id, null);
         
-        return view('turnos.seleccionar_medico')->with('medicos',$medicos)->with('dni_paciente',$dni_paciente)->with('especialidad_id',$especialidad_id);
+        return view('turnos.seleccionar_medico')->with('medicos',$medicos)->with('dni_paciente',$dni_paciente)->with('especialidad_id',$especialidad_id)->with('especialidad_nombre_flujo_lista', $nombreLista);
   
     }
 
@@ -1319,8 +1538,44 @@ class PacienteController extends Controller
     {           
         $medicos = DB::select('select * from medicos where consultorio = ? and activo=1', [$request->get('consultorio_id')]);
         
-        return view('turnos.seleccionar_medico')->with('medicos',$medicos);
+        $consultorio = DB::table('consultorios')->where('id', $request->get('consultorio_id'))->first();
+        
+        return view('turnos.seleccionar_medico')
+            ->with('medicos',$medicos)
+            ->with('consultorio',$consultorio);
   
+    }
+
+    public function pruebaTurnoMedico1($token)
+    {
+        $secretToken = env('TURNO_TEST_MEDICO_TOKEN', 'turnosonlinebb-prueba-medico-1-secreto');
+
+        if ($token !== $secretToken) {
+            abort(404);
+        }
+
+        session()->forget(['mp_prueba_medico', 'mp_prueba_compartida', 'mp_prueba_volver_url']);
+        session(['turno_test_medico_id' => 1]);
+
+        $medicos = DB::table('medicos')
+            ->select('medicos.id', 'medicos.foto', 'medicos.castigo_automatico', 'medicos.especialidad', 'medicos.nombre as m_nombre', 'medicos.apellido as m_apellido', 'especialidads.nombre as e_nombre', 'especialidads.color', 'medicos.activo')
+            ->join('especialidads', 'especialidads.id', '=', 'medicos.especialidad')
+            ->where('medicos.id', 1)
+            ->get();
+
+        if ($medicos->isEmpty()) {
+            abort(404);
+        }
+
+        $especialidad_id = $medicos[0]->especialidad;
+        $nombreLista = EspecialidadFlujoHelper::nombreParaTurno(null, null, $especialidad_id, null);
+
+        return view('turnos.seleccionar_medico')
+            ->with('especialidad_id', $especialidad_id)
+            ->with('medicos', $medicos)
+            ->with('especialidad_txt', null)
+            ->with('especialidad_nombre_flujo_lista', $nombreLista)
+            ->with('turno_test_mode', true);
     }
 
     public function seleccionarMedicoEspecialidad(Request $request){
@@ -1384,13 +1639,60 @@ class PacienteController extends Controller
 
         }
 
-        return View('turnos.seleccionar_medico')->with('especialidad_id', $especialidad_id)->with('medicos',$medicos)->with('especialidad_txt', $especialidad_txt);  
+        $nombreLista = EspecialidadFlujoHelper::nombreParaTurno(null, $especialidad_txt, $especialidad_id, null);
+
+        return View('turnos.seleccionar_medico')->with('especialidad_id', $especialidad_id)->with('medicos',$medicos)->with('especialidad_txt', $especialidad_txt)->with('especialidad_nombre_flujo_lista', $nombreLista);  
     }
     
 
      public function showMedicosIndex(){
         $medicos = DB::select('select m.id, m.foto,m.castigo_automatico,m.especialidad, m.nombre as m_nombre, m.apellido as m_apellido, e.nombre as e_nombre, e.color from medicos m join especialidads e on m.especialidad = e.id  where m.activo=1');
         return view('turnos.mostrar_medicos_index')->with('medicos',$medicos);
+    }
+
+    /**
+     * Landing por consultorio: /consultorio={slug}
+     * Ejemplo: /consultorio=garibaldi
+     */
+    public function medicosPorConsultorioSlug($slug)
+    {
+        $slug = strtolower($slug);
+
+        // Buscar consultorio por nombre o dirección que contenga el slug
+        $consultorio = DB::table('consultorios')
+            ->where('consultorios.activo', 1)
+            ->where(function($q) use ($slug) {
+                $q->whereRaw('LOWER(REPLACE(nombre, " ", "")) = ?', [$slug])
+                  ->orWhereRaw('LOWER(nombre) LIKE ?', ['%'.$slug.'%'])
+                  ->orWhereRaw('LOWER(REPLACE(direccion, " ", "")) LIKE ?', ['%'.$slug.'%'])
+                  ->orWhereRaw('LOWER(direccion) LIKE ?', ['%'.$slug.'%']);
+            })
+            ->first();
+
+        if (!$consultorio) {
+            abort(404);
+        }
+
+        // Médicos activos que atienden en ese consultorio
+        $medicos = DB::select(
+            'select m.id,
+                    m.foto,
+                    m.castigo_automatico,
+                    m.especialidad,
+                    m.nombre as m_nombre,
+                    m.apellido as m_apellido,
+                    e.nombre as e_nombre,
+                    e.color
+             from medicos m
+             join especialidads e on m.especialidad = e.id
+             where m.activo = 1
+               and m.consultorio = ?',
+            [$consultorio->id]
+        );
+
+        return view('turnos.seleccionar_medico_consultorio')
+            ->with('consultorio', $consultorio)
+            ->with('medicos', $medicos);
     }
 
     // $dia-> a partir de este dia empiezo a buscar turno libre
@@ -1436,31 +1738,12 @@ class PacienteController extends Controller
         
     // $dia-> a partir de este dia empiezo a buscar turno libre
     function turnoLibreMasCercano($medico, $primerControl, $esVideollamada, $dia){
-        // date_default_timezone_set('America/Argentina/Buenos_Aires');
-        // $dia= date("Y-m-d");        
-        $encontre = 0;                
-
-        if($esVideollamada == 0){
-            // 3 corresponde a Primer Control Doble
-            $moduloPrimerControlDoble = $this->moduloActivo($medico, 3);
-            if($moduloPrimerControlDoble == 0)
-                $primerControl = 0;
-        }
-
-        while($encontre == 0){
-            if($this->esFeriado($dia) == 0) // devuelve 1 si es feriado, 0 caso contrario
-                $hayTurnoLibre = $this->checkTurnoLibre($medico, $dia, $primerControl, $esVideollamada);
-            else
-               $hayTurnoLibre = 0; 
-            if($hayTurnoLibre == 0){ // es decir no hay turno libre, avanzo de dia.            
-                $siguienteDia = $dia;              
-                $siguienteDia = date('Y-m-d', strtotime('+1 day' , strtotime ( $siguienteDia )));            
-                $dia = $siguienteDia;
-            } else {
-                $encontre = 1;
-            }
-        }
-        return $dia;
+        return app(DisponibilidadTurnoService::class)->buscarPrimeraFechaLibre(
+            (int) $medico,
+            $primerControl,
+            (int) $esVideollamada,
+            $dia
+        );
     }
 
     function checkTurnoLibreEspecialNataliaFerrari($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
@@ -2075,16 +2358,60 @@ class PacienteController extends Controller
         }
     }
 
-
-        function checkTurnoLibreEspecialMarina($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
+    function checkTurnoLibreEspecialMonica($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
         $turnos = null;                
-        if($fechaSeleccionada >= '2025-07-01') {
-            // mostrar 9.30 10.00 10.30 11.00 11.30
-            if($diaSeleccionado == 2 || $diaSeleccionado == 4) {
+        if($fechaSeleccionada >= '2026-04-01') {
+            
+            if($diaSeleccionado == 3) {
                 $turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.horario','==' ,'99:00')                        
+                        ->where('horario_medicos.activo', 1)                        
+                        ->orderby('horario_medicos.horario')
+                        ->get();
+            }            
+        }                          
+            
+        if($turnos != null)
+            return $turnos;
+        else {
+            $turnos = DB::table('horario_medicos')
+                        ->where('horario_medicos.medico',$medico_id)
+                        ->where('horario_medicos.consultorio', $consultorio_id)
+                        ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.activo', 1)                        
+                        ->orderby('horario_medicos.horario')
+                        ->get();
+            return $turnos;
+        } 
+    }
+
+
+    function checkTurnoLibreEspecialMarina($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
+        $turnos = null;                
+        if($fechaSeleccionada >= '2026-03-01') {
+            // mostrar 9.30 10.00 10.30 11.00 11.30
+            if($diaSeleccionado == 2) {
+                $turnos = DB::table('horario_medicos')
+                        ->where('horario_medicos.medico',$medico_id)
+                        ->where('horario_medicos.consultorio', $consultorio_id)
+                        ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.horario','!=' ,'09:00')
+                        ->where('horario_medicos.horario','!=' ,'09:30')
+                        ->where('horario_medicos.horario','!=' ,'10:00')
+                        ->where('horario_medicos.horario','!=' ,'10:30')
+                        ->where('horario_medicos.horario','!=' ,'11:00')
+                        ->where('horario_medicos.horario','!=' ,'11:30')
+                        ->where('horario_medicos.horario','!=' ,'12:00')
+                        ->where('horario_medicos.horario','!=' ,'12:30')
+                        ->where('horario_medicos.horario','!=' ,'13:00')
+                        ->where('horario_medicos.horario','!=' ,'13:30')
+                        ->where('horario_medicos.horario','!=' ,'16:10')
+                        ->where('horario_medicos.horario','!=' ,'16:50')                        
+                        ->where('horario_medicos.horario','!=' ,'18:10')
+                        ->where('horario_medicos.horario','!=' ,'18:50')
                         ->where('horario_medicos.activo', 1)                        
                         ->orderby('horario_medicos.horario')
                         ->get();
@@ -2095,27 +2422,15 @@ class PacienteController extends Controller
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)    
-                        ->where('horario_medicos.horario','!=' ,'12:00')                       
-                        ->where('horario_medicos.horario','!=' ,'12:30')                        
-                        ->where('horario_medicos.horario','!=' ,'13:00')
-                        ->where('horario_medicos.horario','!=' ,'13:30')                                        
+                        ->where('horario_medicos.horario','!=' ,'15:00')                       
+                        ->where('horario_medicos.horario','!=' ,'16:00')                        
+                        ->where('horario_medicos.horario','!=' ,'16:30')
+                        ->where('horario_medicos.horario','!=' ,'17:00')                                        
+                        ->where('horario_medicos.horario','!=' ,'18:00')                        
                         ->where('horario_medicos.activo', 1)         
                         ->orderby('horario_medicos.horario')               
                         ->get(); 
-            }
-            if($diaSeleccionado == 4) {
-                $turnos = DB::table('horario_medicos')
-                        ->where('horario_medicos.medico',$medico_id)
-                        ->where('horario_medicos.consultorio', $consultorio_id)
-                        ->where('horario_medicos.dia', $diaSeleccionado)    
-                        ->where('horario_medicos.horario','!=' ,'11:30')                       
-                        ->where('horario_medicos.horario','!=' ,'12:00')
-                        ->where('horario_medicos.horario','!=' ,'12:30')                                                
-                        ->where('horario_medicos.horario','!=' ,'13:30')                                        
-                        ->where('horario_medicos.activo', 1)         
-                        ->orderby('horario_medicos.horario')               
-                        ->get(); 
-            }                 
+            }                           
         }        
 
         if($turnos != null)
@@ -2549,7 +2864,7 @@ class PacienteController extends Controller
                         ->where('turno_registrado_videollamadas.activo', 1)                        
                         ->get();
         } else {
-            if($medico->id == 1 || $medico->id == 2 || $medico->id == 5 || $medico->id == 8 || $medico->id == 13 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 19 || $medico->id == 23 || $medico->id == 24 || $medico->id == 26 || $medico->id == 29 || $medico->id == 30 || $medico->id == 31){
+            if($medico->id == 1 || $medico->id == 2 || $medico->id == 5 || $medico->id == 8 || $medico->id == 13 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 19 || $medico->id == 23 || $medico->id == 24 || $medico->id == 26 || $medico->id == 29 || $medico->id == 30 || $medico->id == 31 || $medico->id == 38){
                 if($medico->id == 1)
                     $turnos = $this->checkTurnoLibreEspecialFlor($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
                 if($medico->id == 2)
@@ -2584,6 +2899,8 @@ class PacienteController extends Controller
                     $turnos = $this->checkTurnoLibreEspecialAnto($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
                 if($medico->id == 31)
                     $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
+                if($medico->id == 38)
+                    $turnos = $this->checkTurnoLibreEspecialMonica($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
             } else {
                 $turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico->id)
@@ -2655,11 +2972,15 @@ class PacienteController extends Controller
     }
 
     // retorna 1 si hay al menos 1 turno libre, sino retorna 0.
-    function checkTurnoLibre($medico_id, $fecha, $primerControl, $esVideollamada){        
-        $medico = medico::find($medico_id);            
-        $consultorio = DB::table('consultorios')                                                                                           
-                        ->where('consultorios.id',$medico->consultorio)
-                        ->first();
+    function checkTurnoLibre($medico_id, $fecha, $primerControl, $esVideollamada, $medico = null, $consultorio = null){        
+        if ($medico === null) {
+            $medico = medico::find($medico_id);
+        }
+        if ($consultorio === null) {
+            $consultorio = DB::table('consultorios')
+                            ->where('consultorios.id',$medico->consultorio)
+                            ->first();
+        }
        
         $diaSeleccionado = $this->getDiaSeleccionado($fecha);
         if($esVideollamada == 1){
@@ -2677,7 +2998,7 @@ class PacienteController extends Controller
                         ->where('turno_registrado_videollamadas.activo', 1)                        
                         ->get();
         } else {
-            if($medico->id == 1 || $medico->id == 2 || $medico->id == 5 || $medico->id == 8 || $medico->id == 11 || $medico->id == 13 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 19 || $medico->id == 23 || $medico->id == 24 || $medico->id == 26 || $medico->id == 29 || $medico->id == 30 || $medico->id == 31){
+            if($medico->id == 1 || $medico->id == 2 || $medico->id == 5 || $medico->id == 8 || $medico->id == 11 || $medico->id == 13 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 19 || $medico->id == 23 || $medico->id == 24 || $medico->id == 26 || $medico->id == 29 || $medico->id == 30 || $medico->id == 31 || $medico->id == 38){
                 if($medico->id == 1)
                     $turnos = $this->checkTurnoLibreEspecialFlor($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
                 if($medico->id == 2)
@@ -2712,6 +3033,8 @@ class PacienteController extends Controller
                     $turnos = $this->checkTurnoLibreEspecialAnto($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
                 if($medico->id == 31)
                     $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
+                if($medico->id == 38)
+                    $turnos = $this->checkTurnoLibreEspecialMonica($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
             } else {
                 $turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico->id)
@@ -2993,6 +3316,9 @@ class PacienteController extends Controller
         } else {
             $paciente = new paciente;    
             $paciente->fcm_token = '';
+            $paciente->google_calendar_access_token = '';
+            $paciente->google_calendar_refresh_token = '';
+            $paciente->google_calendar_token_expires_at = '';
             $paciente->nombre = $request->get('nombre');
             $paciente->apellido = $request->get('apellido');
             $paciente->dni = $request->get('dni');    

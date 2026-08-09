@@ -107,6 +107,10 @@
               <button class="nav-link sinBackground text-white menuAlineacion">Bloquear</button>        
             </form>
           </li>
+
+          <li class="nav-item">
+            <a class="nav-link text-white menuAlineacion" href="{{ route('secretarianuevaobrasocial') }}">Nueva obra social</a>
+          </li>
           
           @if(Auth::user()->perfil == 3 || Auth::user()->perfil == 4)
           <li class="nav-item">
@@ -125,6 +129,8 @@
             </a>
 
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
+                @include('turnos_admin_secretaria._dropdown_gestion_medico')
+                <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="{{ route('logout') }}"
                    onclick="event.preventDefault();
                                  document.getElementById('logout-form').submit();">
@@ -152,6 +158,12 @@
       <div class="col-md-12 mb-5">
         <h2> @yield('body_titulo','')</h2><br>
         <br><br>
+        @if(session('success'))
+          <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+          <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
         @yield('contenedor')
 
       </div>

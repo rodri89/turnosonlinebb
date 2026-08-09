@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\Post;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 //use Illuminate\Support\Facades\Http;
 use GuzzleHttp\Client;
 use App\HorarioMedico;
@@ -27,17 +28,87 @@ use App\HorarioMedicoDH;
 use App\MedicoPrimerControl;
 use App\Videollamada;
 use App\ObraSocialMedico;
+use App\Helpers\EspecialidadFlujoHelper;
+use App\Helpers\TurnoTestMedicoHelper;
 use App\MedicoPaciente;
 use App\User;
 use App\PacienteSecretaria;
 use App\Services\OneSignalService;
 use App\Services\GoogleCalendarService;
+use App\Services\MercadoPago\TurnoPagoIntentService;
 use App\ListaNegra;
 
 //use App\especialidad;
 
 class TurnoController extends Controller
 {
+    /** Mostrar a pacientes solo el par de turnos vigente (ventana de 2 slots consecutivos). */
+    const MODULO_MOSTRAR_DOS = 11;
+    const MODULO_COBRO_TURNOS_MP = 12;
+
+    public function getMensajeMedicoEspecial(Request $request)
+    {
+        $medicoId = (int) $request->input('medico_id');
+        $fecha = $request->input('fecha'); // DD/MM/YYYY o YYYY-MM-DD
+
+        if (!$medicoId) {
+            return response()->json(['mensajes' => []]);
+        }
+
+        if (!$fecha) {
+            $fecha = date('Y-m-d');
+        }
+
+        if (strpos($fecha, '/') !== false) {
+            $aux = explode('/', $fecha);
+            if (count($aux) === 3) {
+                $fecha = $aux[2] . '-' . $aux[1] . '-' . $aux[0];
+            }
+        }
+
+        $mensajes = DB::table('medico_mensajes_especiales')
+            ->where('medico_mensajes_especiales.medico_id', $medicoId)
+            ->where('medico_mensajes_especiales.activo', 1)
+            ->where(function ($q) use ($fecha) {
+                $q->whereNull('medico_mensajes_especiales.valido_desde')
+                    ->orWhere('medico_mensajes_especiales.valido_desde', '<=', $fecha);
+            })
+            ->where(function ($q) use ($fecha) {
+                $q->whereNull('medico_mensajes_especiales.valido_hasta')
+                    ->orWhere('medico_mensajes_especiales.valido_hasta', '>=', $fecha);
+            })
+            ->orderByDesc('medico_mensajes_especiales.id')
+            ->get(['id', 'titulo', 'descripcion', 'valido_desde', 'valido_hasta']);
+
+        $avisoCobro = null;
+        $account = \App\MedicoMercadoPagoAccount::where('medico_id', $medicoId)->first();
+        if ($account
+            && (int) $account->cobro_activo === 1
+            && trim((string) $account->mensaje_aviso_cobro) !== ''
+        ) {
+            $cobroDesde = null;
+            if (!empty($account->cobro_desde)) {
+                $cobroDesde = $account->cobro_desde instanceof \Carbon\Carbon
+                    ? $account->cobro_desde->format('Y-m-d')
+                    : (string) $account->cobro_desde;
+            }
+            $fechaFmt = $cobroDesde
+                ? \Carbon\Carbon::parse($cobroDesde)->format('d/m/Y')
+                : '';
+            $descripcion = str_replace(['[fecha]', '{fecha}'], $fechaFmt, $account->mensaje_aviso_cobro);
+            $avisoCobro = [
+                'titulo' => $account->mensaje_aviso_cobro_titulo ?: 'Aviso sobre reservas de turnos',
+                'descripcion' => $descripcion,
+                'cobro_desde' => $cobroDesde,
+            ];
+        }
+
+        return response()->json([
+            'mensajes' => $mensajes,
+            'aviso_cobro' => $avisoCobro,
+        ]);
+    }
+
     
     public function adminTurnosIndex()
     {
@@ -76,67 +147,60 @@ class TurnoController extends Controller
     }
 
     // retorna 1 si hay al menos 1 turno libre, sino retorna 0.
-    function checkTurnoLibreTipoTurno($medico_id, $fecha, $primerControl, $esVideollamada, $tipoTurno){        
-        $medico = medico::find($medico_id);            
-        $consultorio = DB::table('consultorios')                                                                                           
-                        ->where('consultorios.id',$medico->consultorio)
-                        ->first();
-       
-        $diaSeleccionado = $this->getDiaSeleccionado2($fecha);
-        
-        $turnos = DB::table('horario_medicos')
-                ->where('horario_medicos.medico',$medico->id)
-                ->where('horario_medicos.consultorio', $consultorio->id)
-                ->where('horario_medicos.dia', $diaSeleccionado)
-                ->where('horario_medicos.tipo_turno', $tipoTurno)
-                ->where('horario_medicos.activo', 1)                        
-                ->get();        
+    // Unifica la lógica con la de createJson/createJsonTurnosDobles para evitar inconsistencias
+    // (por ejemplo, horarios especiales, fechas agregadas, etc.).
+    function checkTurnoLibreTipoTurno($medico_id, $fecha, $primerControl, $esVideollamada, $tipoTurno, $consultorio_id = null){
+        $medico = medico::find($medico_id);
+        if(!$medico){
+            return 0;
+        }
 
-        $turnosRegistrados = DB::table('turno_registrados')                                
-                    ->where('turno_registrados.medico',$medico->id)
-                    ->where('turno_registrados.consultorio', $consultorio->id)
-                    ->where('turno_registrados.dia', $diaSeleccionado)
-                    ->where('turno_registrados.fechaTurno', $fecha)
-                    //->where('turno_registrados.tipo_turno', $tipoTurno)
-                    ->where('turno_registrados.activo', 1)                        
-                    ->get();        
-        
-        $i=0;
-        $libre=0;        
-        if($primerControl == 0){
-            while($i<count($turnos)&&($libre==0)){                
-                $turnoActualLibre = $this->estaLibre2($turnos[$i]->horario,$turnosRegistrados);                            
-                if($turnoActualLibre==0){
-                    $libre = 1;
-                }
-                $i++;                            
-            }
+        if($consultorio_id === null){
+            $consultorio_id = $medico->consultorio;
+        }
+
+        $diaSeleccionado = $this->getDiaSeleccionado2($fecha);
+
+        // Videollamada usa su propio set de horarios
+        if($esVideollamada == 1){
+            $dataJson = $this->createJsonVideollamada($medico_id, $consultorio_id, $diaSeleccionado, $fecha);
+            $cantidadPrimerControlPermitido = true;
         } else {
-            // en caso de ser primer control
-            if($this->controlarCantidadPrimerControl($medico, $fecha)){  
-                while($i<count($turnos)&&($libre==0)){
-                //$libre=0;            
-                    $turnoActualLibre = $this->estaLibre2($turnos[$i]->horario, $turnosRegistrados);                    
-                          
-                    if(($turnos[$i]->doble==0) && ($turnoActualLibre == 0)){
-                        $j=$i+1;
-                        if($j<count($turnos)){
-                            $turnosContiguos = 1;//$this->esTurnoContiguo($turnos[$i]->horario,$turnos[$j]->horario);
-                            if($turnosContiguos==1){
-                                $turnoSiguienteLibre = $this->estaLibre2($turnos[$j]->horario, $turnosRegistrados);
-                          //      echo $turnoSiguienteLibre.'<br>';                    
-                                if($turnoSiguienteLibre == 0){                            
-                                    $libre=1;
-                                }
-                            }
-                        }                                    
-                    }        
-                    $i++;
+            // Modulo id: 3 | corresponde a Primer Control Doble
+            $moduloPrimerControlDoble = $this->moduloActivo($medico_id, 3);
+            if (($primerControl == 0) || ($moduloPrimerControlDoble == 0)){
+                // turnos comunes
+                $dataJson = $this->createJson($medico_id, $consultorio_id, $diaSeleccionado, $fecha, $tipoTurno);
+                $cantidadPrimerControlPermitido = true;
+            } else {
+                // turnos dobles (primer control)
+                $cantidadPrimerControlPermitido = $this->controlarCantidadPrimerControl($medico_id, $diaSeleccionado, $consultorio_id, $fecha);
+                if($cantidadPrimerControlPermitido){
+                    $dataJson = $this->createJsonTurnosDobles($medico_id, $consultorio_id, $diaSeleccionado, $fecha, $tipoTurno);
+                } else {
+                    $dataJson = null;
                 }
             }
         }
-    
-        return $libre;
+
+        if(!$cantidadPrimerControlPermitido || !$dataJson){
+            return 0;
+        }
+
+        $turnosArray = json_decode($dataJson, true);
+        if(!is_array($turnosArray)){
+            return 0;
+        }
+
+        $turnosArray = $this->aplicarMostrarDosPaciente($medico_id, $turnosArray);
+
+        foreach ($turnosArray as $turno) {
+            if ($this->turnoFilaEsReservablePaciente($turno)) {
+                return 1;
+            }
+        }
+
+        return 0;
     }
 
 
@@ -148,6 +212,12 @@ class TurnoController extends Controller
         $primerControl = $request->primerControl;
         $moduloRecetas = $request->moduloRecetas;
         $tipoTurno = 0;
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            $request->input('especialidad_txt'),
+            $request->input('especialidad_id'),
+            $medico->especialidad
+        );
         
         $modulo = 9; // corresponde a ventana dias
         $medicoConfigAux = $this->getMedicoConfig($medico->id, $modulo);
@@ -193,10 +263,12 @@ class TurnoController extends Controller
         $diferenciaDias = $this->getDiferenciaDiasFechas($fechaLibreDisponible2Aux, $ventanaTiempoTope);
 
         $obrasSociales = $this->getDiferencialObraSocial($medico->id);
+        $diferencialPaciente = $this->getImporteDiferencialParaPaciente($medico->id, $paciente);
         return view('turnos.seleccionar_dia')
                         ->with('esVideollamada', $esVideollamada)
                         ->with('tipoTurno', $opcion)
-                        ->with('obrasSociales', $obrasSociales)                        
+                        ->with('obrasSociales', $obrasSociales)
+                        ->with('diferencialPaciente', $diferencialPaciente)
                         ->with('end_date', $end_date)
                         ->with('medico', $medico)
                         ->with('consultorio',$consultorio[0])
@@ -209,7 +281,9 @@ class TurnoController extends Controller
                         ->with('primerControl',$primerControl)
                         ->with('dias_habilitados',$dias_habilitados)
                         ->with('moduloRecetas',$moduloRecetas)
-                        ->with('dias_deshabilitados',$dias_deshabilitados);
+                        ->with('dias_deshabilitados',$dias_deshabilitados)
+                        ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
+                        ->with('especialidad_id', $request->input('especialidad_id'));
     }
 
     function getDiferencialObraSocial($medico_id) {        
@@ -241,8 +315,88 @@ class TurnoController extends Controller
         return $query_os;
     }
 
+    /**
+     * Diferencial de consulta para la obra social del paciente (obra_social_medicos + nombre en pacientes).
+     * Misma regla que getDiferencialObraSocial: importe 0 se reemplaza por el de PARTICULAR.
+     *
+     * @param  int|\stdClass|\App\Paciente  $paciente
+     * @return object{encontrado: bool, nombre_obra: ?string, importe: ?float, mensaje: ?string}
+     */
+    public function getImporteDiferencialParaPaciente($medico_id, $paciente)
+    {
+        $sinObra = (object) [
+            'encontrado' => false,
+            'nombre_obra' => null,
+            'importe' => null,
+            'mensaje' => 'sin_obra',
+        ];
+
+        if (!$paciente) {
+            return $sinObra;
+        }
+
+        $nombreOs = trim((string) (is_object($paciente) ? ($paciente->obra_social ?? '') : ''));
+        if ($nombreOs === '') {
+            return $sinObra;
+        }
+
+        $particularAux = DB::table('obra_social_medicos')
+            ->select('obra_social_medicos.importe')
+            ->join('obra_socials', 'obra_socials.id', '=', 'obra_social_medicos.obra_social')
+            ->where('obra_social_medicos.medico', $medico_id)
+            ->where('obra_socials.nombre', 'PARTICULAR')
+            ->where('obra_socials.activo', 1)
+            ->where('obra_social_medicos.activo', 1)
+            ->first();
+
+        $particular = $particularAux ? (float) $particularAux->importe : null;
+
+        $row = DB::table('obra_social_medicos')
+            ->select('obra_socials.nombre', 'obra_social_medicos.importe')
+            ->join('obra_socials', 'obra_socials.id', '=', 'obra_social_medicos.obra_social')
+            ->where('obra_social_medicos.medico', $medico_id)
+            ->where('obra_socials.activo', 1)
+            ->where('obra_social_medicos.activo', 1)
+            ->where('obra_socials.nombre', $nombreOs)
+            ->first();
+
+        if (!$row) {
+            $row = DB::table('obra_social_medicos')
+                ->select('obra_socials.nombre', 'obra_social_medicos.importe')
+                ->join('obra_socials', 'obra_socials.id', '=', 'obra_social_medicos.obra_social')
+                ->where('obra_social_medicos.medico', $medico_id)
+                ->where('obra_socials.activo', 1)
+                ->where('obra_social_medicos.activo', 1)
+                ->whereRaw('LOWER(obra_socials.nombre) = ?', [mb_strtolower($nombreOs, 'UTF-8')])
+                ->first();
+        }
+
+        if (!$row) {
+            return (object) [
+                'encontrado' => false,
+                'nombre_obra' => $nombreOs,
+                'importe' => null,
+                'mensaje' => 'no_tabla',
+            ];
+        }
+
+        $importe = (float) $row->importe;
+        if ($importe == 0 && $particular !== null) {
+            $importe = (float) $particular;
+        }
+
+        return (object) [
+            'encontrado' => true,
+            'nombre_obra' => $row->nombre,
+            'importe' => $importe,
+            'mensaje' => null,
+        ];
+    }
+
     public function selectDia(Request $request)
     {   
+        session()->forget(['mp_prueba_medico', 'mp_prueba_compartida', 'mp_prueba_volver_url']);
+
         if($request->tipo_turno == 22) {
             return $this->seleccionarDiaTurnoOnline($request);
         }    
@@ -251,8 +405,18 @@ class TurnoController extends Controller
         $primerControl = $request->get('primer_control'); 	            
         $paciente = DB::table('pacientes')->find($request->paciente_id);
         $dni_paciente = $request->get('dni_paciente');
-    	$medico = DB::select('select * from medicos where id = ? and activo=1', [$request->get('medico_id')]);
+    	$medicoRow = TurnoTestMedicoHelper::resolverMedicoFlujoPaciente((int) $request->get('medico_id'));
+        if (!$medicoRow) {
+            abort(404);
+        }
+        $medico = [$medicoRow];
     	$consultorio = DB::select('select * from consultorios where id = ? and activo=1', [$medico[0]->consultorio]);
+    	$especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            $request->input('especialidad_txt'),
+            $request->input('especialidad_id'),
+            $medico[0]->especialidad ?? null
+        );
     	
         if($esVideollamada == 0){
             $esVideollamada = 0;
@@ -281,17 +445,19 @@ class TurnoController extends Controller
             // $fechaLibreDisponible_aux = $this->turnoLibreMasCercano($medico[0]->id, $primerControl, 0);
             // $fecha_aux = explode('-',$fechaLibreDisponible_aux);        
             // $fechaLibreDisponible= $fecha_aux[2].'/'.$fecha_aux[1].'/'.$fecha_aux[0];                          
-            $dias_habilitados = $this->diasHabilitados($medico[0]->id, $consultorio[0]->id, 0, $tipoTurno);            
-            $diasAtencion = $this->diasAtencion($medico[0]->id, $consultorio[0]->id, 0 , $tipoTurno);
-            $dias_deshabilitados = $this->diasDeshabilitados($diasAtencion);
+            // Se calcula más abajo (necesita ventana de fecha para aplicar vigencia valido_desde/valido_hasta).
+            $dias_habilitados = '';
+            $diasAtencion = [];
+            $dias_deshabilitados = '';
         } else {
             $esVideollamada = 1;
             $fechaLibreDisponible_aux = $this->turnoLibreMasCercano($medico[0]->id, $primerControl, 1);
             $fecha_aux = explode('-',$fechaLibreDisponible_aux);                    
             $fechaLibreDisponible1 = $fecha_aux[2].'/'.$fecha_aux[1].'/'.$fecha_aux[0];                                      
-            $dias_habilitados = $this->diasHabilitados($medico[0]->id, $consultorio[0]->id, 1, $tipoTurno);            
-            $diasAtencion = $this->diasAtencion($medico[0]->id, $consultorio[0]->id, 1, $tipoTurno);
-            $dias_deshabilitados = $this->diasDeshabilitados($diasAtencion);   
+            // Se calcula más abajo (necesita ventana de fecha para aplicar vigencia valido_desde/valido_hasta).
+            $dias_habilitados = '';
+            $diasAtencion = [];
+            $dias_deshabilitados = '';
             $fechaLibreDisponible2 = null;
             $fechaLibreDisponible3 = null;     
         }    
@@ -313,14 +479,22 @@ class TurnoController extends Controller
         $diaHoy = date("Y-m-d");
         $ventanaTiempoTope = date('Y-m-d', strtotime('+'.$end_date_integer.' day' , strtotime ( $diaHoy )));
 
+        // Días habilitados / atención: aplicar vigencia en la ventana (no solo desde "hoy").
+        $fechaInicioDias = date("Y-m-d");
+        $dias_habilitados = $this->diasHabilitados($medico[0]->id, $consultorio[0]->id, $esVideollamada, $tipoTurno, $fechaInicioDias, $ventanaTiempoTope);
+        $diasAtencion = $this->diasAtencion($medico[0]->id, $consultorio[0]->id, $esVideollamada, $tipoTurno, $fechaInicioDias, $ventanaTiempoTope);
+        $dias_deshabilitados = $this->diasDeshabilitados($diasAtencion);
+
         $fechaLibreDisponible22= $fechaLibreDisponible1Aux[2].'-'.$fechaLibreDisponible1Aux[1].'-'.$fechaLibreDisponible1Aux[0];                          
         $diferenciaDias = $this->getDiferenciaDiasFechas($fechaLibreDisponible22, $ventanaTiempoTope);
         
-        $obrasSociales = $this->getDiferencialObraSocial($medico->id);
+        $obrasSociales = $this->getDiferencialObraSocial($medico[0]->id);
+        $diferencialPaciente = $this->getImporteDiferencialParaPaciente($medico[0]->id, $paciente);
     	return view('turnos.seleccionar_dia')
         ->with('esVideollamada',$esVideollamada)
         ->with('tipoTurno',$tipoTurno)
-        ->with('obrasSociales', $obrasSociales)                        
+        ->with('obrasSociales', $obrasSociales)
+        ->with('diferencialPaciente', $diferencialPaciente)
         ->with('primerControl',$primerControl)
         ->with('end_date',$end_date)
         ->with('diferenciaDias',$diferenciaDias)
@@ -335,7 +509,9 @@ class TurnoController extends Controller
         ->with('valorConsulta',$valorConsulta)
         ->with('moduloRecetas',$moduloRecetas)
         ->with('dias_habilitados',$dias_habilitados)
-        ->with('dias_deshabilitados',$dias_deshabilitados);    
+        ->with('dias_deshabilitados',$dias_deshabilitados)
+        ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
+        ->with('especialidad_id', $request->input('especialidad_id'));    
     }
 
     // input 2000-10-01 output = 01/10/2000
@@ -367,13 +543,63 @@ class TurnoController extends Controller
             return $diff->days;
     }
 
-    public function diasHabilitados($medico_id, $consultorio_id, $esVideollamada, $tipoTurno) {
+    /**
+     * Retorna un string con los dias habilitados (ej: "1,3,5") para la pantalla de selección.
+     * Si se envía un rango de fechas, se aplica vigencia por fecha en horario_medicos (valido_desde/valido_hasta).
+     */
+    public function diasHabilitados($medico_id, $consultorio_id, $esVideollamada, $tipoTurno, $fechaInicio = null, $fechaFin = null) {
+        $diasAtencionAux = [];
         if($esVideollamada == 1){
-        $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medico_videollamadas where consultorio= ? and medico = ? and activo=1 order by dia',    
-            [$consultorio_id , $medico_id]);
+            $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medico_videollamadas where consultorio= ? and medico = ? and activo=1 order by dia',    
+                [$consultorio_id , $medico_id]);
         } else {
-            $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = ? and activo=1 order by dia',    
-            [$consultorio_id , $medico_id, $tipoTurno]);
+            if ($fechaInicio && $fechaFin && Schema::hasColumn('horario_medicos', 'valido_desde')) {
+                $horarios = DB::table('horario_medicos')
+                    ->where('horario_medicos.consultorio', $consultorio_id)
+                    ->where('horario_medicos.medico', $medico_id)
+                    ->where('horario_medicos.tipo_turno', $tipoTurno)
+                    ->where('horario_medicos.activo', 1)
+                    ->select('dia', 'valido_desde', 'valido_hasta')
+                    ->get();
+
+                $porDia = [];
+                foreach ($horarios as $h) {
+                    $porDia[(int)$h->dia][] = $h;
+                }
+
+                $diasValidos = [];
+                $fecha = new DateTime($fechaInicio);
+                $fin = new DateTime($fechaFin);
+                while ($fecha <= $fin) {
+                    $f = $fecha->format('Y-m-d');
+                    $diaNum = $this->getDiaSeleccionado2($f);
+
+                    if (!isset($diasValidos[$diaNum]) && isset($porDia[$diaNum])) {
+                        foreach ($porDia[$diaNum] as $row) {
+                            $desdeOk = empty($row->valido_desde) || $row->valido_desde <= $f;
+                            $hastaOk = empty($row->valido_hasta) || $row->valido_hasta >= $f;
+                            if ($desdeOk && $hastaOk) {
+                                $diasValidos[$diaNum] = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (count($diasValidos) >= 7) {
+                        break;
+                    }
+                    $fecha->modify('+1 day');
+                }
+
+                $diasValidosKeys = array_keys($diasValidos);
+                sort($diasValidosKeys, SORT_NUMERIC);
+                foreach ($diasValidosKeys as $d) {
+                    $diasAtencionAux[] = (object)['dia' => $d];
+                }
+            } else {
+                $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = ? and activo=1 order by dia',    
+                    [$consultorio_id , $medico_id, $tipoTurno]);
+            }
         }
         $diasAtencion = array();
         $dias_habilitados = "";
@@ -412,14 +638,23 @@ class TurnoController extends Controller
         }
 
         $dateHoy = date("Y-m-d");
-        $fechasAgregadas = DB::table('fechas_agregadas')
-                        ->select('dia')
-                        ->where('fechas_agregadas.medico',$medico_id)
-                        ->where('fechas_agregadas.consultorio', $consultorio_id)
-                        ->where('fechas_agregadas.fecha', '>',$dateHoy)                        
-                        ->where('fechas_agregadas.activo', 1)                        
-                        ->distinct()
-                        ->get();
+        $fechasAgregadasQuery = DB::table('fechas_agregadas')
+            ->select('dia')
+            ->where('fechas_agregadas.medico',$medico_id)
+            ->where('fechas_agregadas.consultorio', $consultorio_id)
+            ->where('fechas_agregadas.activo', 1)
+            ->distinct();
+
+        if ($fechaInicio) {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '>=', $fechaInicio);
+        } else {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '>', $dateHoy);
+        }
+        if ($fechaFin) {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '<=', $fechaFin);
+        }
+
+        $fechasAgregadas = $fechasAgregadasQuery->get();
 
         foreach ($fechasAgregadas as $valor){
             if($valor->dia == 1){
@@ -479,14 +714,60 @@ class TurnoController extends Controller
         }
     }
 
-     // $esVideollamada 1 quiere decir que si, 0 que no
-    public function diasAtencion($medico_id, $consultorio_id, $esVideollamada, $tipoTurno) {
+    // $esVideollamada 1 quiere decir que si, 0 que no
+    public function diasAtencion($medico_id, $consultorio_id, $esVideollamada, $tipoTurno, $fechaInicio = null, $fechaFin = null) {
+        $diasAtencionAux = [];
         if($esVideollamada == 1 || $tipoTurno == 4){
             $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medico_videollamadas where consultorio= ? and medico = ? and activo=1 order by dia',    
-            [$consultorio_id , $medico_id]);
+                [$consultorio_id , $medico_id]);
         } else {
-            $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = ? and activo=1 order by dia',    
-            [$consultorio_id , $medico_id, $tipoTurno]);
+            if ($fechaInicio && $fechaFin && Schema::hasColumn('horario_medicos', 'valido_desde')) {
+                $horarios = DB::table('horario_medicos')
+                    ->where('horario_medicos.consultorio', $consultorio_id)
+                    ->where('horario_medicos.medico', $medico_id)
+                    ->where('horario_medicos.tipo_turno', $tipoTurno)
+                    ->where('horario_medicos.activo', 1)
+                    ->select('dia', 'valido_desde', 'valido_hasta')
+                    ->get();
+
+                $porDia = [];
+                foreach ($horarios as $h) {
+                    $porDia[(int)$h->dia][] = $h;
+                }
+
+                $diasValidos = [];
+                $fecha = new DateTime($fechaInicio);
+                $fin = new DateTime($fechaFin);
+                while ($fecha <= $fin) {
+                    $f = $fecha->format('Y-m-d');
+                    $diaNum = $this->getDiaSeleccionado2($f);
+
+                    if (!isset($diasValidos[$diaNum]) && isset($porDia[$diaNum])) {
+                        foreach ($porDia[$diaNum] as $row) {
+                            $desdeOk = empty($row->valido_desde) || $row->valido_desde <= $f;
+                            $hastaOk = empty($row->valido_hasta) || $row->valido_hasta >= $f;
+                            if ($desdeOk && $hastaOk) {
+                                $diasValidos[$diaNum] = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (count($diasValidos) >= 7) {
+                        break;
+                    }
+                    $fecha->modify('+1 day');
+                }
+
+                $diasValidosKeys = array_keys($diasValidos);
+                sort($diasValidosKeys, SORT_NUMERIC);
+                foreach ($diasValidosKeys as $d) {
+                    $diasAtencionAux[] = (object)['dia' => $d];
+                }
+            } else {
+                $diasAtencionAux = DB::select('select DISTINCT(dia) from horario_medicos where consultorio= ? and medico = ? and tipo_turno = ? and activo=1 order by dia',    
+                    [$consultorio_id , $medico_id, $tipoTurno]);
+            }
         }
 
         $diasAtencion = array();        
@@ -520,14 +801,23 @@ class TurnoController extends Controller
         }   
 
         $dateHoy = date("Y-m-d");
-        $fechasAgregadas = DB::table('fechas_agregadas')
-                        ->select('dia')
-                        ->where('fechas_agregadas.medico',$medico_id)
-                        ->where('fechas_agregadas.consultorio', $consultorio_id)
-                        ->where('fechas_agregadas.fecha', '>',$dateHoy)                        
-                        ->where('fechas_agregadas.activo', 1)                        
-                        ->distinct()
-                        ->get();
+        $fechasAgregadasQuery = DB::table('fechas_agregadas')
+            ->select('dia')
+            ->where('fechas_agregadas.medico',$medico_id)
+            ->where('fechas_agregadas.consultorio', $consultorio_id)
+            ->where('fechas_agregadas.activo', 1)
+            ->distinct();
+
+        if ($fechaInicio) {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '>=', $fechaInicio);
+        } else {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '>', $dateHoy);
+        }
+        if ($fechaFin) {
+            $fechasAgregadasQuery->where('fechas_agregadas.fecha', '<=', $fechaFin);
+        }
+
+        $fechasAgregadas = $fechasAgregadasQuery->get();
 
         foreach ($fechasAgregadas as $valor){
             if($valor->dia == 1){
@@ -574,6 +864,218 @@ class TurnoController extends Controller
             $moduloActivo = 1;
     
         return $moduloActivo;
+    }
+
+    /**
+     * Índice de par activo (0 => ítems 0-1, 1 => 2-3, …). Null si todos los pares están llenos.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    protected function indiceParActivoMostrarDosPaciente(array $items): ?int
+    {
+        $n = count($items);
+        if ($n === 0) {
+            return null;
+        }
+
+        $pairIndex = 0;
+        $numPairs = (int) ceil($n / 2);
+
+        while ($pairIndex < $numPairs) {
+            $i = $pairIndex * 2;
+            $j = $i + 1;
+
+            $libreI = isset($items[$i]['libre']) ? (int) $items[$i]['libre'] : 0;
+            if ($j < $n) {
+                $libreJ = isset($items[$j]['libre']) ? (int) $items[$j]['libre'] : 0;
+                $bothOccupied = ($libreI === 0) && ($libreJ === 0);
+            } else {
+                $bothOccupied = ($libreI === 0);
+            }
+
+            if (!$bothOccupied) {
+                return $pairIndex;
+            }
+            $pairIndex++;
+        }
+
+        return null;
+    }
+
+    /**
+     * Marca reserva_online: 1 solo en el par de ventana actual; el resto visible pero no reservable online.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    public function marcarReservaOnlineMostrarDosPaciente(array $items)
+    {
+        $n = count($items);
+        if ($n === 0) {
+            return $items;
+        }
+
+        $activePair = $this->indiceParActivoMostrarDosPaciente($items);
+        $out = [];
+        foreach ($items as $idx => $row) {
+            $row = is_array($row) ? $row : [];
+            if ($activePair === null) {
+                $row['reserva_online'] = 0;
+            } else {
+                $pairOfRow = (int) floor(((int) $idx) / 2);
+                $row['reserva_online'] = ($pairOfRow === $activePair) ? 1 : 0;
+            }
+            $out[] = $row;
+        }
+
+        return $out;
+    }
+
+    protected function turnoFilaEsReservablePaciente(array $row)
+    {
+        $libre = isset($row['libre']) ? (int) $row['libre'] : 0;
+        $ro = array_key_exists('reserva_online', $row) ? (int) $row['reserva_online'] : 1;
+
+        return $libre === 1 && $ro === 1;
+    }
+
+    /**
+     * Con módulo «mostrar de a dos»: mostrar grilla si hay filas de horario aunque ninguna sea reservable aún.
+     */
+    protected function debeMostrarGrillaHorariosPaciente($medico_id, array $someArray)
+    {
+        if ($this->moduloActivo($medico_id, self::MODULO_MOSTRAR_DOS) === 1) {
+            return count($someArray) > 0;
+        }
+
+        foreach ($someArray as $v) {
+            if ($this->turnoFilaEsReservablePaciente($v)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>|null  $turnosArray
+     * @return array<int, array<string, mixed>>|null
+     */
+    protected function aplicarMostrarDosPaciente($medico_id, $turnosArray)
+    {
+        if ($turnosArray === null || !is_array($turnosArray)) {
+            return $turnosArray;
+        }
+
+        if ($this->moduloActivo($medico_id, self::MODULO_MOSTRAR_DOS) !== 1) {
+            $out = [];
+            foreach ($turnosArray as $row) {
+                $row = is_array($row) ? $row : [];
+                $row['reserva_online'] = 1;
+                $out[] = $row;
+            }
+
+            return $out;
+        }
+
+        return $this->marcarReservaOnlineMostrarDosPaciente($turnosArray);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function obtenerTurnosArraySinFiltrarMostrarDos(
+        $medico_id,
+        $consultorio_id,
+        $diaSeleccionado,
+        $fechaSolicitada,
+        $tipoTurno,
+        $primerControl,
+        $esVideollamada
+    ) {
+        if ((int) $esVideollamada === 1) {
+            $raw = $this->createJsonVideollamada($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
+            $arr = json_decode($raw, true);
+            return is_array($arr) ? $arr : [];
+        }
+
+        $moduloPrimerControlDoble = $this->moduloActivo($medico_id, 3);
+        if (((int) $primerControl === 0) || $moduloPrimerControlDoble === 0) {
+            $raw = $this->createJson($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno);
+            $arr = json_decode($raw, true);
+            return is_array($arr) ? $arr : [];
+        }
+
+        if (!$this->controlarCantidadPrimerControl($medico_id, $diaSeleccionado, $consultorio_id, $fechaSolicitada)) {
+            return [];
+        }
+        $raw = $this->createJsonTurnosDobles($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno);
+        $arr = json_decode($raw, true);
+        return is_array($arr) ? $arr : [];
+    }
+
+    /**
+     * Validación servidor: el horario debe estar en la ventana visible para pacientes.
+     */
+    protected function horarioEsVisibleMostrarDosPaciente(
+        $medico_id,
+        $consultorio_id,
+        $diaSeleccionado,
+        $fechaSolicitada,
+        $tipoTurno,
+        $primerControl,
+        $horario,
+        $horarioPar,
+        $esVideollamada
+    ) {
+        if ($this->moduloActivo($medico_id, self::MODULO_MOSTRAR_DOS) !== 1) {
+            return true;
+        }
+
+        $full = $this->obtenerTurnosArraySinFiltrarMostrarDos(
+            $medico_id,
+            $consultorio_id,
+            $diaSeleccionado,
+            $fechaSolicitada,
+            $tipoTurno,
+            $primerControl,
+            $esVideollamada
+        );
+        $marked = $this->aplicarMostrarDosPaciente($medico_id, $full);
+
+        $primerControl = (int) $primerControl;
+        $moduloPrimerControlDoble = $this->moduloActivo($medico_id, 3);
+        $usaBloquesDobles = ((int) $esVideollamada === 0) && $primerControl === 1 && $moduloPrimerControlDoble === 1;
+
+        if ($usaBloquesDobles && $horarioPar !== null) {
+            foreach ($marked as $row) {
+                if (!isset($row['horario'], $row['horario2'])) {
+                    continue;
+                }
+                if ((int) ($row['reserva_online'] ?? 1) !== 1) {
+                    continue;
+                }
+                if ((string) $row['horario'] === (string) $horario && (string) $row['horario2'] === (string) $horarioPar) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        foreach ($marked as $row) {
+            if (!isset($row['horario'])) {
+                continue;
+            }
+            if ((int) ($row['reserva_online'] ?? 1) !== 1) {
+                continue;
+            }
+            if ((string) $row['horario'] === (string) $horario) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function diasDeshabilitados($diasAtencion){
@@ -746,15 +1248,26 @@ class TurnoController extends Controller
                 $data = $this-> createJson($medico_id, $consultorio_id, $diaSeleccionado, $nuevaFecha, $tipoTurno);
                 $cantidadPrimerControlPermitido = true;
             }
-        }           
+        } else {
+            if($tipoTurno == 4){
+                $data = $this-> createJsonVideollamada($medico_id, $consultorio_id, $diaSeleccionado, $nuevaFecha);
+                $cantidadPrimerControlPermitido = true;
+            } else {
+                $cantidadPrimerControlPermitido = $this->controlarCantidadPrimerControl($medico_id, $diaSeleccionado, $consultorio_id, $nuevaFecha);
+                if($cantidadPrimerControlPermitido) {
+                    $data = $this-> createJsonTurnosDobles($medico_id, $consultorio_id, $diaSeleccionado, $nuevaFecha, $tipoTurno);
+                }
+            }
+        }
 
         $turnosLibres=0;        
         if($cantidadPrimerControlPermitido){
             $someArray = json_decode($data, true);
-            foreach($someArray as $v){
-                if($v["libre"] == 1)
-                    $turnosLibres=1;
+            if (!is_array($someArray)) {
+                $someArray = [];
             }
+            $someArray = $this->aplicarMostrarDosPaciente($medico_id, $someArray);
+            $turnosLibres = $this->debeMostrarGrillaHorariosPaciente($medico_id, $someArray) ? 1 : 0;
         } else {
             $someArray = array();
         }
@@ -776,6 +1289,13 @@ class TurnoController extends Controller
         if(($paciente->obra_social_foto!=null)||(strcmp($paciente->obra_social_foto, '') != 0))
             $obraSocialCargada = 1;
 
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            null,
+            $request->input('especialidad_id'),
+            $medico->especialidad ?? null
+        );
+
         return view('turnos.seleccionar_turno')
         ->with('esVideollamada',$esVideollamada)
         ->with('primerControl',$primerControl)
@@ -791,7 +1311,8 @@ class TurnoController extends Controller
         ->with('validarFeriado',$validarFeriado)
         ->with('cantTurnosMes',$cantTurnosMes)
         ->with('consultorio',$consultorio)
-        ->with('dias_deshabilitados',$dias_deshabilitados);    
+        ->with('dias_deshabilitados',$dias_deshabilitados)
+        ->with('especialidad_nombre_flujo', $especialidadNombreFlujo);    
     }
 
 
@@ -826,16 +1347,16 @@ class TurnoController extends Controller
         $consultorio = consultorio::find($consultorio_id);  
 
         if($medico_id == 13) {
-            $turnos = DB::select('select * from horario_medicos where medico = ? and consultorio = ? and dia = ? and activo=1',
-            [$medico_id , $consultorio_id, $diaSeleccionado]);    
+            $query = DB::table('horario_medicos')->where('medico', $medico_id)->where('consultorio', $consultorio_id)->where('dia', $diaSeleccionado)->where('activo', 1);
+            $turnos = HorarioMedico::aplicarVigenciaQuery($query, $nuevaFecha)->get();
 
-            $turnosRegistrados = DB::select('select * from turno_registrados where medico = ? and consultorio = ? and dia = ?  and fechaTurno = ? and activo=1',
+            $turnosRegistrados = DB::select('select * from turno_registrados where medico = ? and consultorio = ? and dia = ?  and fechaTurno = ? and activo in (1,2)',
             [$medico_id, $consultorio_id, $diaSeleccionado, $nuevaFecha]);
         } else {
-            $turnos = DB::select('select * from horario_medicos where medico = ? and consultorio = ? and dia = ? and tipo_turno = ? and activo=1',
-            [$medico_id , $consultorio_id, $diaSeleccionado, $tipoTurno]);
+            $query = DB::table('horario_medicos')->where('medico', $medico_id)->where('consultorio', $consultorio_id)->where('dia', $diaSeleccionado)->where('tipo_turno', $tipoTurno)->where('activo', 1);
+            $turnos = HorarioMedico::aplicarVigenciaQuery($query, $nuevaFecha)->get();
 
-            $turnosRegistrados = DB::select('select * from turno_registrados where medico = ? and consultorio = ? and dia = ?  and fechaTurno = ? and  tipo_turno = ? and activo=1',
+            $turnosRegistrados = DB::select('select * from turno_registrados where medico = ? and consultorio = ? and dia = ?  and fechaTurno = ? and  tipo_turno = ? and activo in (1,2)',
             [$medico_id, $consultorio_id, $diaSeleccionado, $nuevaFecha, $tipoTurno]);
         }
         
@@ -861,10 +1382,11 @@ class TurnoController extends Controller
         $turnosLibres = 0;        
         if($cantidadPrimerControlPermitido) {
             $someArray = json_decode($data, true);
-            foreach($someArray as $v){
-                if($v["libre"] == 1)
-                    $turnosLibres=1;
+            if (!is_array($someArray)) {
+                $someArray = [];
             }
+            $someArray = $this->aplicarMostrarDosPaciente($medico_id, $someArray);
+            $turnosLibres = $this->debeMostrarGrillaHorariosPaciente($medico_id, $someArray) ? 1 : 0;
         } else {
             $someArray = array();
         }
@@ -954,10 +1476,11 @@ class TurnoController extends Controller
         $turnosLibres=0;        
         if($cantidadPrimerControlPermitido){
             $someArray = json_decode($data, true);
-            foreach($someArray as $v){
-                if($v["libre"] == 1)
-                    $turnosLibres=1;
+            if (!is_array($someArray)) {
+                $someArray = [];
             }
+            $someArray = $this->aplicarMostrarDosPaciente($medico_id, $someArray);
+            $turnosLibres = $this->debeMostrarGrillaHorariosPaciente($medico_id, $someArray) ? 1 : 0;
         } else {
             $someArray = array();
         }
@@ -987,6 +1510,14 @@ class TurnoController extends Controller
         $obraSocialCargada = 0;
         if(($paciente->obra_social_foto!=null)||(strcmp($paciente->obra_social_foto, '') != 0))
             $obraSocialCargada = 1;
+
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            null,
+            $request->input('especialidad_id'),
+            $medico->especialidad ?? null
+        );
+
     	return view('turnos.seleccionar_turno')
         ->with('esVideollamada',$esVideollamada)
         ->with('tipoTurno', $tipoTurno)
@@ -1002,7 +1533,8 @@ class TurnoController extends Controller
         ->with('validarFeriado',$validarFeriado)
         ->with('cantTurnosMes',$cantTurnosMes)
         ->with('consultorio',$consultorio)
-        ->with('dias_deshabilitados',$dias_deshabilitados);    
+        ->with('dias_deshabilitados',$dias_deshabilitados)
+        ->with('especialidad_nombre_flujo', $especialidadNombreFlujo);    
     }
 
     public function seleccionarTurnoHorarioVideollamada(Request $request)
@@ -1042,11 +1574,12 @@ class TurnoController extends Controller
         
         $turnosLibres=0;                
         $someArray = json_decode($data, true);
-        foreach($someArray as $v){
-            if($v["libre"] == 1)
-                $turnosLibres=1;
+        if (!is_array($someArray)) {
+            $someArray = [];
         }
-        
+        $someArray = $this->aplicarMostrarDosPaciente($medico_id, $someArray);
+        $turnosLibres = $this->debeMostrarGrillaHorariosPaciente($medico_id, $someArray) ? 1 : 0;
+
         $validarFeriado = DB::table('feriados')                                        
                         ->where('feriados.fecha', '=', $nuevaFecha)                        
                         ->get();        
@@ -1068,6 +1601,14 @@ class TurnoController extends Controller
            $obraSocialCargada = 0;
         if(($paciente->obra_social_foto!=null)||(strcmp($paciente->obra_social_foto, '') != 0))
             $obraSocialCargada = 1;
+
+        $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(
+            $request->input('especialidad_nombre_flujo'),
+            null,
+            $request->input('especialidad_id'),
+            $medico->especialidad ?? null
+        );
+
         return view('turnos.seleccionar_turno')
         ->with('esVideollamada',$esVideollamada)
         ->with('tipoTurno', $tipoTurno)
@@ -1083,7 +1624,8 @@ class TurnoController extends Controller
         ->with('validarFeriado',$validarFeriado)
         ->with('cantTurnosMes',$cantTurnosMes)
         ->with('consultorio',$consultorio)
-        ->with('dias_deshabilitados',$dias_deshabilitados);    
+        ->with('dias_deshabilitados',$dias_deshabilitados)
+        ->with('especialidad_nombre_flujo', $especialidadNombreFlujo);    
     }
 
     public function cargarFotoObraSocial($request, $paciente_id) {
@@ -1481,13 +2023,27 @@ class TurnoController extends Controller
 
     function checkTurnoLibreEspecialMarina($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
         $turnos = null;                
-        if($fechaSeleccionada >= '2025-07-01') {
+        if($fechaSeleccionada >= '2026-03-01') {
             // mostrar 9.30 10.00 10.30 11.00 11.30
-            if($diaSeleccionado == 2 || $diaSeleccionado == 4) {
+            if($diaSeleccionado == 2) {
                 $turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.horario','!=' ,'09:00')
+                        ->where('horario_medicos.horario','!=' ,'09:30')
+                        ->where('horario_medicos.horario','!=' ,'10:00')
+                        ->where('horario_medicos.horario','!=' ,'10:30')
+                        ->where('horario_medicos.horario','!=' ,'11:00')
+                        ->where('horario_medicos.horario','!=' ,'11:30')
+                        ->where('horario_medicos.horario','!=' ,'12:00')
+                        ->where('horario_medicos.horario','!=' ,'12:30')
+                        ->where('horario_medicos.horario','!=' ,'13:00')
+                        ->where('horario_medicos.horario','!=' ,'13:30')
+                        ->where('horario_medicos.horario','!=' ,'16:10')
+                        ->where('horario_medicos.horario','!=' ,'16:50')                        
+                        ->where('horario_medicos.horario','!=' ,'18:10')
+                        ->where('horario_medicos.horario','!=' ,'18:50')
                         ->where('horario_medicos.activo', 1)                        
                         ->orderby('horario_medicos.horario')
                         ->get();
@@ -1498,29 +2054,47 @@ class TurnoController extends Controller
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)    
-                        ->where('horario_medicos.horario','!=' ,'12:00')                       
-                        ->where('horario_medicos.horario','!=' ,'12:30')                        
-                        ->where('horario_medicos.horario','!=' ,'13:00')
-                        ->where('horario_medicos.horario','!=' ,'13:30')                                        
+                        ->where('horario_medicos.horario','!=' ,'15:00')                       
+                        ->where('horario_medicos.horario','!=' ,'16:00')                        
+                        ->where('horario_medicos.horario','!=' ,'16:30')
+                        ->where('horario_medicos.horario','!=' ,'17:00')                                        
+                        ->where('horario_medicos.horario','!=' ,'18:00')                        
                         ->where('horario_medicos.activo', 1)         
                         ->orderby('horario_medicos.horario')               
                         ->get(); 
-            }
-            if($diaSeleccionado == 4) {
+            }                           
+        }        
+
+        if($turnos != null)
+            return $turnos;
+        else {
+            $turnos = DB::table('horario_medicos')
+                        ->where('horario_medicos.medico',$medico_id)
+                        ->where('horario_medicos.consultorio', $consultorio_id)
+                        ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.activo', 1)                        
+                        ->orderby('horario_medicos.horario')
+                        ->get();
+            return $turnos;
+        } 
+    }
+
+    function checkTurnoLibreEspecialMonica($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
+        $turnos = null;                
+        if($fechaSeleccionada >= '2026-04-01') {
+            
+            if($diaSeleccionado == 3) {
                 $turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
-                        ->where('horario_medicos.dia', $diaSeleccionado)    
-                        ->where('horario_medicos.horario','!=' ,'11:30')                       
-                        ->where('horario_medicos.horario','!=' ,'12:00')
-                        ->where('horario_medicos.horario','!=' ,'12:30')                                                
-                        ->where('horario_medicos.horario','!=' ,'13:30')                                        
-                        ->where('horario_medicos.activo', 1)         
-                        ->orderby('horario_medicos.horario')               
-                        ->get(); 
-            }                 
-        }        
-
+                        ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.horario','==' ,'99:00')                        
+                        ->where('horario_medicos.activo', 1)                        
+                        ->orderby('horario_medicos.horario')
+                        ->get();
+            }            
+        }                          
+            
         if($turnos != null)
             return $turnos;
         else {
@@ -2224,6 +2798,36 @@ class TurnoController extends Controller
         return $fechaId;
     }
 
+    /**
+     * Filtra los horarios semanales por vigencia (valido_desde/valido_hasta).
+     * Si la tabla no tiene las columnas, no filtra.
+     */
+    protected function filtrarVigenciaTurnos($turnos, $fechaSolicitada)
+    {
+        if ($turnos === null) {
+            return $turnos;
+        }
+        if (!Schema::hasColumn('horario_medicos', 'valido_desde')) {
+            return $turnos;
+        }
+
+        $fechaNorm = str_replace('/', '-', (string) $fechaSolicitada);
+        $turnosCol = ($turnos instanceof \Illuminate\Support\Collection) ? $turnos : collect($turnos);
+
+        return $turnosCol->filter(function ($t) use ($fechaNorm) {
+            $desde = $t->valido_desde ?? null;
+            $hasta = $t->valido_hasta ?? null;
+
+            if (!empty($desde) && $desde > $fechaNorm) {
+                return false;
+            }
+            if (!empty($hasta) && $hasta < $fechaNorm) {
+                return false;
+            }
+            return true;
+        })->values();
+    }
+
     public function createJson($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno) {        
         if($tipoTurno == 4){
             $turnos = DB::table('horario_medico_videollamadas')
@@ -2234,7 +2838,9 @@ class TurnoController extends Controller
                         ->orderBy('horario_medico_videollamadas.horario')
                         ->get();
         } else {
-            if($medico_id == 1 || $medico_id == 2 || $medico_id == 8 || $medico_id == 11 || $medico_id == 12 || $medico_id == 13 || $medico_id == 14 || $medico_id == 15 || $medico_id == 18  || $medico_id == 19 || $medico_id == 23 || $medico_id == 24 || $medico_id == 26 || $medico_id == 29 || $medico_id == 30 || $medico_id == 31){
+            // Desactivado: antes había lógica especial por médico.
+            // Ahora la disponibilidad se calcula en base a datos (horario_medicos + vigencia).
+            if(false){
                 if($medico_id == 1)
                     $turnos = $this->checkTurnoLibreEspecialFlor($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
                 if($medico_id == 2)
@@ -2267,6 +2873,8 @@ class TurnoController extends Controller
                     $turnos = $this->checkTurnoLibreEspecialAnto($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);                
                 if($medico_id == 31)
                     $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);                
+                if($medico_id == 38)
+                    $turnos = $this->checkTurnoLibreEspecialMonica($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);                
             } else {
                 $turnos = DB::table('horario_medicos')
                             ->where('horario_medicos.medico',$medico_id)
@@ -2277,6 +2885,11 @@ class TurnoController extends Controller
                             ->orderBy('horario_medicos.horario')
                             ->get();
                 }
+        }
+
+        // Vigencia del horario semanal (no aplica a videollamada).
+        if ($tipoTurno != 4) {
+            $turnos = $this->filtrarVigenciaTurnos($turnos, $fechaSolicitada);
         }
 
         $fechaId = $this->checkFechaAgregada($medico_id, $consultorio_id, $fechaSolicitada);
@@ -2297,7 +2910,7 @@ class TurnoController extends Controller
                         ->where('turno_registrados.consultorio', $consultorio_id)
                         ->where('turno_registrados.dia', $diaSeleccionado)
                         ->where('turno_registrados.fechaTurno', $fechaSolicitada)                        
-                        ->where('turno_registrados.activo', 1)                        
+                        ->whereIn('turno_registrados.activo', [1, 2])                        
                         ->get();            
         } else {
             $turnosRegistrados = DB::table('turno_registrados')
@@ -2306,8 +2919,29 @@ class TurnoController extends Controller
                         ->where('turno_registrados.dia', $diaSeleccionado)
                         ->where('turno_registrados.fechaTurno', $fechaSolicitada)
                         ->where('turno_registrados.tipo_turno', $tipoTurno)
-                        ->where('turno_registrados.activo', 1)                        
+                        ->whereIn('turno_registrados.activo', [1, 2])                        
                         ->get();        
+        }
+
+        $intentService = new \App\Services\MercadoPago\TurnoPagoIntentService();
+        $horariosPagoPendiente = $intentService->getHorariosBloqueadosPorPagoPendiente(
+            $medico_id,
+            $consultorio_id,
+            $diaSeleccionado,
+            $fechaSolicitada,
+            $tipoTurno
+        );
+        foreach ($horariosPagoPendiente as $horarioPendiente) {
+            $yaListado = false;
+            foreach ($turnosRegistrados as $tr) {
+                if ($tr->horario === $horarioPendiente) {
+                    $yaListado = true;
+                    break;
+                }
+            }
+            if (!$yaListado) {
+                $turnosRegistrados->push((object) ['horario' => $horarioPendiente]);
+            }
         }
         
         $json = array();
@@ -2349,6 +2983,9 @@ class TurnoController extends Controller
                         ->orderBy('horario_medicos.horario', 'asc')                                        
                         ->get();
 
+        // Vigencia del horario semanal (fijos por fecha).
+        $turnos = $this->filtrarVigenciaTurnos($turnos, $fechaSolicitada);
+
         $fechaId = $this->checkFechaAgregada($medico_id, $consultorio_id, $fechaSolicitada);
         if($fechaId != -1) {            
             $turnos = DB::table('horarios_medicos_agregados')
@@ -2367,11 +3004,33 @@ class TurnoController extends Controller
                         ->where('turno_registrados.dia', $diaSeleccionado)
                         ->where('turno_registrados.fechaTurno', $fechaSolicitada)
                         ->where('turno_registrados.tipo_turno', $tipoTurno)
-                        ->where('turno_registrados.activo', 1)
+                        ->whereIn('turno_registrados.activo', [1, 2])
                         ->orderBy('turno_registrados.horario', 'asc')                                                                    
                         ->get();
 
-        $json = array();        
+        $intentService = new \App\Services\MercadoPago\TurnoPagoIntentService();
+        $horariosPagoPendiente = $intentService->getHorariosBloqueadosPorPagoPendiente(
+            $medico_id,
+            $consultorio_id,
+            $diaSeleccionado,
+            $fechaSolicitada,
+            $tipoTurno
+        );
+        foreach ($horariosPagoPendiente as $horarioPendiente) {
+            $yaListado = false;
+            foreach ($turnosRegistrados as $tr) {
+                if ($tr->horario === $horarioPendiente) {
+                    $yaListado = true;
+                    break;
+                }
+            }
+            if (!$yaListado) {
+                $turnosRegistrados->push((object) ['horario' => $horarioPendiente]);
+            }
+        }
+
+        $json = array();
+        $data = [];
         $i=0;
         while($i<count($turnos)){
             $libre=0;
@@ -2432,12 +3091,6 @@ class TurnoController extends Controller
          return response()->json(array('turno'=>$turno));
     }
 
-    public function confirmarTurno(Request $request){
-        $horario= $request->horario;
-         
-         return response()->json(array('horario'=>$horario));
-    }
-
     // no se esta usando.
     public function turnoRegistrado2(Request $request){
                      
@@ -2471,8 +3124,18 @@ class TurnoController extends Controller
                         ->where('turno_registrados.dia', $diaSeleccionado)
                         ->where('turno_registrados.horario', $horario)
                         ->where('turno_registrados.fechaTurno', $fechaSolicitada)
-                        ->where('turno_registrados.activo', 1)                                                                    
-                        ->get();    
+                        ->whereIn('turno_registrados.activo', [1, 2])                                                                    
+                        ->get();
+
+        if ($checkTurno->count() > 0) {
+            return $checkTurno;
+        }
+
+        $intentService = new \App\Services\MercadoPago\TurnoPagoIntentService();
+        if ($intentService->slotTienePagoPendiente($medico_id, $consultorio_id, $diaSeleccionado, $horario, $fechaSolicitada)) {
+            return collect([(object) ['id' => 0, 'pending_mp' => true]]);
+        }
+
         return $checkTurno;
     }
 
@@ -2499,11 +3162,40 @@ class TurnoController extends Controller
         $fechaTurno = $fechaTurno_aux[2].'-'.$fechaTurno_aux[1].'-'.$fechaTurno_aux[0];              
         $tipoTurno = $request->tipoTurno;
         $dia = $this->getDiaSeleccionado2($fechaTurno);
+        $espFlujoRaw = $request->input('especialidad_nombre_flujo');
+        $especialidadNombreGuardar = ($espFlujoRaw !== null && trim((string) $espFlujoRaw) !== '') ? trim((string) $espFlujoRaw) : null;
 
         if($request->get('primerControl')==0)
             $primerControl = 'NO';
         else   
             $primerControl = 'SI';
+
+        if ($tipoTurno != 4) {
+            $intentService = new \App\Services\MercadoPago\TurnoPagoIntentService();
+            $intentService->expireStaleIntents();
+            if ($intentService->medicoRequiresPayment($medico_id, 0, (int) $paciente_id, $fechaTurno)) {
+                return response()->json(array(
+                    'turnoRegistrado' => '6',
+                    'message' => 'Debe completar el pago online para reservar este turno.',
+                ));
+            }
+        }
+
+        $moduloPrimerControlDobleMed = $this->moduloActivo($medico_id, 3);
+        $horarioParMostrarDos = ($moduloPrimerControlDobleMed === 1) ? $horario2 : null;
+        if (!$this->horarioEsVisibleMostrarDosPaciente(
+            $medico_id,
+            $consultorio_id,
+            $dia,
+            $fechaTurno,
+            $tipoTurno,
+            (int) $request->get('primerControl'),
+            $horario1,
+            $horarioParMostrarDos,
+            0
+        )) {
+            return response()->json(array('turnoRegistrado'=>'0'));
+        }
 
         // confirmo que no haya una persona en ese mismo horario.
         $checkTurno1 = $this->validarTurnoLibre($medico_id, $consultorio_id, $dia, $horario1, $fechaTurno);
@@ -2518,18 +3210,81 @@ class TurnoController extends Controller
             if(($checkTurno1->count()>0) || ($checkTurno2->count()>0)){
                  return response()->json(array('turnoRegistrado'=>'0'));            
             } else {            
-                $turnoRegistrado = $this->registrarNuevoTurno($paciente_id, $medico_id, $consultorio_id, $dia, $horario1, $fechaTurno, 'SI', 0, $tipoTurno);
+                $turnoRegistrado = $this->registrarNuevoTurno($paciente_id, $medico_id, $consultorio_id, $dia, $horario1, $fechaTurno, 'SI', 0, $tipoTurno, $especialidadNombreGuardar);
 
                 $moduloPrimerControlDoble = $this->moduloActivo($medico_id, 3);
                 if($moduloPrimerControlDoble == 1) {
-                    $turnoRegistrado2 = $this->registrarNuevoTurno($paciente_id, $medico_id, $consultorio_id, $dia, $horario2, $fechaTurno, 'SI', 0, $tipoTurno);    
+                    $turnoRegistrado2 = $this->registrarNuevoTurno($paciente_id, $medico_id, $consultorio_id, $dia, $horario2, $fechaTurno, 'SI', 0, $tipoTurno, $especialidadNombreGuardar);    
                 }
                                         
                 //return response()->json(array('turnoRegistrado'=>'1','horario'=>$horario1,'turno_id'=>$turnoRegistrado->id));
                 $medico = Medico::find($medico_id);
                 $paciente = Paciente::find($paciente_id);
                 $consultorio = Consultorio::find($consultorio_id);
-                return response()->json(array('consultorio'=>$consultorio,'paciente'=>$paciente,'medico'=>$medico,'datosTurno'=>$turnoRegistrado,'turnoRegistrado'=>'1','horario'=>$horario1,'turno_id'=>$turnoRegistrado->id, 'esVideollamada'=>0));
+                
+                // Intentar agregar evento automáticamente a Google Calendar si tiene OAuth
+                $calendarEventAdded = false;
+                $googleCalendarEventId = null;
+                if ($paciente && $paciente->google_calendar_access_token) {
+                    $googleCalendarEventId = $this->addEventToGoogleCalendar($paciente, $turnoRegistrado, $medico, $consultorio);
+                    $calendarEventAdded = ($googleCalendarEventId !== null && $googleCalendarEventId !== false && $googleCalendarEventId !== 'no event_id');
+                } else {
+                    // Si no tiene OAuth, marcar como 'no event_id'
+                    $googleCalendarEventId = 'no event_id';
+                }
+                
+                // Guardar el event_id en la base de datos (o "no event_id" si no se creó)
+                if ($googleCalendarEventId !== null && $googleCalendarEventId !== false && $googleCalendarEventId !== 'no event_id') {
+                    $turnoRegistrado->google_calendar_event_id = $googleCalendarEventId;
+                } else {
+                    $turnoRegistrado->google_calendar_event_id = 'no event_id';
+                }
+                $turnoRegistrado->save();
+                
+                // Generar URLs y contenido para calendario (SIEMPRE como fallback)
+                // Esto permite abrir el calendario directamente mientras Google verifica OAuth
+                // Incluso si OAuth está configurado, generamos las URLs por si falla
+                $googleCalendarUrls = null;
+                $icsContent = null;
+                
+                // Solo generar URLs si OAuth no funcionó (o no está disponible)
+                // Mientras Google verifica OAuth, siempre generamos las URLs para abrir manualmente
+                if (!$calendarEventAdded) {
+                    try {
+                        // Primero intentar con Google Calendar (funciona en todos los dispositivos)
+                        $googleCalendarUrls = \App\Helpers\CalendarHelper::generateTurnoCalendarLink(
+                            $turnoRegistrado, 
+                            $medico, 
+                            $consultorio
+                        );
+                    } catch (\Exception $e) {
+                        \Log::error('Error generando URL de Google Calendar: ' . $e->getMessage());
+                        $googleCalendarUrls = null;
+                    }
+                    
+                    // También generar .ics como fallback
+                    try {
+                        $icsContent = \App\Helpers\CalendarHelper::generateTurnoICS($turnoRegistrado, $medico, $consultorio, $paciente);
+                    } catch (\Exception $e) {
+                        \Log::error('Error generando contenido .ics: ' . $e->getMessage());
+                        $icsContent = null;
+                    }
+                }
+                
+                return response()->json(array(
+                    'consultorio'=>$consultorio,
+                    'paciente'=>$paciente,
+                    'medico'=>$medico,
+                    'datosTurno'=>$turnoRegistrado,
+                    'turnoRegistrado'=>'1',
+                    'horario'=>$horario1,
+                    'turno_id'=>$turnoRegistrado->id, 
+                    'esVideollamada'=>0,
+                    'calendar_event_added' => $calendarEventAdded,
+                    'google_calendar_reminder_url' => ($googleCalendarUrls && isset($googleCalendarUrls['reminder'])) ? $googleCalendarUrls['reminder'] : null, // URL del recordatorio (día anterior)
+                    'google_calendar_turno_url' => ($googleCalendarUrls && isset($googleCalendarUrls['turno'])) ? $googleCalendarUrls['turno'] : null, // URL del turno
+                    'ics_content' => $icsContent // Contenido del .ics como fallback
+                ));
             }                    
         }        
     }
@@ -2552,7 +3307,7 @@ class TurnoController extends Controller
             return false;    
     }
 
-    public function registrarNuevoTurno($paciente_id, $medico_id, $consultorio, $diaSeleccionado, $horario, $nuevaFecha, $primerControl, $sobreturno, $tipoTurno){        
+    public function registrarNuevoTurno($paciente_id, $medico_id, $consultorio, $diaSeleccionado, $horario, $nuevaFecha, $primerControl, $sobreturno, $tipoTurno, $especialidadNombre = null){        
         $turnoRegistrado = new turnoRegistrado; 
         $turnoRegistrado->paciente = $paciente_id;
         $turnoRegistrado->medico = $medico_id;
@@ -2566,10 +3321,12 @@ class TurnoController extends Controller
         $turnoRegistrado->caja = 0;
         $turnoRegistrado->comentario = '';
         $turnoRegistrado->tipo_turno = $tipoTurno;
+        $turnoRegistrado->especialidad = $especialidadNombre;
         $turnoRegistrado->cancelado_por = '';
         $turnoRegistrado->otorgado_por = 'Paciente';
         $turnoRegistrado->msj_enviado = 0;
         $turnoRegistrado->activo = 1;
+        $turnoRegistrado->google_calendar_event_id = '';
         $turnoRegistrado->save();
 
         $this->vincularMedicoPaciente($medico_id, $paciente_id);
@@ -2590,9 +3347,11 @@ class TurnoController extends Controller
     }
 
     /**
-     * Método de prueba para enviar notificación FCM
-     * Acceder desde: /test_fcm_notification/{paciente_id}
+     * Método de prueba para enviar notificación FCM - COMENTADO
+     * Esta funcionalidad fue removida porque no funciona correctamente en iOS.
+     * Se implementará una solución alternativa en el futuro.
      */
+    /*
     function testFcmNotification($paciente_id) {
         $paciente = Paciente::find($paciente_id);
         
@@ -2620,6 +3379,7 @@ class TurnoController extends Controller
             'result' => $result
         ]);
     }
+    */
 
     public function vincularSecretariaPaciente($paciente_id, $consultorio_id){
         $check = DB::table('paciente_secretarias')
@@ -2663,12 +3423,36 @@ class TurnoController extends Controller
         $esVideollamada = $request->esVideollamada;
         $tipoTurno = $request->tipoTurno;
         $dia = $this->getDiaSeleccionado2($fechaTurno);
+        $espFlujoRawPc = $request->input('especialidad_nombre_flujo');
+        $especialidadNombreGuardar = ($espFlujoRawPc !== null && trim((string) $espFlujoRawPc) !== '') ? trim((string) $espFlujoRawPc) : null;
 
         if($request->get('primerControl') == 0)
             $primerControl = 'NO';
         else   
             $primerControl = 'SI';
-        if($esVideollamada == 0 && $tipoTurno != 4) {            
+        if($esVideollamada == 0 && $tipoTurno != 4) {
+            $intentService = new \App\Services\MercadoPago\TurnoPagoIntentService();
+            $intentService->expireStaleIntents();
+            if ($intentService->medicoRequiresPayment($medico_id, 0, (int) $paciente_id, $fechaTurno)) {
+                return response()->json(array(
+                    'turnoRegistrado' => '6',
+                    'message' => 'Debe completar el pago online para reservar este turno.',
+                ));
+            }
+
+            if (!$this->horarioEsVisibleMostrarDosPaciente(
+                $medico_id,
+                $consultorio_id,
+                $dia,
+                $fechaTurno,
+                $tipoTurno,
+                (int) $request->get('primerControl'),
+                $horario,
+                null,
+                0
+            )) {
+                return response()->json(array('turnoRegistrado'=>'0'));
+            }
             // confirmo que no haya una persona en ese mismo horario
             $checkTurno = $this->validarTurnoLibre($medico_id, $consultorio_id, $dia, $horario, $fechaTurno);
             // confirmo que la misma persona no tenga 2 turno con el mismo medico el mismo dia.
@@ -2682,8 +3466,8 @@ class TurnoController extends Controller
                     return response()->json(array('turnoRegistrado'=>'4'));                
             } */
 
-            if($medico_id == 14) { // patricia sosa
-                $vts = $this->validarTurnoUnaSemana($paciente_id, $fechaTurno, $medico_id, $consultorio_id);
+            if($consultorio_id == 6) { // patricia sosa
+                $vts = $this->validarTurnosPosteriores($paciente_id, $fechaTurno, $medico_id, $consultorio_id);
                 if($vts > 0)
                     return response()->json(array('turnoRegistrado'=>'5'));                
             } 
@@ -2709,10 +3493,12 @@ class TurnoController extends Controller
                     $registrarTurno->caja = 0;
                     $registrarTurno->comentario = '';
                     $registrarTurno->tipo_turno = $tipoTurno;
+                    $registrarTurno->especialidad = $especialidadNombreGuardar;
                     $registrarTurno->cancelado_por = '';
                     $registrarTurno->otorgado_por = 'Paciente';
                     $registrarTurno->msj_enviado = 0;
-                    $registrarTurno->activo = 1;       
+                    $registrarTurno->activo = 1;
+                    $registrarTurno->google_calendar_event_id = '';
                     $registrarTurno->save();
                     $this->vincularMedicoPaciente($medico_id, $paciente_id);
                     $this->vincularSecretariaPaciente($paciente_id, $consultorio_id);
@@ -2723,27 +3509,47 @@ class TurnoController extends Controller
                     
                     // Intentar agregar evento automáticamente a Google Calendar si tiene OAuth
                     $calendarEventAdded = false;
+                    $googleCalendarEventId = null;
                     if ($paciente && $paciente->google_calendar_access_token) {
-                        $calendarEventAdded = $this->addEventToGoogleCalendar($paciente, $registrarTurno, $medico, $consultorio);
+                        $googleCalendarEventId = $this->addEventToGoogleCalendar($paciente, $registrarTurno, $medico, $consultorio);
+                        $calendarEventAdded = ($googleCalendarEventId !== null && $googleCalendarEventId !== false && $googleCalendarEventId !== 'no event_id');
+                    } else {
+                        // Si no tiene OAuth, marcar como 'no event_id'
+                        $googleCalendarEventId = 'no event_id';
                     }
                     
-                    // Generar URLs de Google Calendar para abrir directamente (si no tiene OAuth)
-                    $calendarReminderUrl = null;
-                    $calendarTurnoUrl = null;
+                    // Guardar el event_id en la base de datos (o "no event_id" si no se creó)
+                    if ($googleCalendarEventId !== null && $googleCalendarEventId !== false && $googleCalendarEventId !== 'no event_id') {
+                        $registrarTurno->google_calendar_event_id = $googleCalendarEventId;
+                    } else {
+                        $registrarTurno->google_calendar_event_id = 'no event_id';
+                    }
+                    $registrarTurno->save();
+                    
+                    // Generar URLs y contenido para calendario (siempre como fallback, incluso si OAuth falló)
+                    // Esto permite abrir el calendario directamente mientras Google verifica OAuth
+                    $googleCalendarUrls = null;
+                    $icsContent = null;
                     if (!$calendarEventAdded) {
-                        // URL para el recordatorio (día previo)
-                        $calendarReminderUrl = \App\Helpers\CalendarHelper::generateReminderCalendarLink(
-                            $registrarTurno, 
-                            $paciente, 
-                            $medico, 
-                            $consultorio
-                        );
-                        // URL para el turno mismo
-                        $calendarTurnoUrl = \App\Helpers\CalendarHelper::generateTurnoCalendarLink(
-                            $registrarTurno, 
-                            $medico, 
-                            $consultorio
-                        );
+                        try {
+                            // Primero intentar con Google Calendar (funciona en todos los dispositivos)
+                            $googleCalendarUrls = \App\Helpers\CalendarHelper::generateTurnoCalendarLink(
+                                $registrarTurno, 
+                                $medico, 
+                                $consultorio
+                            );
+                        } catch (\Exception $e) {
+                            \Log::error('Error generando URL de Google Calendar: ' . $e->getMessage());
+                            $googleCalendarUrls = null;
+                        }
+                        
+                        // También generar .ics como fallback
+                        try {
+                            $icsContent = \App\Helpers\CalendarHelper::generateTurnoICS($registrarTurno, $medico, $consultorio, $paciente);
+                        } catch (\Exception $e) {
+                            \Log::error('Error generando contenido .ics: ' . $e->getMessage());
+                            $icsContent = null;
+                        }
                     }
                     
                     return response()->json(array(
@@ -2755,13 +3561,27 @@ class TurnoController extends Controller
                         'horario'=>$horario,
                         'turno_id'=>$registrarTurno->id,
                         'esVideollamada'=>$esVideollamada,
-                        'calendar_reminder_url' => $calendarReminderUrl,
-                        'calendar_turno_url' => $calendarTurnoUrl,
-                        'calendar_event_added' => $calendarEventAdded
+                        'calendar_event_added' => $calendarEventAdded,
+                        'google_calendar_reminder_url' => ($googleCalendarUrls && isset($googleCalendarUrls['reminder']) && !empty($googleCalendarUrls['reminder'])) ? $googleCalendarUrls['reminder'] : null, // URL del recordatorio (día anterior)
+                        'google_calendar_turno_url' => ($googleCalendarUrls && isset($googleCalendarUrls['turno'])) ? $googleCalendarUrls['turno'] : null, // URL del turno
+                        'ics_content' => $icsContent // Contenido del .ics como fallback
                     ));
                 }       
             }   
         } else {
+            if (!$this->horarioEsVisibleMostrarDosPaciente(
+                $medico_id,
+                $consultorio_id,
+                $dia,
+                $fechaTurno,
+                $tipoTurno,
+                (int) $request->get('primerControl'),
+                $horario,
+                null,
+                1
+            )) {
+                return response()->json(array('turnoRegistrado'=>'0'));
+            }
             // confirmo que no haya una persona en ese mismo horario
             $checkTurno = $this->validarTurnoLibreVideollamada($medico_id, $consultorio_id, $dia, $horario, $fechaTurno);
             // confirmo que la misma persona no tenga 2 turno con el mismo medico el mismo dia.
@@ -2807,6 +3627,21 @@ class TurnoController extends Controller
                 }       
             }
         }
+    }
+    // validarTurnosPosteriores($paciente_id, $fechaTurno, $medico_id, $consultorio_id)
+    function validarTurnosPosteriores($paciente_id, $fechaTurno, $medico_id, $consultorio_id) {
+        date_default_timezone_set('America/Argentina/Buenos_Aires');
+        $hoy = date('Y-m-d');
+    
+        $cantidad = DB::table('turno_registrados')
+            ->where('turno_registrados.paciente', $paciente_id)
+            ->where('turno_registrados.medico', $medico_id)
+            ->where('turno_registrados.consultorio', $consultorio_id)
+            ->where('turno_registrados.fechaTurno', '>=', $hoy)
+            ->where('turno_registrados.activo', 1)
+            ->count();
+    
+        return $cantidad;
     }
 
     function validarTurnoUnaSemana($paciente_id, $fechaTurno, $medico_id, $consultorio_id) {
@@ -2861,11 +3696,39 @@ class TurnoController extends Controller
         return $cantidadTurnosAux;
     }
 
-    public function cancelarTurno(Request $request){
+    public function confirmarTurno(Request $request){
+        $turno_id = $request->get('turno_id');        
+        //$horario= $request->horario;
+        $turnoRegistrado = turnoRegistrado::find($turno_id);
+        $coment = $turnoRegistrado->comentario;
+        $turnoRegistrado->comentario = $coment.' - Confirmado por link whatsapp';
+        $turnoRegistrado->save();
+        
+        $medico = Medico::find($turnoRegistrado->medico);
+
+        $fecha = $this->convertirFechaMostrar($turnoRegistrado->fechaTurno);
+        return view('turnos.confirmar_turno')->with('fecha',$fecha)->with('medico',$medico)->with('turnoRegistrado',$turnoRegistrado);
+        
+        //return response()->json(array('horario'=>$horario));
+    }
+
+    /**
+     * Confirmación por enlace GET (misma lógica que POST confirmar_turno), análoga a cancelaturno/{id}.
+     */
+    public function confirmaTurno($turno_id)
+    {
+        return $this->confirmarTurno(new Request([], ['turno_id' => $turno_id]));
+    }
+
+    public function cancelarTurno(Request $request) {
         $turno_id = $request->get('turno_id');        
         $esVideollamada = $request->get('esVideollamada');  
         if($esVideollamada == 0) {
             $turno = turnoRegistrado::find($turno_id);
+            // Eliminar evento de Google Calendar si existe
+            if ($turno) {
+                $this->deleteEventFromGoogleCalendar($turno);
+            }
         } else {
             $turno = turnoRegistradoVideollamada::find($turno_id);
         }
@@ -3012,9 +3875,17 @@ class TurnoController extends Controller
 
         $turno_id = $request->get('turno_id');        
         $turno = turnoRegistrado::find($turno_id);
+        
+        // Eliminar evento de Google Calendar si existe
+        if ($turno) {
+            $this->deleteEventFromGoogleCalendar($turno);
+        }
+        
         $turno->comentario = 'Cancelado por paciente';
         $turno->activo = 0;
         $turno->save();
+
+        $reembolsoResult = (new TurnoPagoIntentService())->tryAutoRefundOnPatientCancel($turno);
 
         if(strcmp($turno->primerControl, 'SI') == 0){
             $cancelarTurnoDobleAux = DB::table('turno_registrados')
@@ -3028,6 +3899,8 @@ class TurnoController extends Controller
             
             if($cancelarTurnoDobleAux!=null){
                 $cancelarTurnoDoble = turnoRegistrado::find($cancelarTurnoDobleAux->id);
+                // Eliminar evento de Google Calendar del turno doble si existe
+                $this->deleteEventFromGoogleCalendar($cancelarTurnoDoble);
                 $cancelarTurnoDoble->comentario = 'Cancelado por paciente';
                 $cancelarTurnoDoble->activo = 0;
                 $cancelarTurnoDoble->save();
@@ -3055,9 +3928,17 @@ class TurnoController extends Controller
             if(!$turnosAux){                
                 $mensaje =  'No hay turnos registrados para el DNI ingresado.';
             }
-            
 
-            return response()->json(array('turnosRegistrados'=>$someArray,'dni_paciente'=>$paciente_get->dni,'mensaje'=>$mensaje));
+            $response = [
+                'turnosRegistrados' => $someArray,
+                'dni_paciente' => $paciente_get->dni,
+                'mensaje' => $mensaje,
+            ];
+            if (!empty($reembolsoResult['message'])) {
+                $response['reembolso_mensaje'] = $reembolsoResult['message'];
+            }
+
+            return response()->json($response);
     }
 
     public function existeVideollamada($medico_id){
@@ -3081,6 +3962,12 @@ class TurnoController extends Controller
 
         $turno_id = $request->get('turno_id');        
         $turno = turnoRegistrado::find($turno_id);
+        
+        // Eliminar evento de Google Calendar si existe
+        if ($turno) {
+            $this->deleteEventFromGoogleCalendar($turno);
+        }
+        
         $turno->activo = 0;
         $turno->save();
 
@@ -3171,7 +4058,7 @@ class TurnoController extends Controller
                         ->where('turno_registrado_videollamadas.activo', 1)                        
                         ->get();
         } else {
-            if($medico->id == 1 || $medico->id == 5 || $medico->id == 11 || $medico->id == 12 || $medico->id == 13 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 23 || $medico->id == 31){
+            if($medico->id == 1 || $medico->id == 5 || $medico->id == 11 || $medico->id == 12 || $medico->id == 13 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 23 || $medico->id == 31 || $medico->id == 38){
                 if($medico->id == 1)
                     $turnos = $this->checkTurnoLibreEspecialFlor($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
                 if($medico->id == 5)
@@ -3192,6 +4079,8 @@ class TurnoController extends Controller
                     $turnos = $this->checkTurnoLibreEspecialFonseca($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
                 if($medico->id == 31)
                     $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
+                if($medico->id == 38)
+                    $turnos = $this->checkTurnoLibreEspecialMonica($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
             } else {
                 $turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico->id)
@@ -3514,6 +4403,9 @@ class TurnoController extends Controller
             $description .= "\nTeléfono: {$consultorio->telefono}";
         }
         
+        // COMENTADO TEMPORALMENTE - Error: Class 'App\Helpers\CalendarHelper' not found
+        // TODO: Regenerar autoloader en producción con: composer dump-autoload --optimize
+        /*
         $ics = \App\Helpers\CalendarHelper::generateICSFile(
             $title,
             $description,
@@ -3525,10 +4417,18 @@ class TurnoController extends Controller
         return response($ics)
             ->header('Content-Type', 'text/calendar; charset=utf-8')
             ->header('Content-Disposition', 'attachment; filename="recordatorio-turno-' . $turno_id . '.ics"');
+        */
+        // Retornar error temporal mientras se soluciona
+        return redirect()->back()->with('error', 'Servicio de calendario temporalmente no disponible.');
+        
+        return response($ics)
+            ->header('Content-Type', 'text/calendar; charset=utf-8')
+            ->header('Content-Disposition', 'attachment; filename="recordatorio-turno-' . $turno_id . '.ics"');
     }
     
     /**
      * Descargar archivo .ics para el turno mismo
+     * Se abre directamente en el calendario nativo del dispositivo
      */
     public function downloadTurnoCalendar($turno_id)
     {
@@ -3539,29 +4439,93 @@ class TurnoController extends Controller
         
         $medico = Medico::find($turno->medico);
         $consultorio = Consultorio::find($turno->consultorio);
+        $paciente = Paciente::find($turno->paciente);
         
         if (!$medico || !$consultorio) {
             abort(404);
         }
         
-        $title = "Turno con Dr. {$medico->apellido}";
-        $description = "Turno médico con el Dr. {$medico->apellido}, {$medico->nombre}";
-        $description .= "\nConsultorio: {$consultorio->direccion}";
-        if (isset($consultorio->telefono) && !empty($consultorio->telefono)) {
-            $description .= "\nTeléfono: {$consultorio->telefono}";
-        }
+        // Generar archivo .ics con recordatorio del día previo
+        $ics = \App\Helpers\CalendarHelper::generateTurnoICS($turno, $medico, $consultorio, $paciente);
         
-        $ics = \App\Helpers\CalendarHelper::generateICSFile(
-            $title,
-            $description,
-            $consultorio->direccion,
-            $turno->fechaTurno,
-            $turno->horario
-        );
-        
-        return response($ics)
+        return response($ics, 200)
             ->header('Content-Type', 'text/calendar; charset=utf-8')
-            ->header('Content-Disposition', 'attachment; filename="turno-' . $turno_id . '.ics"');
+            ->header('Content-Disposition', 'inline; filename="turno-' . $turno_id . '.ics"')
+            ->header('Content-Transfer-Encoding', 'binary')
+            ->header('Cache-Control', 'no-cache, must-revalidate')
+            ->header('Pragma', 'no-cache')
+            ->header('X-Content-Type-Options', 'nosniff');
+    }
+
+    /**
+     * Eliminar evento de Google Calendar cuando se cancela un turno
+     */
+    private function deleteEventFromGoogleCalendar($turno)
+    {
+        try {
+            // Si no tiene event_id o es "no event_id", no hay nada que eliminar
+            if (!$turno->google_calendar_event_id || $turno->google_calendar_event_id === 'no event_id') {
+                return false;
+            }
+            
+            // Obtener el paciente
+            $paciente = Paciente::find($turno->paciente);
+            if (!$paciente || !$paciente->google_calendar_access_token) {
+                \Log::info("No se puede eliminar evento de Google Calendar: Paciente sin token OAuth para turno {$turno->id}");
+                return false;
+            }
+            
+            $calendarService = app(GoogleCalendarService::class);
+            
+            // Verificar si el token es válido
+            $isValid = $calendarService->isTokenValid(
+                $paciente->google_calendar_access_token,
+                $paciente->google_calendar_token_expires_at
+            );
+            
+            // Si el token expiró, intentar refrescarlo
+            if (!$isValid && $paciente->google_calendar_refresh_token) {
+                $newToken = $calendarService->refreshAccessToken($paciente->google_calendar_refresh_token);
+                
+                if ($newToken && !isset($newToken['error'])) {
+                    $paciente->google_calendar_access_token = $newToken['access_token'];
+                    if (isset($newToken['refresh_token'])) {
+                        $paciente->google_calendar_refresh_token = $newToken['refresh_token'];
+                    }
+                    $expiresIn = isset($newToken['expires_in']) ? $newToken['expires_in'] : 3600;
+                    $paciente->google_calendar_token_expires_at = date('Y-m-d H:i:s', time() + $expiresIn);
+                    $paciente->save();
+                } else {
+                    // Token no se pudo refrescar
+                    \Log::warning("No se pudo refrescar token para eliminar evento de Google Calendar del turno {$turno->id}");
+                    return false;
+                }
+            }
+            
+            // Configurar tokens en el servicio
+            $calendarService->setAccessToken(
+                $paciente->google_calendar_access_token,
+                $paciente->google_calendar_refresh_token,
+                $paciente->google_calendar_token_expires_at
+            );
+            
+            // Eliminar el evento
+            $deleted = $calendarService->deleteEvent($turno->google_calendar_event_id);
+            
+            if ($deleted) {
+                \Log::info("Evento de Google Calendar eliminado exitosamente para turno {$turno->id} (event_id: {$turno->google_calendar_event_id})");
+                // Limpiar el event_id del turno
+                $turno->google_calendar_event_id = null;
+                $turno->save();
+                return true;
+            }
+            
+            return false;
+        } catch (\Exception $e) {
+            \Log::error("Error eliminando evento de Google Calendar para turno {$turno->id}: " . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return false;
+        }
     }
 
     /**
@@ -3570,6 +4534,10 @@ class TurnoController extends Controller
     private function addEventToGoogleCalendar($paciente, $turno, $medico, $consultorio)
     {
         try {
+            // TEMPORAL: Mientras Google verifica OAuth, siempre retornar 'no event_id' para que se abra el calendario manualmente
+            // TODO: Remover este return cuando Google haya verificado OAuth
+            return 'no event_id';
+            
             $calendarService = app(GoogleCalendarService::class);
             
             // Verificar si el token es válido
@@ -3596,7 +4564,7 @@ class TurnoController extends Controller
                     $paciente->google_calendar_refresh_token = null;
                     $paciente->google_calendar_token_expires_at = null;
                     $paciente->save();
-                    return false;
+                    return null;
                 }
             }
             
@@ -3619,23 +4587,24 @@ class TurnoController extends Controller
             
             // Fecha del recordatorio (día previo)
             $reminderDate = date('Y-m-d', strtotime($turno->fechaTurno . ' -1 day'));
+            $reminderTime = '09:00'; // Hora del recordatorio
             
-            // Crear evento
-            $result = $calendarService->createEvent(
+            // Crear solo el recordatorio del día anterior (no el evento del turno)
+            $eventId = $calendarService->createReminderEvent(
+                $reminderDate,
+                $reminderTime,
                 $title,
                 $description,
                 $location,
                 $turno->fechaTurno,
-                $turno->horario,
-                null, // endTime (se calcula automáticamente +30 min)
-                $reminderDate,
-                '09:00' // Hora del recordatorio
+                $turno->horario
             );
             
-            return $result['success'] ?? false;
+            // Retornar el event_id si se creó exitosamente, null si falló
+            return $eventId;
         } catch (\Exception $e) {
             \Log::error('Error agregando evento a Google Calendar: ' . $e->getMessage());
-            return false;
+            return null;
         }
     }
 
@@ -3656,7 +4625,8 @@ class TurnoController extends Controller
                      ->where('turno_registrados.activo', 1)                  
                     ->get();    
       
-      $firebase = app('firebase');
+      // COMENTADO: Firebase FCM - Esta funcionalidad fue removida porque no funciona correctamente en iOS
+      // $firebase = app('firebase');
       
       foreach($pacientes as $paciente) {
             // Enviar email si tiene mail
@@ -3668,7 +4638,8 @@ class TurnoController extends Controller
                Mail::to($paciente->mail)->queue(new SendMailable($data));
             }
             
-            // Enviar notificación push FCM si tiene token
+            // COMENTADO: Envío de notificaciones push FCM - Removido porque no funciona en iOS
+            /*
             if($paciente->fcm_token != null) {
                 $medico = DB::table('medicos')->where('medicos.id', $paciente->medico)->first();
                 $medicoNombre = $medico->apellido.', '.$medico->nombre;
@@ -3686,6 +4657,7 @@ class TurnoController extends Controller
                 // Enviar notificación push
                 $firebase->sendTurnoReminder($paciente->fcm_token, $turnoData);
             }
+            */
         } 
     }
 
@@ -3798,6 +4770,26 @@ class TurnoController extends Controller
                             if($diaSeleccionado == 3) {
                                 $json['direccion'] = 'Blandengues 505';
                                 $json['telefono_consultorio'] = "2914717327";                         
+                            }                            
+                        }
+                        if($medico->id == 43) {                            
+                            if($diaSeleccionado == 1 || $diaSeleccionado == 3 || $diaSeleccionado == 5) {
+                                $json['direccion'] = 'Luiggi 463';
+                                $json['telefono_consultorio'] = "2914236530";                         
+                            }
+                            if($diaSeleccionado == 2) {
+                                $json['direccion'] = 'Gimnasio EFI · Jorge Walsh 31';
+                                $json['telefono_consultorio'] = "2914236530";                         
+                            }
+                            if($diaSeleccionado == 4) {
+                                $horarioTarde = ['15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30'];
+                                if($paciente->horario && in_array($paciente->horario, $horarioTarde)) {                                    
+                                    $json['direccion'] = 'Gimnasio EFI · Jorge Walsh 31';
+                                    $json['telefono_consultorio'] = "2914236530";                         
+                                } else {
+                                    $json['direccion'] = 'Luiggi 463';
+                                    $json['telefono_consultorio'] = "2914236530";                         
+                                }                                
                             }                            
                         } 
                         if($medico->id == 25) {                            
@@ -4086,13 +5078,27 @@ ORDER BY `pc`  DESC*/
 
     function cancelaTurno($turno_id) {
         $turnoRegistrado = TurnoRegistrado::find($turno_id);
+        if (!$turnoRegistrado) {
+            abort(404);
+        }
+
+        // Eliminar evento de Google Calendar si existe
+        $this->deleteEventFromGoogleCalendar($turnoRegistrado);
+
         $turnoRegistrado->activo = 0;
+        $turnoRegistrado->cancelado_por = 'link whatsapp';
         $turnoRegistrado->save();
+
+        $reembolsoResult = (new TurnoPagoIntentService())->tryAutoRefundOnPatientCancel($turnoRegistrado);
 
         $medico = Medico::find($turnoRegistrado->medico);
 
         $fecha = $this->convertirFechaMostrar($turnoRegistrado->fechaTurno);
-        return view('turnos.cancela_turno')->with('fecha',$fecha)->with('medico',$medico)->with('turnoRegistrado',$turnoRegistrado);
+        return view('turnos.cancela_turno')
+            ->with('fecha', $fecha)
+            ->with('medico', $medico)
+            ->with('turnoRegistrado', $turnoRegistrado)
+            ->with('reembolso_mensaje', $reembolsoResult['message'] ?? null);
     }
 
     function listaNegra() {
@@ -4152,7 +5158,7 @@ ORDER BY `pc`  DESC*/
             $telefono = "2914717327";                                                    
         }        
        if($medico->id == 1) {
-            if($date < '2025-02-01'){
+            if($turno->fechaTurno < '2025-02-01'){
                 $direccion = 'Unimed. 12 de Octubre 53, piso 9.'; 
                 $telefono = "4540001";                                                    
             } else {
@@ -4255,8 +5261,8 @@ ORDER BY `pc`  DESC*/
             
             // Si el médico atiende este día, verificar si hay turnos
             if ($medicoAtiende) {
-                // Verificar si hay turnos libres para esta fecha
-                $hayTurnoLibre = $this->checkTurnoLibreTipoTurno($medico_id, $fechaStr, $primerControl, $esVideollamada, $tipoTurno);
+                // Verificar si hay turnos libres para esta fecha (usando misma lógica que en createJson)
+                $hayTurnoLibre = $this->checkTurnoLibreTipoTurno($medico_id, $fechaStr, $primerControl, $esVideollamada, $tipoTurno, $consultorio_id);
                 
                 // Formatear fecha como DD/MM/YYYY para el datepicker
                 $fechaFormateada = $this->convertirFechaMostrar($fechaStr);

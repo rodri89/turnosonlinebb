@@ -4,7 +4,7 @@
 <head>
 
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <meta name="description" content="Sitio web para turnos online de medicos en Bahia Blanca.">
   <meta name="author" content="Rodrigo Banegas">
   <meta name="keywords" content="turnos online, medicos, pediatria cardiologo, cardiologia, bahia blanca, turnos, profesionales">
@@ -18,9 +18,6 @@
   <link href="css/business-frontpage.css" rel="stylesheet">
 
    @include('layouts.rodri_style_css')
-<!-- Para mediaquery debo agregar estos dos. Mediaquery es para que se ve bien en el telefono -->
-
-<meta name="viewport" content="width=device-width"/>
 </head>
 
 <style type="text/css">
@@ -29,7 +26,28 @@
     margin-top: 25px;
     font-size: 1.2rem;   
     float: right;
-  } 
+  }
+
+  .mobile-screens-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 0 auto;
+  }
+
+  .mobile-screen-shot {
+    max-width: 100%;
+    height: auto;
+  }
+
+  @media (max-width: 767px) {
+    .mobile-screen-shot {
+      width: 31%;
+      min-width: 92px;
+    }
+  }
 </style>
 
 <body>
@@ -38,10 +56,6 @@
   <nav class="navbar navbar-expand-lg fontNav fixed-top fondoNav">
     <div class="container">      
       <a class="textheader navbar-brand text-white" href="homes">Turnos Online</a>
-      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-
     </div>    
     <!--<a href="/login" class="text-white">Login</a>-->
   </nav>  
@@ -163,11 +177,10 @@
         </div>  
         <br>
         <h5 class="lead fontHomeBody">Pantallas con vista desde un celular:</h5>
-        <div class="row r_inline">
-          
-            <img src="images/iconos/click_menu.png" class="img_home_2 r_inline">
-            <img src="images/iconos/click_mis_turnos.png" class="img_home_2 r_inline">
-            <img src="images/iconos/click_consultar.png" class="img_home_2 r_inline"> 
+        <div class="row mobile-screens-row">
+            <img src="images/iconos/click_menu.png" class="img_home_2 mobile-screen-shot">
+            <img src="images/iconos/click_mis_turnos.png" class="img_home_2 mobile-screen-shot">
+            <img src="images/iconos/click_consultar.png" class="img_home_2 mobile-screen-shot"> 
         </div> 
           
         <br>
@@ -197,17 +210,15 @@
             <h5 class="text-left lead fontHomeBody3">- Si se encuentra en una PC debe seleccionar COMENZAR y luego seleccionar en el panel de opciones "Mis Recetas".</h5><br>
             <h5 class="text-left lead fontHomeBody3">- Si se encuentra en un celular debe seleccionar COMENZAR y luego hacer click en el botón ubicado arriba a la derecha, alli se va a desplegar un menú con opciones y le permitirá seleccionar "Mis Recetas".</h5> <br>
             <h5 class="text-left lead fontHomeBody3">- Luego debe ingresar el DNI del paciente con el que solicito la receta y click en CONSULTAR. Ahi podrá ver el estado de la receta o cancelarla si asi lo desea.</h5><br>
-           </div>
-           <h5 class="text-left lead fontHomeBody3">- Una vez cargada la receta por el profesional, deberá ingresar a mis recetas, ingresar su dni, hacer click en Ver, y ahi tendra la opcion de descargar la receta.</h5><br>
+            <h5 class="text-left lead fontHomeBody3">- Una vez cargada la receta por el profesional, deberá ingresar a mis recetas, ingresar su dni, hacer click en Ver, y ahi tendra la opcion de descargar la receta.</h5><br>
            </div> 
         </div>  
         <br>
         <h5 class="lead fontHomeBody">Pantallas con vista desde un celular:</h5>
-        <div class="row r_inline">
-          
-            <img src="images/iconos/click_menu.png" class="img_home_2 r_inline">
-            <img src="images/iconos/click_mis_turnos.png" class="img_home_2 r_inline">
-            <img src="images/iconos/click_consultar.png" class="img_home_2 r_inline"> 
+        <div class="row mobile-screens-row">
+            <img src="images/iconos/click_menu.png" class="img_home_2 mobile-screen-shot">
+            <img src="images/iconos/click_mis_turnos.png" class="img_home_2 mobile-screen-shot">
+            <img src="images/iconos/click_consultar.png" class="img_home_2 mobile-screen-shot"> 
         </div> 
           
         <br>
@@ -236,9 +247,34 @@
   <footer class="py-5 bg-dark footerBackground widthImageCarousel">
 @yield('contenedorFooter')
     <div class="container">
-      <p class="m-0 text-center text-white createdby ">Created by &copy; Rodrigo Banegas</p>
-      <p class="text-center"><a data-target=".bd-example-modal-xl" data-toggle="modal" class="letrasblancas" id="MainNavHelp" 
-       href="#modalAyuda"><u>Términos y Condiciones</u></a></p>
+      <p class="m-0 text-center text-white createdby">
+    Created by &copy; Rodrigo Banegas 
+    <span id="screen-resolution" style="font-size: 0.8em; opacity: 0.7;"></span>
+</p>
+
+<script>
+    // Función para obtener y mostrar la resolución
+    function mostrarResolucion() {
+        const resolucion = document.getElementById('screen-resolution');
+        const ancho = window.innerWidth;
+        const alto = window.innerHeight;
+        resolucion.textContent = `| 📱 ${ancho}x${alto}`;
+    }
+    
+    // Mostrar al cargar
+    mostrarResolucion();
+    
+    // Actualizar si la pantalla cambia de tamaño (útil para móviles al girar)
+    window.addEventListener('resize', mostrarResolucion);
+</script>
+      <p class="text-center">
+        <a data-target=".bd-example-modal-xl" data-toggle="modal" class="letrasblancas" id="MainNavHelp" 
+         href="#modalAyuda"><u>Términos y Condiciones</u></a>
+        <span class="text-white mx-2">|</span>
+        <a href="{{ url('/politica-privacidad') }}" class="letrasblancas"><u>Política de Privacidad</u></a>
+        <span class="text-white mx-2">|</span>
+        <a href="{{ url('/condiciones-servicio') }}" class="letrasblancas"><u>Condiciones del Servicio</u></a>
+      </p>
       <!--<button type="button" class="sinBackgroundAzul editText text-center" data-toggle="modal" data-target=".bd-example-modal-xl">Términos y Condiciones </button>-->
     </div>
     <!-- /.container -->

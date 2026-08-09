@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\SecretariaConsultorio;
 use App\User;
 use App\Paciente;
@@ -18,7 +19,11 @@ use Mail;
 use App\Mail\ActivarPacienteMailable;
 use Datatables;
 use App\MedicoPaciente;
+use App\HorarioMedico;
 use App\Util\Util;
+use App\ObraSocial;
+use App\MedicoMercadoPagoAccount;
+use App\Services\MercadoPago\TurnoPagoHelper;
 
 class SecretariaController extends Controller
 {
@@ -153,6 +158,7 @@ class SecretariaController extends Controller
 	public function showMedicosConsultorio(Request $request){
 		$option = $request->option;
 		$consultorio = $request->get('consultorio');
+		$paciente_dni = $request->input('paciente_dni');
 		$medicos = DB::table('medicos')						                   	                    
 	                    ->where('medicos.consultorio', $consultorio)
 	                    ->where('medicos.activo', 1)	                                      
@@ -160,6 +166,7 @@ class SecretariaController extends Controller
 		return view('turnos_admin_secretaria/seleccionar_medico')
 			   ->with('consultorio',$consultorio)
 			   ->with('option', $option)
+			   ->with('paciente_dni', $paciente_dni)
 			   ->with('medicos',$medicos);
 	}
 
@@ -863,13 +870,13 @@ class SecretariaController extends Controller
         if($turnos != null)
             return $turnos;
         else {
-            $turnos = DB::table('horario_medicos')
+            $query = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)
-                        ->where('horario_medicos.activo', 1)                        
-                        ->orderby('horario_medicos.horario')
-                        ->get();
+                        ->where('horario_medicos.activo', 1);
+            $query = HorarioMedico::aplicarVigenciaQuery($query, $fechaSeleccionada);
+            $turnos = $query->orderby('horario_medicos.horario')->get();
             return $turnos;
         }
     }
@@ -1229,15 +1236,29 @@ class SecretariaController extends Controller
         }
     }
 
-        function checkTurnoLibreEspecialMarina($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
+    function checkTurnoLibreEspecialMarina($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
         $turnos = null;                
-        if($fechaSeleccionada >= '2025-07-01') {
+        if($fechaSeleccionada >= '2026-03-01') {
             // mostrar 9.30 10.00 10.30 11.00 11.30
-            if($diaSeleccionado == 2 || $diaSeleccionado == 4) {
+            if($diaSeleccionado == 2) {
                 $turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.horario','!=' ,'09:00')
+                        ->where('horario_medicos.horario','!=' ,'09:30')
+                        ->where('horario_medicos.horario','!=' ,'10:00')
+                        ->where('horario_medicos.horario','!=' ,'10:30')
+                        ->where('horario_medicos.horario','!=' ,'11:00')
+                        ->where('horario_medicos.horario','!=' ,'11:30')
+                        ->where('horario_medicos.horario','!=' ,'12:00')
+                        ->where('horario_medicos.horario','!=' ,'12:30')
+                        ->where('horario_medicos.horario','!=' ,'13:00')
+                        ->where('horario_medicos.horario','!=' ,'13:30')
+                        ->where('horario_medicos.horario','!=' ,'16:10')
+                        ->where('horario_medicos.horario','!=' ,'16:50')                        
+                        ->where('horario_medicos.horario','!=' ,'18:10')
+                        ->where('horario_medicos.horario','!=' ,'18:50')
                         ->where('horario_medicos.activo', 1)                        
                         ->orderby('horario_medicos.horario')
                         ->get();
@@ -1248,27 +1269,15 @@ class SecretariaController extends Controller
                         ->where('horario_medicos.medico',$medico_id)
                         ->where('horario_medicos.consultorio', $consultorio_id)
                         ->where('horario_medicos.dia', $diaSeleccionado)    
-                        ->where('horario_medicos.horario','!=' ,'12:00')                       
-                        ->where('horario_medicos.horario','!=' ,'12:30')                        
-                        ->where('horario_medicos.horario','!=' ,'13:00')
-                        ->where('horario_medicos.horario','!=' ,'13:30')                                        
+                        ->where('horario_medicos.horario','!=' ,'15:00')                       
+                        ->where('horario_medicos.horario','!=' ,'16:00')                        
+                        ->where('horario_medicos.horario','!=' ,'16:30')
+                        ->where('horario_medicos.horario','!=' ,'17:00')                                        
+                        ->where('horario_medicos.horario','!=' ,'18:00')                        
                         ->where('horario_medicos.activo', 1)         
                         ->orderby('horario_medicos.horario')               
                         ->get(); 
-            }
-            if($diaSeleccionado == 4) {
-                $turnos = DB::table('horario_medicos')
-                        ->where('horario_medicos.medico',$medico_id)
-                        ->where('horario_medicos.consultorio', $consultorio_id)
-                        ->where('horario_medicos.dia', $diaSeleccionado)    
-                        ->where('horario_medicos.horario','!=' ,'11:30')                       
-                        ->where('horario_medicos.horario','!=' ,'12:00')
-                        ->where('horario_medicos.horario','!=' ,'12:30')                                                
-                        ->where('horario_medicos.horario','!=' ,'13:30')                                        
-                        ->where('horario_medicos.activo', 1)         
-                        ->orderby('horario_medicos.horario')               
-                        ->get(); 
-            }                 
+            }                           
         }        
 
         if($turnos != null)
@@ -1284,6 +1293,37 @@ class SecretariaController extends Controller
             return $turnos;
         } 
     }
+
+    function checkTurnoLibreEspecialMonica($medico_id, $consultorio_id, $diaSeleccionado, $fechaSeleccionada){        
+        $turnos = null;                
+        if($fechaSeleccionada >= '2026-04-01') {
+            
+            if($diaSeleccionado == 3) {
+                $turnos = DB::table('horario_medicos')
+                        ->where('horario_medicos.medico',$medico_id)
+                        ->where('horario_medicos.consultorio', $consultorio_id)
+                        ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.horario','==' ,'99:00')                        
+                        ->where('horario_medicos.activo', 1)                        
+                        ->orderby('horario_medicos.horario')
+                        ->get();
+            }            
+        }                          
+            
+        if($turnos != null)
+            return $turnos;
+        else {
+            $turnos = DB::table('horario_medicos')
+                        ->where('horario_medicos.medico',$medico_id)
+                        ->where('horario_medicos.consultorio', $consultorio_id)
+                        ->where('horario_medicos.dia', $diaSeleccionado)
+                        ->where('horario_medicos.activo', 1)                        
+                        ->orderby('horario_medicos.horario')
+                        ->get();
+            return $turnos;
+        } 
+    }
+
 
     // Los turnos del martes, los paso al lunes desde las 15 hs. Cada 40 min. Ultimo 18:20 hs
     // Los del Jueves en Garibaldi 44 dejar 2. Uno a las 15:30  y otro 16:10 hs. Solo esos dos
@@ -1569,11 +1609,41 @@ class SecretariaController extends Controller
         return $fechaId;
     }
 
+    /**
+     * Filtra horarios semanales por vigencia (valido_desde / valido_hasta) para la fecha indicada.
+     * Si no existen columnas, no modifica el resultado.
+     */
+    protected function filtrarVigenciaTurnos($turnos, $fechaSolicitada)
+    {
+        if ($turnos === null) {
+            return $turnos;
+        }
+        if (!Schema::hasColumn('horario_medicos', 'valido_desde')) {
+            return $turnos;
+        }
+
+        $fechaNorm = str_replace('/', '-', (string) $fechaSolicitada);
+        $turnosCol = ($turnos instanceof \Illuminate\Support\Collection) ? $turnos : collect($turnos);
+
+        return $turnosCol->filter(function ($t) use ($fechaNorm) {
+            $desde = $t->valido_desde ?? null;
+            $hasta = $t->valido_hasta ?? null;
+
+            if (!empty($desde) && $desde > $fechaNorm) {
+                return false;
+            }
+            if (!empty($hasta) && $hasta < $fechaNorm) {
+                return false;
+            }
+            return true;
+        })->values();
+    }
+
 	//$nombreAbreviado = 0 retorno apellido, nombre 
 	//$nombreAbreviado = 1 retorno apellido, n 
 	public function createJson($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $nombreAbreviado) {	
 
-        if($medico_id == 1 || $medico_id == 2 || $medico_id == 8 || $medico_id == 13 || $medico_id == 12 || $medico_id == 14 || $medico_id == 15 || $medico_id == 18 || $medico_id == 19 || $medico_id == 23 || $medico_id == 24 || $medico_id == 26 || $medico_id == 31) {
+        if($medico_id == 1 || $medico_id == 2 || $medico_id == 8 || $medico_id == 13 || $medico_id == 12 || $medico_id == 14 || $medico_id == 15 || $medico_id == 18 || $medico_id == 19 || $medico_id == 23 || $medico_id == 24 || $medico_id == 26 || $medico_id == 31 || $medico_id == 38) {
         	$fechaSolicitada = str_replace('/','-', $fechaSolicitada); // Y/m/d
         	if($medico_id == 1)
 	            $turnos = $this->checkTurnoLibreEspecialFlor($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
@@ -1603,6 +1673,8 @@ class SecretariaController extends Controller
                 $turnos = $this->checkTurnoLibreEspecialSole($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
             if($medico_id == 31)
                 $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
+            if($medico_id == 38)
+                $turnos = $this->checkTurnoLibreEspecialMonica($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
         } else {
         	$turnos = DB::table('horario_medicos')
                         ->where('horario_medicos.medico',$medico_id)
@@ -1612,6 +1684,9 @@ class SecretariaController extends Controller
                         ->orderby('horario_medicos.horario')
                         ->get();
         }
+
+        // Aplica vigencia desde/hasta a los turnos semanales.
+        $turnos = $this->filtrarVigenciaTurnos($turnos, $fechaSolicitada);
 
                 // nuevo agregar fecha
         $fechaId = $this->checkFechaAgregada($medico_id, $consultorio_id, $fechaSolicitada);
@@ -1651,7 +1726,8 @@ class SecretariaController extends Controller
                 $json['libre'] = 1;  
                 $json['comentario'] = ""; 
                 $json['tipo_turno'] = isset($turno->tipo_turno) ? $turno->tipo_turno : 1;
-                $json['tipo_turno_text'] = Util::getTipoTurno(isset($turno->tipo_turno) ? $turno->tipo_turno : 1);                
+                $json['tipo_turno_text'] = Util::getTipoTurno(isset($turno->tipo_turno) ? $turno->tipo_turno : 1);
+                $json['trid'] = 0;
                 $data[] = $json;
             }
             return json_encode($data);  
@@ -1711,6 +1787,9 @@ class SecretariaController extends Controller
                         ->where('horario_medicos.activo', 1)
                         ->orderBy('horario_medicos.horario', 'asc')                                        
                         ->get();
+
+        // Vigencia por fecha para los turnos semanales.
+        $turnos = $this->filtrarVigenciaTurnos($turnos, $fechaSolicitada);
 
 		        // nuevo agregar fecha
         $fechaId = $this->checkFechaAgregada($medico_id, $consultorio_id, $fechaSolicitada);
@@ -1827,6 +1906,12 @@ class SecretariaController extends Controller
 		$medico_id = $request->get('medico_id');
 		$medico = medico::find($request->get('medico_id'));
 		$consultorio = $request->get('consultorio');
+
+		session([
+			'secretaria_context_medico_id' => (int) $medico_id,
+			'secretaria_context_consultorio_id' => (int) $consultorio,
+		]);
+
 		$turnosPaciente = $this->getTurnosPaciente($medico_id, $consultorio, $dia_aux);
 		
 		$contador = $turnosPaciente->count();		
@@ -1845,11 +1930,16 @@ class SecretariaController extends Controller
 		}
 		// Modulo id: 2 | corresponde a Caja | Comentario
         $moduloCajaComentario = $this->moduloActivo($medico->id, 2);
+        $moduloCobroTurnosMp = $this->moduloActivo($medico->id, 12);
+        $mpAccount = MedicoMercadoPagoAccount::where('medico_id', $medico->id)->first();
+        $secretariaPuedeReembolsar = $mpAccount && $mpAccount->secretariaPuedeReembolso();
 
 		return view('turnos_admin_secretaria/listado_pacientes')
 				->with('turnosPaciente',$turnosPaciente)
 				->with('medico',$medico)
 				->with('moduloCajaComentario',$moduloCajaComentario)
+				->with('moduloCobroTurnosMp',$moduloCobroTurnosMp)
+				->with('secretariaPuedeReembolsar', $secretariaPuedeReembolsar)
 				->with('consultorio',$consultorio)
 				->with('contador',$contador)
 				->with('dias_deshabilitados',$dias_deshabilitados)
@@ -2797,7 +2887,7 @@ class SecretariaController extends Controller
 		if($tipoEstudio == 0){
 			$turnosPaciente = DB::table('turno_registrados')						                              
 						->join('pacientes','pacientes.id','=','turno_registrados.paciente')
-						->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno', 'pacientes.obra_social')
+						->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno', 'turno_registrados.especialidad', 'pacientes.obra_social', 'turno_registrados.pago', 'turno_registrados.pago_estado', 'turno_registrados.mercadopago_payment_id', 'turno_registrados.mercadopago_preference_id', 'turno_registrados.importe_reserva')
 	                    ->where('turno_registrados.medico',$medico_id)
 	                   	->where('turno_registrados.consultorio', $consultorio)
 	                   	->where('turno_registrados.fechaTurno', $nuevaFecha)
@@ -2902,6 +2992,9 @@ class SecretariaController extends Controller
             if($paciente_get == null) {                    
                 $paciente = new Paciente;
                 $paciente->fcm_token = '';
+                $paciente->google_calendar_access_token = '';
+                $paciente->google_calendar_refresh_token = '';
+                $paciente->google_calendar_token_expires_at = '';
             } else {
                 $paciente = Paciente::find($paciente_get->id);
             }
@@ -3033,8 +3126,10 @@ class SecretariaController extends Controller
 		$turnoRegistrado->cancelado_por = '';
 		$turnoRegistrado->otorgado_por = $usuario_actual->email;
         $turnoRegistrado->comentario = '';
+        $turnoRegistrado->especialidad = '';
         $turnoRegistrado->msj_enviado = 0;
 		$turnoRegistrado->activo = 1;
+		$turnoRegistrado->google_calendar_event_id = '';
 		$turnoRegistrado->save();
 
 		$this->vincularMedicoPaciente($medico_id, $paciente_id);
@@ -3586,7 +3681,7 @@ class SecretariaController extends Controller
     public function getTurnosPaciente($medico_id, $consultorio, $dia) {
     	$turnosPaciente = DB::table('turno_registrados')						                              
 						->join('pacientes','pacientes.id','=','turno_registrados.paciente')
-						->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno', 'pacientes.obra_social')
+						->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno', 'turno_registrados.especialidad', 'pacientes.obra_social', 'turno_registrados.pago', 'turno_registrados.pago_estado', 'turno_registrados.mercadopago_payment_id', 'turno_registrados.mercadopago_preference_id', 'turno_registrados.importe_reserva')
 	                    ->where('turno_registrados.medico',$medico_id)
 	                   	->where('turno_registrados.consultorio', $consultorio)
 	                   	->where('turno_registrados.fechaTurno', $dia)
@@ -3600,7 +3695,7 @@ class SecretariaController extends Controller
 	    	$fecha = str_replace("/", "-", $dia);
 	    	$turnosPacientePeg = DB::table('turno_registrado_videollamadas')						                              
 						->join('pacientes','pacientes.id','=','turno_registrado_videollamadas.paciente')
-						->select('turno_registrado_videollamadas.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrado_videollamadas.horario', 'turno_registrado_videollamadas.asistio','pacientes.dni','turno_registrado_videollamadas.sobreturno','turno_registrado_videollamadas.primerControl','pacientes.telefono','turno_registrado_videollamadas.pago as caja','turno_registrado_videollamadas.comentario','turno_registrado_videollamadas.medico as tipo_turno', 'pacientes.obra_social')
+						->select('turno_registrado_videollamadas.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrado_videollamadas.horario', 'turno_registrado_videollamadas.asistio','pacientes.dni','turno_registrado_videollamadas.sobreturno','turno_registrado_videollamadas.primerControl','pacientes.telefono','turno_registrado_videollamadas.pago as caja','turno_registrado_videollamadas.comentario','turno_registrado_videollamadas.medico as tipo_turno', DB::raw('NULL as especialidad'), 'pacientes.obra_social', DB::raw('0 as pago'), DB::raw('NULL as pago_estado'), DB::raw('NULL as mercadopago_payment_id'), DB::raw('NULL as mercadopago_preference_id'), DB::raw('NULL as importe_reserva'))
 	                    ->where('turno_registrado_videollamadas.medico',$medico_id)
 	                   	->where('turno_registrado_videollamadas.consultorio', $consultorio)
 	                   	->where('turno_registrado_videollamadas.fechaTurno', $fecha)
@@ -4085,7 +4180,7 @@ class SecretariaController extends Controller
                         ->where('turno_registrado_videollamadas.activo', 1)                        
                         ->get();
         } else {
-        	if($medico->id == 1 || $medico->id == 2 || $medico->id == 6 || $medico->id == 8 || $medico->id == 13 || $medico->id == 12 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 23 || $medico->id == 31) {
+        	if($medico->id == 1 || $medico->id == 2 || $medico->id == 6 || $medico->id == 8 || $medico->id == 13 || $medico->id == 12 || $medico->id == 14 || $medico->id == 15 || $medico->id == 18 || $medico->id == 23 || $medico->id == 31 || $medico->id == 38) {
 	        	if($medico->id == 1)
 		            $turnos = $this->checkTurnoLibreEspecialFlor($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
 		        if($medico->id == 2)
@@ -4108,6 +4203,8 @@ class SecretariaController extends Controller
 		            $turnos = $this->checkTurnoLibreEspecialFonseca($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
 		        if($medico->id == 31)
 		            $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
+		        if($medico->id == 38)
+		            $turnos = $this->checkTurnoLibreEspecialMonica($medico->id, $consultorio->id, $diaSeleccionado, $fecha);
         	} else {
 	        	$turnos = DB::table('horario_medicos')
 	                        ->where('horario_medicos.medico',$medico->id)
@@ -4388,6 +4485,205 @@ class SecretariaController extends Controller
                            
                             ->rawColumns(['medico_','fechaTurno_','sobreturno_','asistio_','action'])
                             ->make(true);
+    }
+
+    /**
+     * La secretaria puede operar sobre médicos de consultorios vinculados y activos.
+     */
+    public static function puedeGestionarMedicoPorId($user, $medicoId)
+    {
+        if (!$user || (int) $user->usuario_tipo !== 3) {
+            return false;
+        }
+        $medicoId = (int) $medicoId;
+        if ($medicoId < 1) {
+            return false;
+        }
+        $secretaria = DB::table('secretarias')->where('user_id', $user->id)->first();
+        if (!$secretaria) {
+            return false;
+        }
+        $medico = DB::table('medicos')->where('id', $medicoId)->where('activo', 1)->first();
+        if (!$medico) {
+            return false;
+        }
+        return DB::table('secretaria_consultorios')
+            ->where('secretaria_id', $secretaria->id)
+            ->where('consultorio_id', $medico->consultorio)
+            ->where('activo', 1)
+            ->exists();
+    }
+
+    public function establecerContextoGestionMedico(Request $request)
+    {
+        $user = \Auth::user();
+        if ((int) $user->usuario_tipo !== 3) {
+            abort(403);
+        }
+        $medicoId = (int) $request->input('medico_id');
+        $consultorio = (int) $request->input('consultorio');
+        $destino = $request->input('destino');
+
+        if (!self::puedeGestionarMedicoPorId($user, $medicoId)) {
+            return redirect()->route('secretaria_home')->with('error', 'No tiene permiso para gestionar ese médico.');
+        }
+        $medico = DB::table('medicos')->where('id', $medicoId)->where('activo', 1)->first();
+        if (!$medico || (int) $medico->consultorio !== $consultorio) {
+            return redirect()->route('secretaria_home')->with('error', 'Consultorio inválido para el médico seleccionado.');
+        }
+
+        if ($destino === 'config') {
+            $p = (int) $user->perfil;
+            if (!in_array($p, [2, 5, 6, 7, 8, 9], true)) {
+                return redirect()->route('secretaria_home')->with('error', 'Su perfil no puede acceder a la configuración del médico.');
+            }
+        }
+
+        if ($destino === 'pagos') {
+            if ($this->moduloActivo($medicoId, TurnoPagoHelper::MODULO_COBRO_TURNOS_MP) !== 1) {
+                return redirect()->route('secretaria_home')
+                    ->with('error', 'El módulo de cobro de turnos no está activo para este médico.');
+            }
+            $mpAccount = MedicoMercadoPagoAccount::where('medico_id', $medicoId)->first();
+            if (!$mpAccount || !$mpAccount->secretariaPuedeVerPanelMp()) {
+                return redirect()->route('secretaria_home')
+                    ->with('error', 'No tiene acceso a la sección de Mercado Pago. Debe ser habilitada por el especialista.');
+            }
+        }
+
+        $rutas = [
+            'config' => 'medicoconfiguracion',
+            'horarios' => 'adminhorariosm',
+            'horarios_fijos' => 'adminhorariosfijosm',
+            'mensajes' => 'medicoconfigmensajes',
+            'obra_social' => 'medicoadminobrasocialvista',
+            'pagos' => 'medicoconfigpagos',
+        ];
+        if (!isset($rutas[$destino])) {
+            return redirect()->route('secretaria_home')->with('error', 'Destino no válido.');
+        }
+
+        session(['secretaria_context_medico_id' => $medicoId]);
+        session(['secretaria_context_consultorio_id' => $consultorio]);
+
+        return redirect()->route($rutas[$destino]);
+    }
+
+    public function limpiarContextoMedico(Request $request)
+    {
+        $user = \Auth::user();
+        if ((int) $user->usuario_tipo !== 3) {
+            abort(403);
+        }
+        session()->forget(['secretaria_context_medico_id', 'secretaria_context_consultorio_id']);
+
+        return redirect()->route('secretaria_home');
+    }
+
+    public function secretariaNuevaObraSocialForm()
+    {
+        if ((int) \Auth::user()->usuario_tipo !== 3) {
+            abort(403);
+        }
+        $secretaria = DB::table('secretarias')->where('user_id', \Auth::id())->first();
+        if (!$secretaria) {
+            abort(403);
+        }
+        $consultorios = DB::table('secretaria_consultorios')
+            ->join('consultorios', 'consultorios.id', '=', 'secretaria_consultorios.consultorio_id')
+            ->where('secretaria_consultorios.secretaria_id', $secretaria->id)
+            ->where('secretaria_consultorios.activo', 1)
+            ->where('consultorios.activo', 1)
+            ->select('consultorios.id', 'consultorios.direccion')
+            ->orderBy('consultorios.direccion')
+            ->get();
+
+        $obraSociales = DB::table('obra_socials')
+            ->orderBy('nombre')
+            ->get();
+
+        return view('turnos_admin_secretaria.nueva_obra_social', [
+            'consultorios' => $consultorios,
+            'obraSociales' => $obraSociales,
+        ]);
+    }
+
+    public function secretariaAltaObraSocial(Request $request)
+    {
+        if ((int) \Auth::user()->usuario_tipo !== 3) {
+            abort(403);
+        }
+        $request->validate([
+            'nombre' => 'required|string|min:2|max:191',
+        ]);
+
+        $secretaria = DB::table('secretarias')->where('user_id', \Auth::id())->first();
+        if (!$secretaria) {
+            abort(403);
+        }
+
+        $consultorioIds = DB::table('secretaria_consultorios')
+            ->where('secretaria_id', $secretaria->id)
+            ->where('activo', 1)
+            ->pluck('consultorio_id')
+            ->map(function ($id) {
+                return (int) $id;
+            })
+            ->all();
+
+        if (count($consultorioIds) === 0) {
+            return redirect()->route('secretarianuevaobrasocial')->with('error', 'No tiene consultorio asignado para asociar la obra social.');
+        }
+
+        $nombre = strtoupper(trim($request->nombre));
+
+        $existe = DB::table('obra_socials')
+            ->where('nombre', $nombre)
+            ->exists();
+
+        if ($existe) {
+            return redirect()->route('secretarianuevaobrasocial')->with('error', 'Ya existe una obra social con ese nombre.');
+        }
+
+        try {
+            DB::transaction(function () use ($nombre, $consultorioIds) {
+                $obraSocial = new ObraSocial();
+                $obraSocial->nombre = $nombre;
+                $obraSocial->activo = 1;
+                $obraSocial->save();
+                $obraSocialId = $obraSocial->id;
+
+                $medicos = DB::table('medicos')
+                    ->select('id', 'consultorio')
+                    ->get();
+
+                $now = now();
+                $batch = [];
+                foreach ($medicos as $m) {
+                    $activo = in_array((int) $m->consultorio, $consultorioIds, true) ? 1 : 0;
+                    $row = [
+                        'medico' => $m->id,
+                        'obra_social' => $obraSocialId,
+                        'activo' => $activo,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    if (Schema::hasColumn('obra_social_medicos', 'importe')) {
+                        $row['importe'] = 0;
+                    }
+                    $batch[] = $row;
+                }
+                foreach (array_chunk($batch, 250) as $chunk) {
+                    DB::table('obra_social_medicos')->insert($chunk);
+                }
+            });
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->route('secretarianuevaobrasocial')->with('error', 'No se pudo guardar la obra social. Intente nuevamente o avise al administrador.');
+        }
+
+        return redirect()->route('secretarianuevaobrasocial')->with('success', 'Obra social registrada. Quedó activa para los médicos de su(s) consultorio(s); en el resto de los médicos figura inactiva hasta que cada uno la active.');
     }
 
     function checkRecetasPendientesSecretaria(Request $request) {

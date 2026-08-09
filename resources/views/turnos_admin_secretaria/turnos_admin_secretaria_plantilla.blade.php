@@ -26,10 +26,10 @@
   <link rel="stylesheet" type="text/css" href="{{asset('datatable/jquery.dataTables.min.css')}}">
 </head>
 
-<body>
+<body class="d-flex flex-column min-vh-100">
 
   <!-- Navigation -->
-  <nav class="navbar navbar-expand-lg fontNav fixed-top fondoNav">
+  <nav class="navbar navbar-expand-lg fontNav fixed-top fondoNav flex-shrink-0">
     <div class="container">
       <a class="textheader navbar-brand text-white" href="homes">Turnos Online</a>      
       <button class="navbar-toggler buttonMenuSizeMarco" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
@@ -108,6 +108,10 @@
             </form>
           </li>
 
+          <li class="nav-item">
+            <a class="nav-link text-white menuAlineacion" href="{{ route('secretarianuevaobrasocial') }}">Nueva obra social</a>
+          </li>
+
           @if(Auth::user()->perfil == 3 || Auth::user()->perfil == 4)
           <li class="nav-item">
             <form method="POST" action="{{ route('secretariarecetas') }}">            
@@ -129,6 +133,8 @@
             </a>
 
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
+                @include('turnos_admin_secretaria._dropdown_gestion_medico')
+                <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="{{ route('logout') }}"
                    onclick="event.preventDefault();
                                  document.getElementById('logout-form').submit();">
@@ -145,16 +151,20 @@
     </div>
   </nav>
 
-  <!-- Header -->
-  
-
-  <!-- Page Content -->
-  <div class="container">
+  <!-- Page Content (flex-grow para que el footer quede abajo con poco contenido) -->
+  <main class="flex-fill pt-5">
+  <div class="container pb-4">
 
     <div class="row">
       <div class="col-md-12 mb-5">
         <h2 id="seleccionar_especialidad_title_id"> @yield('body_titulo','')</h2><br>
         <br><br>
+        @if(session('success'))
+          <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+          <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
         @yield('contenedor')
 
       </div>
@@ -162,9 +172,10 @@
 
   </div>
   <!-- /.container -->
+  </main>
 
   <!-- Footer -->
-  <footer class="py-5 bg-dark fondoNav">
+  <footer class="py-5 bg-dark fondoNav mt-auto flex-shrink-0">
     <div class="container">
       <p class="m-0 text-center text-white">Created by &copy; Rodrigo Banegas</p>
     </div><br><br>
