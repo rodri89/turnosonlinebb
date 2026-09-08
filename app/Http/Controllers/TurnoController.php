@@ -36,6 +36,7 @@ use App\PacienteSecretaria;
 use App\Services\OneSignalService;
 use App\Services\GoogleCalendarService;
 use App\Services\MercadoPago\TurnoPagoIntentService;
+use App\Services\Salud360\AgendaService;
 use App\ListaNegra;
 
 //use App\especialidad;
@@ -2828,243 +2829,23 @@ class TurnoController extends Controller
         })->values();
     }
 
-    public function createJson($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno) {        
-        if($tipoTurno == 4){
-            $turnos = DB::table('horario_medico_videollamadas')
-                        ->where('horario_medico_videollamadas.medico',$medico_id)
-                        ->where('horario_medico_videollamadas.consultorio', $consultorio_id)
-                        ->where('horario_medico_videollamadas.dia', $diaSeleccionado)
-                        ->where('horario_medico_videollamadas.activo', 1)                        
-                        ->orderBy('horario_medico_videollamadas.horario')
-                        ->get();
-        } else {
-            // Desactivado: antes había lógica especial por médico.
-            // Ahora la disponibilidad se calcula en base a datos (horario_medicos + vigencia).
-            if(false){
-                if($medico_id == 1)
-                    $turnos = $this->checkTurnoLibreEspecialFlor($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 2)
-                    $turnos = $this->checkTurnoLibreEspecialLucasGili($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);                
-                if($medico_id == 8)
-                    $turnos = $this->checkTurnoLibreEspecialMarina($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 12)
-                    $turnos = $this->checkTurnoLibreEspecialEricaPacheco($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 11)
-                    $turnos = $this->checkTurnoLibreEspecialCeciCorti($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 13)
-                    $turnos = $this->checkTurnoLibreEspecialLucasSosa($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno);
-                if($medico_id == 14)
-                    $turnos = $this->checkTurnoLibreEspecialPatriciaSosa($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 15)
-                    $turnos = $this->checkTurnoLibreEspecialAmilcarSosa($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 18)
-                    $turnos = $this->checkTurnoLibreEspecialCeleste($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 19)
-                    $turnos = $this->checkTurnoLibreEspecialMagali($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 23)
-                    $turnos = $this->checkTurnoLibreEspecialFonseca($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 24)
-                    $turnos = $this->checkTurnoLibreEspecialPabloPrado($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 26)
-                    $turnos = $this->checkTurnoLibreEspecialSole($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 29)
-                    $turnos = $this->checkTurnoLibreEspecialEli($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);
-                if($medico_id == 30)
-                    $turnos = $this->checkTurnoLibreEspecialAnto($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);                
-                if($medico_id == 31)
-                    $turnos = $this->checkTurnoLibreEspecialNataliaFerrari($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);                
-                if($medico_id == 38)
-                    $turnos = $this->checkTurnoLibreEspecialMonica($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada);                
-            } else {
-                $turnos = DB::table('horario_medicos')
-                            ->where('horario_medicos.medico',$medico_id)
-                            ->where('horario_medicos.consultorio', $consultorio_id)
-                            ->where('horario_medicos.dia', $diaSeleccionado)
-                            ->where('horario_medicos.tipo_turno', $tipoTurno)
-                            ->where('horario_medicos.activo', 1)                        
-                            ->orderBy('horario_medicos.horario')
-                            ->get();
-                }
-        }
-
-        // Vigencia del horario semanal (no aplica a videollamada).
-        if ($tipoTurno != 4) {
-            $turnos = $this->filtrarVigenciaTurnos($turnos, $fechaSolicitada);
-        }
-
-        $fechaId = $this->checkFechaAgregada($medico_id, $consultorio_id, $fechaSolicitada);
-        if($fechaId != -1) {            
-            $turnos = DB::table('horarios_medicos_agregados')
-                        ->where('horarios_medicos_agregados.fecha_agregada_id',$fechaId)
-                        ->where('horarios_medicos_agregados.medico',$medico_id)
-                        ->where('horarios_medicos_agregados.consultorio', $consultorio_id)
-                        ->where('horarios_medicos_agregados.dia', $diaSeleccionado)
-                        ->where('horarios_medicos_agregados.activo', 1)                        
-                        ->orderBy('horarios_medicos_agregados.horario')
-                        ->get();        
-        }
-
-        if($medico_id == 13) {
-            $turnosRegistrados = DB::table('turno_registrados')
-                        ->where('turno_registrados.medico',$medico_id)
-                        ->where('turno_registrados.consultorio', $consultorio_id)
-                        ->where('turno_registrados.dia', $diaSeleccionado)
-                        ->where('turno_registrados.fechaTurno', $fechaSolicitada)                        
-                        ->whereIn('turno_registrados.activo', [1, 2])                        
-                        ->get();            
-        } else {
-            $turnosRegistrados = DB::table('turno_registrados')
-                        ->where('turno_registrados.medico',$medico_id)
-                        ->where('turno_registrados.consultorio', $consultorio_id)
-                        ->where('turno_registrados.dia', $diaSeleccionado)
-                        ->where('turno_registrados.fechaTurno', $fechaSolicitada)
-                        ->where('turno_registrados.tipo_turno', $tipoTurno)
-                        ->whereIn('turno_registrados.activo', [1, 2])                        
-                        ->get();        
-        }
-
-        $intentService = new \App\Services\MercadoPago\TurnoPagoIntentService();
-        $horariosPagoPendiente = $intentService->getHorariosBloqueadosPorPagoPendiente(
-            $medico_id,
-            $consultorio_id,
-            $diaSeleccionado,
-            $fechaSolicitada,
-            $tipoTurno
-        );
-        foreach ($horariosPagoPendiente as $horarioPendiente) {
-            $yaListado = false;
-            foreach ($turnosRegistrados as $tr) {
-                if ($tr->horario === $horarioPendiente) {
-                    $yaListado = true;
-                    break;
-                }
-            }
-            if (!$yaListado) {
-                $turnosRegistrados->push((object) ['horario' => $horarioPendiente]);
-            }
-        }
-        
-        $json = array();
-        $data = array();
-        $contador = 0;
-        $encontre = 0;
-        foreach($turnos as $turno){                                    
-            while (($encontre < 1) && ($contador<count($turnosRegistrados))){            
-                if(strcmp ($turno->horario , $turnosRegistrados[$contador]->horario ) == 0){
-                    $encontre=1;
-                    $json['horario'] = $turno->horario;
-                    $json['libre'] = 0;                    
-                    $data[] = $json;
-                                                                                                
-                } else {                                                            
-                    $encontre = 0;                    
-                }
-                $contador++;
-            }
-            if($encontre == 0){
-                $json['horario'] = $turno->horario;
-                $json['libre'] = 1;                    
-                $data[] = $json;
-            }            
-            $encontre=0;
-            $contador=0;
-        }
-        return json_encode($data);
-        
+    /**
+     * Disponibilidad del día: [{horario, libre}].
+     * La lógica vive en App\Services\Salud360\AgendaService (compartida con la API de Salud 360);
+     * acá se conserva la firma y el formato JSON que usan las vistas.
+     */
+    public function createJson($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno) {
+        $agenda = app(AgendaService::class);
+        return json_encode($agenda->slots($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno));
     }
 
-     public function createJsonTurnosDobles($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno){
-        $turnos = DB::table('horario_medicos')                                                                                                        
-                        ->where('horario_medicos.medico',$medico_id)
-                        ->where('horario_medicos.consultorio', $consultorio_id)
-                        ->where('horario_medicos.dia', $diaSeleccionado)
-                        ->where('horario_medicos.tipo_turno', $tipoTurno)
-                        ->where('horario_medicos.activo', 1)
-                        ->orderBy('horario_medicos.horario', 'asc')                                        
-                        ->get();
-
-        // Vigencia del horario semanal (fijos por fecha).
-        $turnos = $this->filtrarVigenciaTurnos($turnos, $fechaSolicitada);
-
-        $fechaId = $this->checkFechaAgregada($medico_id, $consultorio_id, $fechaSolicitada);
-        if($fechaId != -1) {            
-            $turnos = DB::table('horarios_medicos_agregados')
-                        ->where('horarios_medicos_agregados.fecha_agregada_id',$fechaId)
-                        ->where('horarios_medicos_agregados.medico',$medico_id)
-                        ->where('horarios_medicos_agregados.consultorio', $consultorio_id)
-                        ->where('horarios_medicos_agregados.dia', $diaSeleccionado)
-                        ->where('horarios_medicos_agregados.activo', 1)                        
-                        ->orderBy('horarios_medicos_agregados.horario')
-                        ->get();        
-        }
-
-        $turnosRegistrados = DB::table('turno_registrados')                                                                                                        
-                        ->where('turno_registrados.medico',$medico_id)
-                        ->where('turno_registrados.consultorio', $consultorio_id)
-                        ->where('turno_registrados.dia', $diaSeleccionado)
-                        ->where('turno_registrados.fechaTurno', $fechaSolicitada)
-                        ->where('turno_registrados.tipo_turno', $tipoTurno)
-                        ->whereIn('turno_registrados.activo', [1, 2])
-                        ->orderBy('turno_registrados.horario', 'asc')                                                                    
-                        ->get();
-
-        $intentService = new \App\Services\MercadoPago\TurnoPagoIntentService();
-        $horariosPagoPendiente = $intentService->getHorariosBloqueadosPorPagoPendiente(
-            $medico_id,
-            $consultorio_id,
-            $diaSeleccionado,
-            $fechaSolicitada,
-            $tipoTurno
-        );
-        foreach ($horariosPagoPendiente as $horarioPendiente) {
-            $yaListado = false;
-            foreach ($turnosRegistrados as $tr) {
-                if ($tr->horario === $horarioPendiente) {
-                    $yaListado = true;
-                    break;
-                }
-            }
-            if (!$yaListado) {
-                $turnosRegistrados->push((object) ['horario' => $horarioPendiente]);
-            }
-        }
-
-        $json = array();
-        $data = [];
-        $i=0;
-        while($i<count($turnos)){
-            $libre=0;
-            //echo $i.' horario '.$turnos[$i]->horario.'<br>';
-            $turnoActualLibre = $this->estaLibre($turnos[$i],$turnosRegistrados);
-            //echo $turnos[$i]->horario.' - '.$turnoActualLibre.'<br>';            
-                  
-            if(($turnos[$i]->doble==0) && ($turnoActualLibre == 0)){
-                $j=$i+1;
-                if($j<count($turnos)){
-                    $turnosContiguos = 1;//$this->esTurnoContiguo($turnos[$i]->horario,$turnos[$j]->horario);
-                    if($turnosContiguos==1){
-                        $turnoSiguienteLibre = $this->estaLibre($turnos[$j],$turnosRegistrados);
-                  //      echo $turnoSiguienteLibre.'<br>';                    
-                        if($turnoSiguienteLibre == 0){
-                            $json['horario'] = $turnos[$i]->horario;
-                            $json['horario2'] = $turnos[$j]->horario;
-                            $json['libre'] = 1;  //1 quiere decir que esta libre                    
-                            $data[] = $json;                            
-                            $libre=1;
-                        }
-                    }
-                }
-                }
-                if($libre==0){
-                    $json['horario'] = $turnos[$i]->horario;
-                    $json['horario2'] = $turnos[$i]->horario;
-                    $json['libre'] = 0;  //1 quiere decir que esta libre                    
-                    $data[] = $json;    
-                }
-                $i++;
-        }            
-
-        return json_encode($data);
+    /**
+     * Disponibilidad para primer control doble: [{horario, horario2, libre}].
+     * Ver AgendaService::slotsDobles.
+     */
+    public function createJsonTurnosDobles($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno){
+        $agenda = app(AgendaService::class);
+        return json_encode($agenda->slotsDobles($medico_id, $consultorio_id, $diaSeleccionado, $fechaSolicitada, $tipoTurno));
     }
 
 
