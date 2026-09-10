@@ -2,6 +2,7 @@
 
 namespace App\Services\Salud360;
 
+use App\HorarioMedico;
 use App\MedicoPaciente;
 use App\PacienteSecretaria;
 use App\TurnoRegistrado;
@@ -179,13 +180,17 @@ class AgendaService
             return $col->values();
         }
         $fechaNorm = str_replace('/', '-', (string) $fecha);
-        return $col->filter(function ($t) use ($fechaNorm) {
+        $checkQuincenal = Schema::hasColumn('horario_medicos', 'quincenal');
+        return $col->filter(function ($t) use ($fechaNorm, $checkQuincenal) {
             $desde = isset($t->valido_desde) ? $t->valido_desde : null;
             $hasta = isset($t->valido_hasta) ? $t->valido_hasta : null;
             if (!empty($desde) && $desde > $fechaNorm) {
                 return false;
             }
             if (!empty($hasta) && $hasta < $fechaNorm) {
+                return false;
+            }
+            if ($checkQuincenal && !empty($t->quincenal ?? null) && !HorarioMedico::esSemanaQuincenalValida($desde, $fechaNorm)) {
                 return false;
             }
             return true;

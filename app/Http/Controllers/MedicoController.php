@@ -49,9 +49,10 @@ class MedicoController extends Controller
         }
 
         $fechaNorm = str_replace('/', '-', (string) $fechaSolicitada);
+        $checkQuincenal = Schema::hasColumn('horario_medicos', 'quincenal');
         $turnosCol = ($turnos instanceof \Illuminate\Support\Collection) ? $turnos : collect($turnos);
 
-        return $turnosCol->filter(function ($t) use ($fechaNorm) {
+        return $turnosCol->filter(function ($t) use ($fechaNorm, $checkQuincenal) {
             $desde = $t->valido_desde ?? null;
             $hasta = $t->valido_hasta ?? null;
 
@@ -59,6 +60,9 @@ class MedicoController extends Controller
                 return false;
             }
             if (!empty($hasta) && $hasta < $fechaNorm) {
+                return false;
+            }
+            if ($checkQuincenal && !empty($t->quincenal ?? null) && !HorarioMedico::esSemanaQuincenalValida($desde, $fechaNorm)) {
                 return false;
             }
             return true;
@@ -3184,22 +3188,37 @@ class MedicoController extends Controller
 
     public function obtener5Dias($fechaPrimerDia, $medico, $esVideollamada)
 {
+    // Marcador neutro: agregados/videollamada no están sujetos a vigencia ni quincenal.
+    $marcarSinRestriccion = function ($d) {
+        return (object) ['dia' => $d, 'valido_desde' => null, 'valido_hasta' => null, 'quincenal' => 0];
+    };
+
     // Obtener los días en que el médico atiende
     if ($esVideollamada == 1) {
         $diasMedico = DB::table('horario_medico_videollamadas')
             ->where('horario_medico_videollamadas.medico', $medico->id)
             ->where('horario_medico_videollamadas.activo', 1)
             ->distinct()
-            ->pluck('dia');
+            ->pluck('dia')
+            ->map($marcarSinRestriccion);
     } else {
+        $checkVigencia = Schema::hasColumn('horario_medicos', 'valido_desde');
+        $checkQuincenal = Schema::hasColumn('horario_medicos', 'quincenal');
+        $columnasDia = ['horario_medicos.dia'];
+        if ($checkVigencia) {
+            $columnasDia[] = 'horario_medicos.valido_desde';
+            $columnasDia[] = 'horario_medicos.valido_hasta';
+        }
+        if ($checkQuincenal) {
+            $columnasDia[] = 'horario_medicos.quincenal';
+        }
         $diasMedicoU = DB::table('horario_medicos')
-            ->select('horario_medicos.dia')
+            ->select($columnasDia)
             ->where('horario_medicos.medico', $medico->id)
             ->where('horario_medicos.activo', 1)
-            ->distinct()
-            ->pluck('dia');
+            ->get();
 
-        // Obtener días agregados
+        // Obtener días agregados (fechas puntuales; no sujetas a vigencia/quincenal del horario fijo)
         $diasAgregadosMedico = DB::table('horarios_medicos_agregados')
             ->join('fechas_agregadas', 'fechas_agregadas.id', '=', 'horarios_medicos_agregados.fecha_agregada_id')
             ->where('horarios_medicos_agregados.medico', $medico->id)
@@ -3208,10 +3227,11 @@ class MedicoController extends Controller
             ->where('fechas_agregadas.fecha', '>=', $fechaPrimerDia)
             ->orderBy('horarios_medicos_agregados.horario')
             ->distinct()
-            ->pluck('horarios_medicos_agregados.dia');
+            ->pluck('horarios_medicos_agregados.dia')
+            ->map($marcarSinRestriccion);
 
-        // Fusionar y eliminar duplicados
-        $diasMedico = $diasMedicoU->merge($diasAgregadosMedico)->unique(); 
+        // Fusionar (sin unique(): cada fila conserva su propia vigencia/quincenal para el chequeo por fecha)
+        $diasMedico = $diasMedicoU->merge($diasAgregadosMedico);
     }
 
     if ($diasMedico->isEmpty()) {
@@ -3223,10 +3243,29 @@ class MedicoController extends Controller
     $fecha = new DateTime($fechaPrimerDia);
 
     while ($cont < 5) {
-        $diaActual = $this->getDiaSeleccionado2($fecha->format('Y-m-d')); 
-        $fechaValida = $this->validarFechaValida($medico, $fecha->format('Y-m-d'), $diaActual);
+        $diaActualStr = $fecha->format('Y-m-d');
+        $diaActual = $this->getDiaSeleccionado2($diaActualStr);
+        $fechaValida = $this->validarFechaValida($medico, $diaActualStr, $diaActual);
 
-        if ($diasMedico->contains($diaActual) && $fechaValida) {
+        $tieneHorarioEseDia = $diasMedico->contains(function ($h) use ($diaActual, $diaActualStr) {
+            if ((int) $h->dia !== (int) $diaActual) {
+                return false;
+            }
+            $desde = $h->valido_desde ?? null;
+            $hasta = $h->valido_hasta ?? null;
+            if (!empty($desde) && $desde > $diaActualStr) {
+                return false;
+            }
+            if (!empty($hasta) && $hasta < $diaActualStr) {
+                return false;
+            }
+            if (!empty($h->quincenal ?? null) && !HorarioMedico::esSemanaQuincenalValida($desde, $diaActualStr)) {
+                return false;
+            }
+            return true;
+        });
+
+        if ($tieneHorarioEseDia && $fechaValida) {
             $data[] = $fecha->format('Y/m/d');
             $cont++;
         }
@@ -5095,12 +5134,14 @@ class MedicoController extends Controller
              }
          }
          $tieneVigencia = Schema::hasColumn('horario_medicos', 'valido_desde');
+         $tieneQuincenal = $tieneVigencia && Schema::hasColumn('horario_medicos', 'quincenal');
          return view('turnos_admin_medico.admin_horarios_fijos')
              ->with('medico', $medico)
              ->with('consultorio', $consultorio)
              ->with('horariosPorDia', $horariosPorDia)
              ->with('slotsDisponibles', $slotsDisponibles)
-             ->with('tieneVigencia', $tieneVigencia);
+             ->with('tieneVigencia', $tieneVigencia)
+             ->with('tieneQuincenal', $tieneQuincenal);
      }
 
      /**
@@ -5142,11 +5183,21 @@ class MedicoController extends Controller
              $reg->valido_desde = $this->parseFechaVigencia($request->input('valido_desde'));
              $reg->valido_hasta = $this->parseFechaVigencia($request->input('valido_hasta'));
          }
+         if (Schema::hasColumn('horario_medicos', 'quincenal')) {
+             $quincenal = filter_var($request->input('quincenal'), FILTER_VALIDATE_BOOLEAN);
+             if ($quincenal && empty($reg->valido_desde)) {
+                 $reg->valido_desde = date('Y-m-d');
+             }
+             $reg->quincenal = $quincenal;
+         }
          $reg->save();
          $resp = ['ok' => true, 'id' => $reg->id, 'horario' => $horario];
          if (Schema::hasColumn('horario_medicos', 'valido_desde')) {
              $resp['valido_desde'] = $reg->valido_desde ? $reg->valido_desde : null;
              $resp['valido_hasta'] = $reg->valido_hasta ? $reg->valido_hasta : null;
+         }
+         if (Schema::hasColumn('horario_medicos', 'quincenal')) {
+             $resp['quincenal'] = (bool) $reg->quincenal;
          }
          return response()->json($resp);
      }
@@ -5180,11 +5231,25 @@ class MedicoController extends Controller
          if ($request->has('valido_hasta')) {
              $upd['valido_hasta'] = $this->parseFechaVigencia($request->input('valido_hasta'));
          }
+         if (Schema::hasColumn('horario_medicos', 'quincenal') && $request->has('quincenal')) {
+             $upd['quincenal'] = filter_var($request->input('quincenal'), FILTER_VALIDATE_BOOLEAN);
+             if ($upd['quincenal']) {
+                 $validoDesdeActual = $upd['valido_desde'] ?? $reg->valido_desde;
+                 if (empty($validoDesdeActual)) {
+                     $upd['valido_desde'] = date('Y-m-d');
+                 }
+             }
+         }
          if (empty($upd)) {
              return response()->json(['ok' => false, 'mensaje' => 'Indicá al menos una fecha.'], 422);
          }
          DB::table('horario_medicos')->where('id', $id)->update($upd);
-         return response()->json(['ok' => true, 'valido_desde' => $upd['valido_desde'] ?? $reg->valido_desde, 'valido_hasta' => $upd['valido_hasta'] ?? $reg->valido_hasta]);
+         return response()->json([
+             'ok' => true,
+             'valido_desde' => $upd['valido_desde'] ?? $reg->valido_desde,
+             'valido_hasta' => $upd['valido_hasta'] ?? $reg->valido_hasta,
+             'quincenal' => array_key_exists('quincenal', $upd) ? $upd['quincenal'] : (bool) ($reg->quincenal ?? false),
+         ]);
      }
 
      private function parseFechaVigencia($value)

@@ -9,7 +9,8 @@ class HorarioMedico extends Model
 	// Doble lo utlizo en caso de que quiera unir dos turnos...si doble es igual a 1 lo puedo hacer unir en caso contrario no.
 	// ejemplo el turno de las 12 si el siguiente turno es a las 15 hs doble es 0, no lo puedo unir.
 	// valido_desde / valido_hasta: vigencia por fecha (null = sin límite).
-    protected $fillable = ['medico', 'consultorio', 'dia', 'horario','doble', 'tipo_turno','activo', 'valido_desde', 'valido_hasta'];
+	// quincenal: si es 1, el horario se ofrece una semana sí, una semana no, usando valido_desde como ancla.
+    protected $fillable = ['medico', 'consultorio', 'dia', 'horario','doble', 'tipo_turno','activo', 'valido_desde', 'valido_hasta', 'quincenal'];
 
     protected $dates = ['valido_desde', 'valido_hasta'];
 
@@ -47,5 +48,27 @@ class HorarioMedico extends Model
                 $q->whereNull('horario_medicos.valido_hasta')
                     ->orWhere('horario_medicos.valido_hasta', '>=', $fecha);
             });
+    }
+
+    /**
+     * true si, para un horario quincenal con ancla $validoDesde, la semana de $fecha es una semana activa.
+     * Sin ancla o fecha inválida: falla abierto (true) para no ocultar turnos por datos incompletos.
+     */
+    public static function esSemanaQuincenalValida($validoDesde, $fecha)
+    {
+        if (empty($validoDesde) || empty($fecha)) {
+            return true;
+        }
+        try {
+            $anchor = new \DateTime(str_replace('/', '-', (string) $validoDesde));
+            $target = new \DateTime(str_replace('/', '-', (string) $fecha));
+        } catch (\Exception $e) {
+            return true;
+        }
+        if ($target < $anchor) {
+            return true;
+        }
+        $diffWeeks = intdiv((int) $anchor->diff($target)->days, 7);
+        return ($diffWeeks % 2) === 0;
     }
 }

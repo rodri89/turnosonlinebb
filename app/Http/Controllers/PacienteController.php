@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Paciente;
 use App\Medico;
+use App\HorarioMedico;
 use App\Receta;
 use datetime;
 use Image;
@@ -321,12 +322,14 @@ class PacienteController extends Controller
                 [$consultorio_id , $medico_id]);
         } else {
             if ($fechaInicio && $fechaFin && Schema::hasColumn('horario_medicos', 'valido_desde')) {
+                $checkQuincenal = Schema::hasColumn('horario_medicos', 'quincenal');
+                $columnas = $checkQuincenal ? ['dia', 'valido_desde', 'valido_hasta', 'quincenal'] : ['dia', 'valido_desde', 'valido_hasta'];
                 $horarios = DB::table('horario_medicos')
                     ->where('horario_medicos.consultorio', $consultorio_id)
                     ->where('horario_medicos.medico', $medico_id)
                     ->where('horario_medicos.tipo_turno', $tipoTurno)
                     ->where('horario_medicos.activo', 1)
-                    ->select('dia', 'valido_desde', 'valido_hasta')
+                    ->select($columnas)
                     ->get();
 
                 $porDia = [];
@@ -345,7 +348,8 @@ class PacienteController extends Controller
                         foreach ($porDia[$diaNum] as $row) {
                             $desdeOk = empty($row->valido_desde) || $row->valido_desde <= $f;
                             $hastaOk = empty($row->valido_hasta) || $row->valido_hasta >= $f;
-                            if ($desdeOk && $hastaOk) {
+                            $quincenalOk = !$checkQuincenal || empty($row->quincenal ?? null) || HorarioMedico::esSemanaQuincenalValida($row->valido_desde, $f);
+                            if ($desdeOk && $hastaOk && $quincenalOk) {
                                 $diasValidos[$diaNum] = true;
                                 break;
                             }
@@ -490,12 +494,14 @@ class PacienteController extends Controller
                 [$consultorio_id , $medico_id]);
         } else {
             if ($fechaInicio && $fechaFin && Schema::hasColumn('horario_medicos', 'valido_desde')) {
+                $checkQuincenal = Schema::hasColumn('horario_medicos', 'quincenal');
+                $columnas = $checkQuincenal ? ['dia', 'valido_desde', 'valido_hasta', 'quincenal'] : ['dia', 'valido_desde', 'valido_hasta'];
                 $horarios = DB::table('horario_medicos')
                     ->where('horario_medicos.consultorio', $consultorio_id)
                     ->where('horario_medicos.medico', $medico_id)
                     ->where('horario_medicos.tipo_turno', $tipoTurno)
                     ->where('horario_medicos.activo', 1)
-                    ->select('dia', 'valido_desde', 'valido_hasta')
+                    ->select($columnas)
                     ->get();
 
                 $porDia = [];
@@ -514,7 +520,8 @@ class PacienteController extends Controller
                         foreach ($porDia[$diaNum] as $row) {
                             $desdeOk = empty($row->valido_desde) || $row->valido_desde <= $f;
                             $hastaOk = empty($row->valido_hasta) || $row->valido_hasta >= $f;
-                            if ($desdeOk && $hastaOk) {
+                            $quincenalOk = !$checkQuincenal || empty($row->quincenal ?? null) || HorarioMedico::esSemanaQuincenalValida($row->valido_desde, $f);
+                            if ($desdeOk && $hastaOk && $quincenalOk) {
                                 $diasValidos[$diaNum] = true;
                                 break;
                             }

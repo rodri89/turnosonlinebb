@@ -1623,9 +1623,10 @@ class SecretariaController extends Controller
         }
 
         $fechaNorm = str_replace('/', '-', (string) $fechaSolicitada);
+        $checkQuincenal = Schema::hasColumn('horario_medicos', 'quincenal');
         $turnosCol = ($turnos instanceof \Illuminate\Support\Collection) ? $turnos : collect($turnos);
 
-        return $turnosCol->filter(function ($t) use ($fechaNorm) {
+        return $turnosCol->filter(function ($t) use ($fechaNorm, $checkQuincenal) {
             $desde = $t->valido_desde ?? null;
             $hasta = $t->valido_hasta ?? null;
 
@@ -1633,6 +1634,9 @@ class SecretariaController extends Controller
                 return false;
             }
             if (!empty($hasta) && $hasta < $fechaNorm) {
+                return false;
+            }
+            if ($checkQuincenal && !empty($t->quincenal ?? null) && !HorarioMedico::esSemanaQuincenalValida($desde, $fechaNorm)) {
                 return false;
             }
             return true;
@@ -2643,19 +2647,28 @@ class SecretariaController extends Controller
 
 	public function obtener5Dias($fechaPrimerDia, $medico, $esVideollamada){
 		if($esVideollamada == 1){
-			$diasMedico = DB::table('horario_medico_videollamadas')						                     						
+			$diasMedico = DB::table('horario_medico_videollamadas')
 						->select('horario_medico_videollamadas.dia')
 	                   	->where('horario_medico_videollamadas.medico', $medico->id)
-	                   	->where('horario_medico_videollamadas.activo', 1)	                   		          	                    
+	                   	->where('horario_medico_videollamadas.activo', 1)
 	                    ->distinct('horario_medico_videollamadas.dia')
 	                    ->get();    // 2 y 4
 		} else {
-			// me guardo que dias atiende el medico
-			 $diasMedicoU = DB::table('horario_medicos')                                                                  
-                        ->select('horario_medicos.dia')
+			$checkVigencia = Schema::hasColumn('horario_medicos', 'valido_desde');
+			$checkQuincenal = Schema::hasColumn('horario_medicos', 'quincenal');
+			$columnasDia = ['horario_medicos.dia'];
+			if ($checkVigencia) {
+				$columnasDia[] = 'horario_medicos.valido_desde';
+				$columnasDia[] = 'horario_medicos.valido_hasta';
+			}
+			if ($checkQuincenal) {
+				$columnasDia[] = 'horario_medicos.quincenal';
+			}
+			// me guardo que dias atiende el medico (con vigencia/quincenal para chequear por fecha)
+			 $diasMedicoU = DB::table('horario_medicos')
+                        ->select($columnasDia)
                         ->where('horario_medicos.medico', $medico->id)
-                        ->where('horario_medicos.activo', 1)                                                            
-                        ->distinct('horario_medicos.dia')
+                        ->where('horario_medicos.activo', 1)
                         ->get();    // 2 y 4
 
             $fechaAgregada = str_replace('/', '-', $fechaPrimerDia);
@@ -2663,37 +2676,51 @@ class SecretariaController extends Controller
                         ->select('horarios_medicos_agregados.dia')
                         ->join('fechas_agregadas', 'fechas_agregadas.id', 'horarios_medicos_agregados.fecha_agregada_id')
                         ->where('horarios_medicos_agregados.medico','=', $medico->id)
-                        ->where('horarios_medicos_agregados.consultorio','=', $medico->consultorio)                        
+                        ->where('horarios_medicos_agregados.consultorio','=', $medico->consultorio)
                         ->where('horarios_medicos_agregados.activo','=', 1)
                         ->where('fechas_agregadas.fecha', '>=', $fechaPrimerDia)
                         ->orderby('horarios_medicos_agregados.horario')
-                        ->distinct('horario_medicos.dia')
-                        ->get();
-            $diasMedico = $diasMedicoU->merge($diasAgregadosMedico);
-            $diasMedico = $diasMedico->unique('dia');
+                        ->distinct('horario_medicos_agregados.dia')
+                        ->get()
+                        ->map(function ($h) {
+                            return (object) ['dia' => $h->dia, 'valido_desde' => null, 'valido_hasta' => null, 'quincenal' => 0];
+                        });
+            // Sin unique(): cada fila conserva su propia vigencia/quincenal para el chequeo por fecha más abajo.
+            $diasMedico = $diasMedicoU->merge($diasAgregadosMedico)->values();
 		}
 
 		//$fechaPrimerDia = "26/09/2019";
 		$diaAux = $this-> getDiaSeleccionado2($fechaPrimerDia);
-		
-		$data = array();						
-		$json = array();						
+
+		$data = array();
+		$json = array();
 		$cont = 1;
 		while($cont < 20){
+			$fechaAux = str_replace('/', '-', $fechaPrimerDia);
 			$encontre = 0;
 			$cont_aux = 0;
 			while ($cont_aux < sizeof($diasMedico)&&($encontre==0)){
-				if($diaAux == $diasMedico[$cont_aux]->dia){
+				$h = $diasMedico[$cont_aux];
+				$coincideDia = ($diaAux == $h->dia);
+				$vigenciaOk = true;
+				$desde = $h->valido_desde ?? null;
+				$hasta = $h->valido_hasta ?? null;
+				if (!empty($desde) && $desde > $fechaAux) { $vigenciaOk = false; }
+				if (!empty($hasta) && $hasta < $fechaAux) { $vigenciaOk = false; }
+				if ($vigenciaOk && !empty($h->quincenal ?? null) && !HorarioMedico::esSemanaQuincenalValida($desde, $fechaAux)) {
+					$vigenciaOk = false;
+				}
+				if($coincideDia && $vigenciaOk){
 					//$json['fecha'.$cont] = $fechaPrimerDia;
 					$cont++; $encontre = 1;
 					//$data[] = $json;
 					$data[] = $fechaPrimerDia;
 				}
 				$cont_aux++;
-			}		
-			//$dia_aux = explode('/',$fechaPrimerDia);        
-	        $siguienteDia = $fechaPrimerDia;//$dia_aux[2].'-'.$dia_aux[1].'-'.$dia_aux[0];              
-	        $siguienteDia = date('Y/m/d', strtotime('+1 day' , strtotime ( $siguienteDia )));            
+			}
+			//$dia_aux = explode('/',$fechaPrimerDia);
+	        $siguienteDia = $fechaPrimerDia;//$dia_aux[2].'-'.$dia_aux[1].'-'.$dia_aux[0];
+	        $siguienteDia = date('Y/m/d', strtotime('+1 day' , strtotime ( $siguienteDia )));
 	        $fechaPrimerDia = $siguienteDia;
 	        $diaAux = $this-> getDiaSeleccionado2($fechaPrimerDia);
     	}

@@ -10,6 +10,9 @@
             @if(isset($tieneVigencia) && $tieneVigencia)
                 <p class="text-muted small mt-1">Podés indicar <strong>válido desde</strong> (nuevos horarios a partir de una fecha) y <strong>válido hasta</strong> (dejar de usar un horario desde cierta fecha). Si no ponés ninguna fecha, el horario es vigente <strong>para siempre</strong>.</p>
             @endif
+            @if(isset($tieneQuincenal) && $tieneQuincenal)
+                <p class="text-muted small mt-1">Tildando <strong>cada 15 días</strong> ese horario se ofrece una semana sí, una semana no, tomando "Válido desde" como semana de referencia.</p>
+            @endif
             @if(isset($consultorio) && $consultorio)
                 <p class="text-muted small mt-1"><strong>Consultorio:</strong> {{ $consultorio->nombre }}</p>
             @endif
@@ -39,6 +42,9 @@
                                     <div class="d-flex justify-content-between align-items-start">
                                         <div>
                                             <span class="horario-texto font-weight-bold">{{ $h->horario }}</span>
+                                            @if(isset($tieneQuincenal) && $tieneQuincenal && !empty($h->quincenal))
+                                                <span class="badge badge-info quincenal-badge ml-1">Cada 15 días</span>
+                                            @endif
                                             @if(isset($tieneVigencia) && $tieneVigencia && (!empty($h->valido_desde) || !empty($h->valido_hasta)))
                                                 <div class="small text-muted mt-1">
                                                     @if(!empty($h->valido_desde))
@@ -52,7 +58,7 @@
                                         </div>
                                         <div class="d-flex align-items-center">
                                             @if(isset($tieneVigencia) && $tieneVigencia)
-                                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 mr-1 vigencia-horario" data-id="{{ $h->id }}" data-valido-desde="{{ $h->valido_desde ?? '' }}" data-valido-hasta="{{ $h->valido_hasta ?? '' }}" title="Vigencia">Vig.</button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 mr-1 vigencia-horario" data-id="{{ $h->id }}" data-valido-desde="{{ $h->valido_desde ?? '' }}" data-valido-hasta="{{ $h->valido_hasta ?? '' }}" data-quincenal="{{ !empty($h->quincenal) ? 1 : 0 }}" title="Vigencia">Vig.</button>
                                             @endif
                                             <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 eliminar-horario" data-id="{{ $h->id }}" title="Quitar este horario">✕</button>
                                         </div>
@@ -75,6 +81,12 @@
                                     </div>
                                 </div>
                                 <p class="small text-muted mb-1">Dejar vacío = vigente para siempre. Ambos son fechas (elegí día, mes y año).</p>
+                            @endif
+                            @if(isset($tieneQuincenal) && $tieneQuincenal)
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input input-quincenal" id="input-quincenal-{{ $numDia }}" data-dia="{{ $numDia }}">
+                                    <label class="form-check-label small mb-0" for="input-quincenal-{{ $numDia }}">Cada 15 días (si no ponés "Válido desde" se usa hoy como referencia)</label>
+                                </div>
                             @endif
                             <div class="input-group input-group-sm">
                                 <input type="text" class="form-control form-control-sm input-horario-dia" data-dia="{{ $numDia }}" placeholder="Ej: 09:00, 09:10, 09:20, 14:30" maxlength="5" title="Formato HH:MM (ej. cada 10, 15, 20, 30 o 40 min)">
@@ -111,6 +123,12 @@
                     <input type="date" class="form-control form-control-sm" id="vigencia-input-hasta" placeholder="dd/mm/aaaa">
                 </div>
                 <p class="small text-muted mb-0">Ambos son fechas: elegí día, mes y año.</p>
+                @if(isset($tieneQuincenal) && $tieneQuincenal)
+                    <div class="form-check mt-2 mb-0">
+                        <input type="checkbox" class="form-check-input" id="vigencia-input-quincenal">
+                        <label class="form-check-label small mb-0" for="vigencia-input-quincenal">Cada 15 días (usa "Válido desde" como referencia; si está vacío se usa hoy)</label>
+                    </div>
+                @endif
             </div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Cerrar</button>
@@ -128,6 +146,18 @@
     var urlEliminar = '{{ route("medicoeliminarhorariofijo") }}';
     var urlVigencia = '{{ isset($tieneVigencia) && $tieneVigencia ? route("medicoactualizarvigenciahorariofijo") : "" }}';
     var tieneVigencia = {{ isset($tieneVigencia) && $tieneVigencia ? 'true' : 'false' }};
+    var tieneQuincenal = {{ isset($tieneQuincenal) && $tieneQuincenal ? 'true' : 'false' }};
+
+    function fechaHoyInput() {
+        var d = new Date();
+        var mes = ('0' + (d.getMonth() + 1)).slice(-2);
+        var dia = ('0' + d.getDate()).slice(-2);
+        return d.getFullYear() + '-' + mes + '-' + dia;
+    }
+
+    function badgeQuincenalHtml(esQuincenal) {
+        return (tieneQuincenal && esQuincenal) ? '<span class="badge badge-info quincenal-badge ml-1">Cada 15 días</span>' : '';
+    }
 
     function mostrarMensaje(texto, esError) {
         var el = document.getElementById('mensaje-ajax');
@@ -174,11 +204,21 @@
                 return;
             }
             var payload = { dia: dia, horario: horario, _token: csrf };
+            var inputDesde = null;
             if (tieneVigencia) {
-                var inputDesde = document.querySelector('.input-valido-desde[data-dia="' + dia + '"]');
+                inputDesde = document.querySelector('.input-valido-desde[data-dia="' + dia + '"]');
                 var inputHasta = document.querySelector('.input-valido-hasta[data-dia="' + dia + '"]');
                 if (inputDesde && inputDesde.value) payload.valido_desde = inputDesde.value;
                 if (inputHasta && inputHasta.value) payload.valido_hasta = inputHasta.value;
+            }
+            if (tieneQuincenal) {
+                var inputQuincenal = document.querySelector('.input-quincenal[data-dia="' + dia + '"]');
+                var quincenalTildado = !!(inputQuincenal && inputQuincenal.checked);
+                payload.quincenal = quincenalTildado;
+                if (quincenalTildado && inputDesde && !inputDesde.value) {
+                    inputDesde.value = fechaHoyInput();
+                    payload.valido_desde = inputDesde.value;
+                }
             }
             btn.disabled = true;
             fetch(urlGuardar, {
@@ -207,8 +247,8 @@
                     var li = document.createElement('li');
                     li.className = 'list-group-item px-2 py-2';
                     li.setAttribute('data-id', data.id);
-                    li.innerHTML = '<div class="d-flex justify-content-between align-items-start"><div><span class="horario-texto font-weight-bold">' + data.horario + '</span>' + vigenciaHtml + '</div><div class="d-flex align-items-center">' +
-                        (tieneVigencia ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 mr-1 vigencia-horario" data-id="' + data.id + '" title="Vigencia">Vig.</button>' : '') +
+                    li.innerHTML = '<div class="d-flex justify-content-between align-items-start"><div><span class="horario-texto font-weight-bold">' + data.horario + '</span>' + badgeQuincenalHtml(data.quincenal) + vigenciaHtml + '</div><div class="d-flex align-items-center">' +
+                        (tieneVigencia ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 mr-1 vigencia-horario" data-id="' + data.id + '" data-quincenal="' + (data.quincenal ? 1 : 0) + '" title="Vigencia">Vig.</button>' : '') +
                         '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 eliminar-horario" data-id="' + data.id + '" title="Quitar este horario">✕</button></div></div>';
                     list.appendChild(li);
                     li.querySelector('.eliminar-horario').addEventListener('click', eliminarClick);
@@ -218,6 +258,10 @@
                         var id = document.querySelector('.input-valido-desde[data-dia="' + dia + '"]');
                         var ih = document.querySelector('.input-valido-hasta[data-dia="' + dia + '"]');
                         if (id) id.value = ''; if (ih) ih.value = '';
+                    }
+                    if (tieneQuincenal) {
+                        var iq = document.querySelector('.input-quincenal[data-dia="' + dia + '"]');
+                        if (iq) iq.checked = false;
                     }
                     mostrarMensaje('Horario agregado correctamente.');
                 } else {
@@ -238,15 +282,29 @@
         document.getElementById('vigencia-horario-id').value = id;
         document.getElementById('vigencia-input-desde').value = fechaParaInput(desde);
         document.getElementById('vigencia-input-hasta').value = fechaParaInput(hasta);
+        if (tieneQuincenal) {
+            var checkboxQuincenal = document.getElementById('vigencia-input-quincenal');
+            if (checkboxQuincenal) checkboxQuincenal.checked = this.getAttribute('data-quincenal') === '1';
+        }
         $('#modalVigencia').modal('show');
     }
 
     if (tieneVigencia && urlVigencia) {
         document.getElementById('vigencia-guardar').addEventListener('click', function() {
             var id = document.getElementById('vigencia-horario-id').value;
-            var desde = document.getElementById('vigencia-input-desde').value;
+            var inputDesde = document.getElementById('vigencia-input-desde');
+            var desde = inputDesde.value;
             var hasta = document.getElementById('vigencia-input-hasta').value;
             var payload = { id: id, _token: csrf };
+            if (tieneQuincenal) {
+                var checkboxQuincenal = document.getElementById('vigencia-input-quincenal');
+                var quincenalTildado = !!(checkboxQuincenal && checkboxQuincenal.checked);
+                payload.quincenal = quincenalTildado;
+                if (quincenalTildado && !desde) {
+                    desde = fechaHoyInput();
+                    inputDesde.value = desde;
+                }
+            }
             if (desde) payload.valido_desde = desde;
             if (hasta) payload.valido_hasta = hasta;
             fetch(urlVigencia, {
@@ -271,6 +329,7 @@
                         if (btn) {
                             btn.setAttribute('data-valido-desde', data.valido_desde || '');
                             btn.setAttribute('data-valido-hasta', data.valido_hasta || '');
+                            if (tieneQuincenal) btn.setAttribute('data-quincenal', data.quincenal ? 1 : 0);
                         }
                         if (vigDiv) vigDiv.innerHTML = (desdeStr ? 'Desde: ' + desdeStr : '') + (hastaStr ? ' Hasta: ' + hastaStr : '');
                         else if (desdeStr || hastaStr) {
@@ -278,6 +337,15 @@
                             div.className = 'small text-muted mt-1';
                             div.textContent = (desdeStr ? 'Desde: ' + desdeStr : '') + (hastaStr ? ' Hasta: ' + hastaStr : '');
                             li.querySelector('div > div').appendChild(div);
+                        }
+                        if (tieneQuincenal) {
+                            var existingBadge = li.querySelector('.quincenal-badge');
+                            if (data.quincenal && !existingBadge) {
+                                var horarioSpan = li.querySelector('.horario-texto');
+                                if (horarioSpan) horarioSpan.insertAdjacentHTML('afterend', badgeQuincenalHtml(true));
+                            } else if (!data.quincenal && existingBadge) {
+                                existingBadge.remove();
+                            }
                         }
                     }
                     $('#modalVigencia').modal('hide');
