@@ -6,7 +6,7 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 
 - Prefijo: `/api/salud360/`
 - Formato: JSON. Fechas `AAAA-MM-DD`, horarios `HH:MM`, días de la semana `1` (lunes) … `7` (domingo).
-- Autenticación: **Passport** (la misma que ya usa `/api/auth/login`). Enviar `Authorization: Bearer <token>`.
+- Autenticación: tokens propios de la API (tabla `salud360_tokens`). Enviar `Authorization: Bearer <token>`; si el hosting descarta ese encabezado (PHP como CGI sin la regla de `.htaccess`), enviar `X-Salud360-Token: <token>`. No se usa Passport: el modelo `User` no tiene el trait `HasApiTokens`.
 - Solo usuarios con `usuario_tipo` 1 (admin), 2 (médico) o 3 (secretaria). Los pacientes reciben `403`.
 - Todas las respuestas traen `ok: true|false`. Los errores traen `mensaje` y, cuando aplica, `codigo`.
 
@@ -16,11 +16,12 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 |---|---|
 | `app/Services/Salud360/AgendaService.php` | Lógica de disponibilidad y validaciones (antes `createJson` / `createJsonTurnosDobles` en `TurnoController`). La web ahora delega en este servicio. |
 | `app/Http/Controllers/Api/Salud360/*` | Controladores de la API (`Auth`, `Agenda`, `Turno`, `Paciente`, `Horario`, `Catalogo`, `Receta`). |
-| `app/Http/Middleware/Salud360Api.php` | Restringe la API a admin / médico / secretaria (alias `salud360` en `Kernel.php`). |
+| `app/Services/Salud360/TokenService.php` | Emite y valida los tokens (hash SHA-256 en `salud360_tokens`; la tabla se crea sola en el primer ingreso o con la migración). |
+| `app/Http/Middleware/Salud360Api.php` | Autentica por token y restringe la API a admin / médico / secretaria (alias `salud360` en `Kernel.php`). |
 | `routes/api.php` | Grupo `salud360`. |
 | `tests/Unit/Salud360AgendaServiceTest.php` | Pruebas de los métodos puros del servicio. |
 
-No hay migraciones nuevas ni cambios de versión de PHP/Laravel (PHP 7.1 / Laravel 5.8).
+Única migración: `salud360_tokens` (idempotente; la tabla también se crea sola). Sin cambios de versión de PHP/Laravel (PHP 7.1 / Laravel 5.8).
 
 ## Permisos
 
@@ -152,8 +153,7 @@ curl -s -X POST https://turnosonlinebb.com/api/salud360/turnos \
 
 ## Requisitos en el servidor
 
-- Passport ya instalado (claves `storage/oauth-*.key` y cliente personal creado con `php artisan passport:install`),
-  igual que para `/api/auth/login`.
+- No hace falta Passport. La tabla `salud360_tokens` se crea sola en el primer login (o con `php artisan migrate`).
 - Mandar siempre `Accept: application/json` para que los errores de validación vuelvan en JSON.
 - Tras desplegar: `php artisan route:clear && php artisan config:clear` (y `composer dump-autoload` si el hosting cachea el autoload).
 

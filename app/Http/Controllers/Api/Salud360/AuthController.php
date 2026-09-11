@@ -2,17 +2,28 @@
 
 namespace App\Http\Controllers\Api\Salud360;
 
-use Carbon\Carbon;
+use App\Services\Salud360\AgendaService;
+use App\Services\Salud360\TokenService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Ingreso de médicos, secretarias y administrador desde Salud 360.
- * Usa los mismos usuarios y contraseñas de la web (tabla `users`) y emite tokens Passport.
+ * Usa los mismos usuarios y contraseñas de la web (tabla `users`) y emite tokens propios
+ * (tabla `salud360_tokens`, ver TokenService); no depende de Passport.
  */
 class AuthController extends Salud360Controller
 {
+    /** @var TokenService */
+    protected $tokens;
+
+    public function __construct(AgendaService $agenda, TokenService $tokens)
+    {
+        parent::__construct($agenda);
+        $this->tokens = $tokens;
+    }
+
     /**
      * POST /api/salud360/auth/login  {email, password}
      */
@@ -31,15 +42,12 @@ class AuthController extends Salud360Controller
             return $this->error('Este usuario no puede usar Salud 360.', 403, 'sin_permiso');
         }
 
-        $tokenResult = $user->createToken('Salud360');
-        $token = $tokenResult->token;
-        $token->expires_at = Carbon::now()->addMonths(6);
-        $token->save();
+        $emitido = $this->tokens->crear($user->id, 'Salud360');
 
         return $this->ok([
-            'access_token' => $tokenResult->accessToken,
+            'access_token' => $emitido['token'],
             'token_type' => 'Bearer',
-            'expires_at' => Carbon::parse($token->expires_at)->toDateTimeString(),
+            'expires_at' => $emitido['expira'],
             'perfil' => $this->armarPerfil($user),
         ]);
     }
@@ -57,7 +65,7 @@ class AuthController extends Salud360Controller
      */
     public function logout(Request $request)
     {
-        $request->user()->token()->revoke();
+        $this->tokens->revocar($this->tokens->tokenDelPedido($request));
         return $this->ok(['mensaje' => 'Sesión cerrada.']);
     }
 
@@ -76,7 +84,10 @@ class AuthController extends Salud360Controller
         }
         $user->password = bcrypt($request->password_nueva);
         $user->save();
-        return $this->ok(['mensaje' => 'Contraseña actualizada.']);
+        // Se invalidan los demás tokens y se emite uno nuevo para esta sesión.
+        $this->tokens->revocarTodos($user->id);
+        $emitido = $this->tokens->crear($user->id, 'Salud360');
+        return $this->ok(['mensaje' => 'Contraseña actualizada.', 'access_token' => $emitido['token'], 'expires_at' => $emitido['expira']]);
     }
 
     /**
