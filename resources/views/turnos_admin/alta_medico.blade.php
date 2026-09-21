@@ -171,9 +171,26 @@
           </div>
           <br>
           <div>
-            <button type="button" onclick="actualizarModuloMedico()">Actualizar</button>     
+            <button type="button" onclick="actualizarModuloMedico()">Actualizar</button>
           </div>
-      
+
+      <h2>Historias clínicas Salud 360</h2>
+          <p class="text-muted">Qué historias clínicas puede abrir el médico desde la app Salud 360 (independiente de la agenda).</p>
+          <div class="form-check">
+            @foreach($historiasClinicas as $hc)
+              @if($hc["activo"]==1)
+                <input checked type="checkbox" class="form-check-input check-hc-salud360" id="checkHc_{{$hc['codigo']}}" value="{{$hc['codigo']}}">
+              @else
+                <input type="checkbox" class="form-check-input check-hc-salud360" id="checkHc_{{$hc['codigo']}}" value="{{$hc['codigo']}}">
+              @endif
+              <label class="form-check-label" for="checkHc_{{$hc['codigo']}}">{{$hc["nombre"]}}</label><br>
+            @endforeach
+          </div>
+          <br>
+          <div>
+            <button type="button" onclick="actualizarHistoriasClinicasMedico()">Actualizar</button>
+          </div>
+
       <h2>Ventana Dias</h2>
       <div>
       @if($ventanaDias != null)
@@ -288,6 +305,24 @@
          data:{medico_id:medico_id,consultorio_id:consultorio_id,activarPaciente:activarPaciente, cajaComentario:cajaComentario, primerControlDoble:primerControlDoble, soloUnTurno:soloUnTurno, recetas:recetas, videollamadas:videollamadas, mercadopago:mercadopago, afiliadoObligatorio:afiliadoObligatorio, ventanaDias:ventanaDias,extraTurno:extraTurno, mostrarDos:mostrarDos, cobroTurnosMp:cobroTurnosMp, _token: '{{csrf_token()}}'},
          success:function(data){                          
               alert("Los modulos fueron actualizados");
+           }
+      });
+  }
+
+  function actualizarHistoriasClinicasMedico(){
+    var medico_id = document.getElementById("medico_id").value;
+    var codigos = [];
+    document.querySelectorAll(".check-hc-salud360").forEach(function (c) { if (c.checked) codigos.push(c.value); });
+    $.ajax({
+         type:'POST',
+         dataType:'JSON',
+         url:'/admin_hc_medico',
+         data:{medico_id:medico_id, historias_clinicas:codigos, _token: '{{csrf_token()}}'},
+         success:function(data){
+              alert("Las historias clínicas fueron actualizadas");
+           },
+         error:function(){
+              alert("No se pudieron actualizar las historias clínicas");
            }
       });
   }

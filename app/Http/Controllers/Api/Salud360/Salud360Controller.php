@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Salud360;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SecretariaController;
 use App\Services\Salud360\AgendaService;
+use App\Services\Salud360\HistoriaClinicaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -192,6 +193,8 @@ abstract class Salud360Controller extends Controller
             'especialidad' => $especialidad !== null ? $especialidad->nombre : null,
             'consultorio_id' => (int) $m->consultorio,
             'activo' => (int) $m->activo,
+            // Historias clínicas de Salud 360 habilitadas por el administrador (tabla salud360_medico_hc).
+            'historias_clinicas' => app(HistoriaClinicaService::class)->habilitadas($m->id),
         ];
     }
 

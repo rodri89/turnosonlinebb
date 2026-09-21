@@ -115,7 +115,10 @@ Route::group(['middleware' => ['auth', 'usuarioAdmin']], function () {
 	Route::post('guardar_mp_config','VideollamadaController@guardarKeySecret')->name('guardarmpconfig');	
 
 	Route::post('admin_modulo_medico','MedicoController@adminModuloMedico');
-	
+
+	// Historias clínicas de Salud 360 habilitadas al médico (tabla salud360_medico_hc)
+	Route::post('admin_hc_medico','MedicoController@adminHistoriasClinicasMedico');
+
 	Route::post('guardar_ventana_dias','MedicoController@guardarVentanaDias');
 	
 	Route::get('admin_feriados','TurnoController@adminFeriados')->name('adminferiados');

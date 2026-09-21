@@ -39,6 +39,8 @@ Route::post('/webhooks/mercadopago', 'TurnoPagoController@webhook');
 */
 Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function () {
     Route::post('auth/login', 'AuthController@login');
+    // Foto pública del médico (misma imagen que muestra la web), sin token.
+    Route::get('medicos/{id}/foto', 'CatalogoController@fotoMedico');
 
     Route::group(['middleware' => ['salud360']], function () {
         Route::get('auth/perfil', 'AuthController@perfil');
@@ -49,6 +51,9 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         Route::get('obras-sociales', 'CatalogoController@obrasSocialesMedico');
         Route::post('obras-sociales', 'CatalogoController@guardarObraSocialMedico');
         Route::get('mensajes', 'CatalogoController@mensajes');
+        Route::post('mensajes', 'CatalogoController@guardarMensaje');
+        Route::put('mensajes/{id}', 'CatalogoController@actualizarMensaje');
+        Route::delete('mensajes/{id}', 'CatalogoController@borrarMensaje');
         Route::post('feriados', 'CatalogoController@guardarFeriado');
         Route::delete('feriados/{id}', 'CatalogoController@borrarFeriado');
 
@@ -70,6 +75,7 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         Route::post('turnos/{id}/comentario', 'TurnoController@comentario');
 
         Route::get('pacientes', 'PacienteController@index');
+        Route::get('pacientes/vinculados', 'PacienteController@vinculados');
         Route::get('pacientes/buscar', 'PacienteController@buscar');
         Route::get('pacientes/pendientes', 'PacienteController@pendientes');
         Route::post('pacientes', 'PacienteController@store');

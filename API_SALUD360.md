@@ -21,7 +21,14 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | `routes/api.php` | Grupo `salud360`. |
 | `tests/Unit/Salud360AgendaServiceTest.php` | Pruebas de los métodos puros del servicio. |
 
-Única migración: `salud360_tokens` (idempotente; la tabla también se crea sola). Sin cambios de versión de PHP/Laravel (PHP 7.1 / Laravel 5.8).
+Migraciones: `salud360_tokens` y `salud360_medico_hc` (idempotentes; las tablas también se crean solas, ver
+`app/Services/Salud360/HistoriaClinicaService.php`). Sin cambios de versión de PHP/Laravel (PHP 7.1 / Laravel 5.8).
+
+## CORS
+
+La API acepta pedidos desde cualquier origen (`Access-Control-Allow-Origin: *`, middleware global
+`Salud360Cors`), necesario para la versión web de Salud 360. No usa cookies: la autenticación va por
+encabezado, así que abrir el origen no expone la sesión de la web de turnos.
 
 ## Permisos
 
@@ -46,9 +53,17 @@ Casi todos los endpoints reciben `medico_id`. Quién puede usar cada médico:
 
 `perfil` contiene `usuario`, `rol` (`admin` / `medico` / `secretaria`) y:
 
-- `medico`: datos del médico, `especialidad`, `consultorio`, `modulos` (ids activos de `modulo_medicos`),
-  `ventana_dias`, `cupo_primer_control`.
+- `medico`: datos del médico, `especialidad`, `consultorio` (`consultorio_id` = 0 si no tiene agenda), `modulos`
+  (ids activos de `modulo_medicos`), `ventana_dias`, `cupo_primer_control` y `historias_clinicas`.
 - `secretaria`: `consultorios` y `medicos` que puede gestionar (cada uno con el mismo detalle que arriba).
+
+`historias_clinicas` son los códigos de las historias clínicas de Salud 360 que el administrador habilitó al médico
+(`pediatria`, `clinica`, `hepatologia`, `gineco`, `cardiologia`, `endocrinologia`, `hematologia`, `desarrollo_infantil`),
+tabla `salud360_medico_hc` (se crea sola, como `salud360_tokens`). Se administran en la web en Administración →
+Médico → "Historias clínicas Salud 360" (`POST admin_hc_medico`). turnosonlinebb es la identidad única de Salud 360:
+un médico puede tener agenda, historias clínicas o ambas. Cada historia clínica vive en su propio sistema
+(hc_pediatria, hclinica, ...); su API acepta este mismo token, lo valida con `GET auth/perfil` y ubica al usuario
+local por `users.medico_id_tobb = perfil.medico.id`.
 
 ### Agenda (lectura)
 
@@ -96,6 +111,7 @@ Formato de un turno:
 | Método | Ruta | Cuerpo / Query | Notas |
 |---|---|---|---|
 | GET | `pacientes` | `medico_id`, `[desde_id]`, `[limite=500]`, `[actualizado_desde]` | Pacientes vinculados al médico (`medico_pacientes`) o al consultorio (`paciente_secretarias`). Paginado por id: repetir con `desde_id = ultimo_id` mientras `hay_mas`. |
+| GET | `pacientes/vinculados` | `medico_id`, `[bloqueados]` (0/1), `[q]` (DNI, apellido o nombre) | Todos los pacientes vinculados directamente al médico (`medico_pacientes`), sin paginar, ordenados por apellido. Cada uno incluye `bloqueado` y `vinculado_en`. Devuelve `total`. |
 | GET | `pacientes/buscar` | `q` (DNI, apellido, nombre o mail) | Máximo 50 |
 | GET | `pacientes/pendientes` | `medico_id` | Registrados desde la app que esperan activación (`activo = 2`) |
 | GET | `pacientes/{id}` | | Incluye `medicos[] {medico_id, bloqueado}` |
@@ -122,10 +138,14 @@ Formato de un turno:
 
 | Método | Ruta | Notas |
 |---|---|---|
+| GET | `medicos/{id}/foto` | Foto del médico (`public/images/medicos`), imagen binaria, sin token. 404 `sin_foto` si no tiene |
 | GET | `catalogos` | `consultorios`, `especialidades`, `medicos`, `obras_sociales`, `feriados` (desde 60 días atrás), `modulos`, `receta_estados`, `tipos_turno`, `hoy` |
 | GET | `obras-sociales?medico_id` | Obras sociales del médico con `activo`, `importe`, `importe_reserva` |
 | POST | `obras-sociales` | `medico_id`, `obra_social_id`, `[activo]`, `[importe]` |
 | GET | `mensajes?medico_id` | Mensajes especiales del médico |
+| POST | `mensajes` | `medico_id`, `titulo`, `descripcion`, `[valido_desde]`, `[valido_hasta]`, `[activo=1]`. Devuelve `id` |
+| PUT | `mensajes/{id}` | Actualiza solo los campos enviados: `[titulo]`, `[descripcion]`, `[valido_desde]`, `[valido_hasta]`, `[activo]` (fecha en `null`/`""` la borra) |
+| DELETE | `mensajes/{id}` | Borra el mensaje |
 | POST | `feriados` | `fecha`, `descripcion` (solo admin) |
 | DELETE | `feriados/{id}` | (solo admin) |
 

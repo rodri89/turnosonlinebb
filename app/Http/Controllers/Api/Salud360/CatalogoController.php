@@ -65,6 +65,48 @@ class CatalogoController extends Salud360Controller
     }
 
     /**
+     * GET /api/salud360/medicos/{id}/foto
+     * Devuelve la foto del médico (public/images/medicos). Sin token: es la misma imagen pública de la web de turnos,
+     * pero servida por Laravel para que la app web pueda pedirla con CORS. 404 si no tiene foto.
+     */
+    public function fotoMedico($id)
+    {
+        $m = DB::table('medicos')->where('id', (int) $id)->first();
+        $foto = $m !== null ? trim((string) $m->foto) : '';
+        if ($foto === '' || $foto === 'medico_sin_foto.png' || strpos($foto, '..') !== false || strpos($foto, '/') !== false) {
+            return $this->error('El médico no tiene foto.', 404, 'sin_foto');
+        }
+        // En el hosting la app vive en TurnosImage/ y las imágenes en el document root (public_html), así que
+        // public_path() no alcanza: se prueban varias carpetas y, si no está en disco, se trae por su URL pública.
+        $relativa = 'images/medicos/' . $foto;
+        $candidatas = [public_path($relativa)];
+        if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+            $candidatas[] = rtrim($_SERVER['DOCUMENT_ROOT'], '/') . '/' . $relativa;
+        }
+        $candidatas[] = base_path('../public_html/' . $relativa);
+        foreach ($candidatas as $ruta) {
+            if (is_file($ruta)) {
+                return response()->file($ruta, ['Cache-Control' => 'public, max-age=86400']);
+            }
+        }
+        $contenido = @file_get_contents(asset($relativa));
+        if ($contenido === false || $contenido === '') {
+            return $this->error('El médico no tiene foto.', 404, 'sin_foto');
+        }
+        $tipo = 'image/jpeg';
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectado = $finfo ? finfo_buffer($finfo, $contenido) : false;
+            if ($detectado) {
+                $tipo = $detectado;
+            }
+        } elseif (preg_match('/\.png$/i', $foto)) {
+            $tipo = 'image/png';
+        }
+        return response($contenido, 200, ['Content-Type' => $tipo, 'Cache-Control' => 'public, max-age=86400']);
+    }
+
+    /**
      * GET /api/salud360/obras-sociales?medico_id
      * Obras sociales del médico con estado e importe (tabla obra_social_medicos).
      */
@@ -156,6 +198,114 @@ class CatalogoController extends Salud360Controller
                 ];
             })->values()->all();
         return $this->ok(['mensajes' => $mensajes]);
+    }
+
+    /**
+     * POST /api/salud360/mensajes  {medico_id, titulo, descripcion, [valido_desde], [valido_hasta], [activo=1]}
+     * Crea un mensaje especial del médico (misma tabla que la pantalla "mensajes" de la web).
+     */
+    public function guardarMensaje(Request $request)
+    {
+        $medico = $this->resolverMedico($request);
+        if ($medico === null) {
+            return $this->sinPermisoMedico();
+        }
+        if (!Schema::hasTable('medico_mensajes_especiales')) {
+            return $this->error('Los mensajes especiales no están disponibles en esta instalación.', 422, 'no_disponible');
+        }
+        $titulo = trim((string) $request->input('titulo'));
+        $descripcion = trim((string) $request->input('descripcion'));
+        if ($titulo === '' || mb_strlen($titulo) > 255 || $descripcion === '') {
+            return $this->error('Indicá titulo (hasta 255 caracteres) y descripcion.', 422, 'datos');
+        }
+        $desde = $this->agenda->normalizarFecha($request->input('valido_desde'));
+        $hasta = $this->agenda->normalizarFecha($request->input('valido_hasta'));
+        if ($desde !== null && $hasta !== null && $hasta < $desde) {
+            return $this->error('La fecha "válido hasta" no puede ser anterior a "válido desde".', 422, 'datos');
+        }
+        $id = DB::table('medico_mensajes_especiales')->insertGetId([
+            'medico_id' => $medico->id,
+            'titulo' => $titulo,
+            'descripcion' => $descripcion,
+            'valido_desde' => $desde,
+            'valido_hasta' => $hasta,
+            'activo' => $request->has('activo') ? ((int) $request->input('activo') === 1 ? 1 : 0) : 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        return $this->ok(['id' => (int) $id], 201);
+    }
+
+    /**
+     * PUT /api/salud360/mensajes/{id}  {[titulo], [descripcion], [valido_desde], [valido_hasta], [activo]}
+     * Actualiza solo los campos enviados (valido_desde/valido_hasta en null o "" borran la fecha).
+     */
+    public function actualizarMensaje(Request $request, $id)
+    {
+        if (!Schema::hasTable('medico_mensajes_especiales')) {
+            return $this->error('Los mensajes especiales no están disponibles en esta instalación.', 422, 'no_disponible');
+        }
+        $reg = DB::table('medico_mensajes_especiales')->where('id', (int) $id)->first();
+        if ($reg === null) {
+            return $this->error('Mensaje no encontrado.', 404, 'no_encontrado');
+        }
+        if (!$this->puedeGestionarMedico($request->user(), $reg->medico_id)) {
+            return $this->sinPermisoMedico();
+        }
+        $upd = [];
+        if ($request->has('titulo')) {
+            $titulo = trim((string) $request->input('titulo'));
+            if ($titulo === '' || mb_strlen($titulo) > 255) {
+                return $this->error('titulo no puede estar vacío (hasta 255 caracteres).', 422, 'datos');
+            }
+            $upd['titulo'] = $titulo;
+        }
+        if ($request->has('descripcion')) {
+            $descripcion = trim((string) $request->input('descripcion'));
+            if ($descripcion === '') {
+                return $this->error('descripcion no puede estar vacía.', 422, 'datos');
+            }
+            $upd['descripcion'] = $descripcion;
+        }
+        if ($request->has('valido_desde')) {
+            $upd['valido_desde'] = $this->agenda->normalizarFecha($request->input('valido_desde'));
+        }
+        if ($request->has('valido_hasta')) {
+            $upd['valido_hasta'] = $this->agenda->normalizarFecha($request->input('valido_hasta'));
+        }
+        if ($request->has('activo')) {
+            $upd['activo'] = (int) $request->input('activo') === 1 ? 1 : 0;
+        }
+        if (count($upd) === 0) {
+            return $this->error('Indicá al menos un campo para actualizar.', 422, 'datos');
+        }
+        $desde = array_key_exists('valido_desde', $upd) ? $upd['valido_desde'] : $reg->valido_desde;
+        $hasta = array_key_exists('valido_hasta', $upd) ? $upd['valido_hasta'] : $reg->valido_hasta;
+        if ($desde !== null && $hasta !== null && $hasta < $desde) {
+            return $this->error('La fecha "válido hasta" no puede ser anterior a "válido desde".', 422, 'datos');
+        }
+        $upd['updated_at'] = now();
+        DB::table('medico_mensajes_especiales')->where('id', $reg->id)->update($upd);
+        return $this->ok([]);
+    }
+
+    /**
+     * DELETE /api/salud360/mensajes/{id}
+     */
+    public function borrarMensaje(Request $request, $id)
+    {
+        if (!Schema::hasTable('medico_mensajes_especiales')) {
+            return $this->error('Los mensajes especiales no están disponibles en esta instalación.', 422, 'no_disponible');
+        }
+        $reg = DB::table('medico_mensajes_especiales')->where('id', (int) $id)->first();
+        if ($reg === null) {
+            return $this->error('Mensaje no encontrado.', 404, 'no_encontrado');
+        }
+        if (!$this->puedeGestionarMedico($request->user(), $reg->medico_id)) {
+            return $this->sinPermisoMedico();
+        }
+        DB::table('medico_mensajes_especiales')->where('id', $reg->id)->delete();
+        return $this->ok([]);
     }
 
     /**

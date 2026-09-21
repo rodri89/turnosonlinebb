@@ -18,6 +18,16 @@
 
   @include('layouts.rodri_style_css')
   <!-- Para mediaquery debo agregar estos dos. Mediaquery es para que se ve bien en el telefono -->
+
+  <!-- Tipografía moderna para todo el flujo del paciente -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+    }
+  </style>
   
   <!-- Google Add Sense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3758335156050794"

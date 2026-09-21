@@ -116,7 +116,8 @@ class TurnoController extends Salud360Controller
         if ($fecha === null || !$this->horarioValido($horario) || $pacienteId < 1) {
             return $this->error('Datos inválidos: se requiere paciente_id, fecha (AAAA-MM-DD) y horario (HH:MM).', 422, 'datos');
         }
-        if (!DB::table('pacientes')->where('id', $pacienteId)->exists()) {
+        $paciente = DB::table('pacientes')->where('id', $pacienteId)->first();
+        if ($paciente === null) {
             return $this->error('Paciente no encontrado.', 404, 'paciente');
         }
         $consultorio = $this->consultorioDe($request, $medico);
@@ -127,7 +128,9 @@ class TurnoController extends Salud360Controller
         $moduloDoble = $this->agenda->moduloActivo($medico->id, AgendaService::MODULO_PRIMER_CONTROL_DOBLE) === 1;
         $primerControl = $moduloDoble && (int) $request->input('primer_control', 0) === 1;
 
-        if ($this->agenda->validarTurnoMismoDia($pacienteId, $medico->id, $consultorio, $fecha)) {
+        // El paciente "bloqueo" (DNI 99999) puede ocupar varios horarios el mismo día, como en la web (SecretariaController).
+        $esBloqueo = (int) $paciente->dni === 99999;
+        if (!$esBloqueo && $this->agenda->validarTurnoMismoDia($pacienteId, $medico->id, $consultorio, $fecha)) {
             return $this->error('El paciente ya tiene un turno con este médico ese día.', 409, 'mismo_dia');
         }
         if ($this->agenda->validarTurnoLibre($medico->id, $consultorio, $dia, $horario, $fecha)->count() > 0) {

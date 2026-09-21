@@ -110,12 +110,16 @@ class MedicoController extends Controller
                     ->where('medico_configs.modulo', 9) // 9 es el id del modulo ventana_dias
                     ->first();
 
+        // Historias clínicas de Salud 360 (pediatría, clínica, ...) que el médico puede abrir desde la app
+        $historiasClinicas = app(\App\Services\Salud360\HistoriaClinicaService::class)->estadoPara($medico_id);
+
     	return View('turnos_admin.alta_medico')
     	->with('especialidad',$especialidad)
         ->with('user',$usuario_actual)
         ->with('ventanaDias',$ventanaDias)
         ->with('medico',$medico[0])
         ->with('moduloMedicos',$data)
+        ->with('historiasClinicas',$historiasClinicas)
         ->with('videollamada',$videollamada)
         ->with('moduloMercadoPago',$moduloMercadoPago)
     	->with('consultorios',$consultorios);    	        
@@ -4360,6 +4364,23 @@ class MedicoController extends Controller
         $vd->save();
 
         return response()->json(array('response'=>1));   
+    }
+
+    /**
+     * POST admin_hc_medico {medico_id, historias_clinicas: [codigo, ...]}
+     * Deja habilitadas al médico exactamente las historias clínicas de Salud 360 indicadas.
+     */
+    public function adminHistoriasClinicasMedico(Request $request){
+        $medico_id = (int) $request->medico_id;
+        if ($medico_id <= 0) {
+            return response()->json(['response' => 0, 'mensaje' => 'Falta el médico'], 422);
+        }
+        $codigos = $request->input('historias_clinicas', []);
+        if (!is_array($codigos)) {
+            $codigos = array_filter(explode(',', (string) $codigos));
+        }
+        $guardadas = app(\App\Services\Salud360\HistoriaClinicaService::class)->guardar($medico_id, $codigos);
+        return response()->json(['response' => 1, 'historias_clinicas' => $guardadas]);
     }
 
     public function adminModuloMedico(Request $request){

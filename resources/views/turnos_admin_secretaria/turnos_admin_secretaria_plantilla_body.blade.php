@@ -24,6 +24,24 @@
   <link href="css/business-frontpage.css" rel="stylesheet">
   @include('layouts.rodri_style_css')
   <link rel="stylesheet" type="text/css" href="{{asset('datatable/jquery.dataTables.min.css')}}">
+  <style>
+    /* Footer anclado abajo: el contenido crece y el footer queda al final aunque haya poco contenido */
+    html, body {
+      height: 100%;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    body > .container {
+      flex: 1 0 auto;
+    }
+    body > footer {
+      flex-shrink: 0;
+      margin-top: auto;
+    }
+  </style>
 </head>
 
 <body onLoad="setInterval('recargarListado()',15000);">

@@ -21,6 +21,23 @@
      @include('modal.snackbar')
      @include('modal.modal_recetas')
      @include('turnos_admin._modal_detalle_pago_reserva')
+    <style>
+      /* El listado se sale del .container en pantallas anchas para que entren todas las columnas */
+      @media (min-width: 1200px) {
+        #tabla_pacientes_wrapper {
+          width: 96vw;
+          margin-left: calc(50% - 48vw);
+          margin-right: calc(50% - 48vw);
+        }
+      }
+      #tabla_pacientes td:last-child,
+      #tabla_pacientes th:last-child {
+        white-space: nowrap;
+      }
+      #tabla_pacientes input[name='comentario'] {
+        min-width: 140px;
+      }
+    </style>
 </head>
 
 <div class="row">
@@ -57,7 +74,7 @@
     <div class="col-md-12 col-center">
       <br>
       <!-- <div class="table-responsive" style="height:600px; overflow-y: scroll;"> -->
-      <div class="table-responsive" style="height:400px; overflow-y: scroll;">
+      <div class="table-responsive" id="tabla_pacientes_wrapper" style="height:400px; overflow-y: scroll;">
 
        <table class="table table-condensed" id="tabla_pacientes" name="tabla_pacientes">
        <thead>
@@ -290,21 +307,27 @@
         console.log(data.turnosPaciente[i]);
         var tipoTurno = etiquetaTipoFila(data.turnosPaciente[i]);
         if(consultorio_id == 6){
-          // muestro obra social en el listado
+          // muestro obra social en el listado; caja y comentario solo si el modulo esta activo
+          var celdasCajaComentario = "";
+          var celdasCajaComentarioVacias = "";
+          if(data.moduloCajaComentario == 1){
+            celdasCajaComentario = "<td><input size='8' type='text' onchange=guardarCaja("+data.turnosPaciente[i].trid+") id="+caja_id+" name='caja' value="+data.turnosPaciente[i].caja+"></td><td><input type='text' onchange=guardarComentario("+data.turnosPaciente[i].trid+") id="+comentario_id+" name='comentario' value='"+data.turnosPaciente[i].comentario+"'></td>";
+            celdasCajaComentarioVacias = "<td></td><td></td>";
+          }
           if(data.turnosPaciente[i].dni == 99999){
-            var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>Cancelado</td><td></td><td></td><td></td><td></td><td></td></tr>";  
+            var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>Cancelado</td><td></td><td></td><td></td><td></td>"+celdasCajaComentarioVacias+"<td></td></tr>";
             } else {
               if(data.turnosPaciente[i].asistio == 0){ // todavia no se realizo accion
-              var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_aceptar_si' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",1)'>SI</button><button class='rodri_button_cancelar_no' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",2)'>NO</button></td></tr>";                    
-              } else {                      
-                if(data.turnosPaciente[i].asistio == 1){ // asistio SI                      
-                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_aceptar_si' disabled>SI</button></td></tr>";      
+              var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_aceptar_si' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",1)'>SI</button><button class='rodri_button_cancelar_no' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",2)'>NO</button></td></tr>";
+              } else {
+                if(data.turnosPaciente[i].asistio == 1){ // asistio SI
+                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_aceptar_si' disabled>SI</button></td></tr>";
                 } else { //asisitio = 2   asistio NO
-                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_cancelar_no' disabled>NO</button></td></tr>";      
+                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_cancelar_no' disabled>NO</button></td></tr>";
                 }
               }
             }
-        } else {        
+        } else {
           if(data.moduloCajaComentario == 0){
             if(data.turnosPaciente[i].dni == 99999){
             var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>Cancelado</td><td></td><td></td><td></td><td></td></tr>";  

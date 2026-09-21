@@ -151,6 +151,68 @@
         scroll-margin-top: 80px;
       }
 
+      /* Turnos con estilo de tarjeta (como las de especialidad) en vez de círculo.
+         Mismos colores de estado (verde=libre, rojo=ocupado, dorado=fuera de ventana),
+         solo cambia la forma. Selector con #id para ganarle a .circulo de rodri_style6.css. */
+      #seccionTurnosMedicos {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 8px;
+      }
+
+      #seccionTurnosMedicos h5 {
+        flex-basis: 100%;
+      }
+
+      #seccionTurnosMedicos br {
+        display: none;
+      }
+
+      #seccionTurnosMedicos .circulo {
+        width: auto;
+        height: auto;
+        min-width: 120px;
+        min-height: 88px;
+        border-radius: 16px;
+        border-width: 2px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        margin: 0;
+        padding: 16px 22px;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      #seccionTurnosMedicos .circulo h1 {
+        font-size: 1.4rem;
+      }
+
+      #seccionTurnosMedicos button:not(:disabled):hover .circulo {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+      }
+
+      #seccionTurnosMedicos button:not(:disabled):active .circulo {
+        transform: scale(0.96);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.10);
+      }
+
+      @media (min-width: 768px) {
+        #seccionTurnosMedicos .circulo {
+          min-width: 140px;
+          min-height: 100px;
+          padding: 18px 26px;
+        }
+
+        #seccionTurnosMedicos .circulo h1 {
+          font-size: 1.6rem;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #seccionTurnosMedicos .circulo {
+          transition: none;
+        }
+      }
     </style>
 </head>
 

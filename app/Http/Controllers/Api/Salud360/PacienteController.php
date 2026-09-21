@@ -53,6 +53,49 @@ class PacienteController extends Salud360Controller
         return $this->ok(['pacientes' => $pacientes, 'ultimo_id' => $ultimoId, 'hay_mas' => count($filas) === $limite]);
     }
 
+    
+    /**
+     * GET /api/salud360/pacientes/vinculados?medico_id[&bloqueados=0|1][&q]
+     * Todos los pacientes vinculados directamente al médico (tabla medico_pacientes), sin paginar.
+     * Cada paciente incluye `bloqueado` y `vinculado_en`. `bloqueados` filtra por estado del vínculo;
+     * `q` filtra por DNI, apellido o nombre.
+     */
+    public function vinculados(Request $request)
+    {
+        $medico = $this->resolverMedico($request);
+        if ($medico === null) {
+            return $this->sinPermisoMedico();
+        }
+        $consulta = DB::table('medico_pacientes')
+            ->join('pacientes', 'pacientes.id', '=', 'medico_pacientes.paciente')
+            ->select('pacientes.*', 'medico_pacientes.bloqueado as vinculo_bloqueado', 'medico_pacientes.created_at as vinculo_created_at')
+            ->where('medico_pacientes.medico', $medico->id);
+
+        if ($request->filled('bloqueados')) {
+            $consulta->where('medico_pacientes.bloqueado', (int) $request->input('bloqueados') === 1 ? 1 : 0);
+        }
+        $q = trim((string) $request->input('q', ''));
+        if ($q !== '') {
+            if (ctype_digit($q)) {
+                $consulta->where('pacientes.dni', 'like', $q . '%');
+            } else {
+                $consulta->where(function ($w) use ($q) {
+                    $w->where('pacientes.apellido', 'like', '%' . $q . '%')
+                        ->orWhere('pacientes.nombre', 'like', '%' . $q . '%');
+                });
+            }
+        }
+        $filas = $consulta->orderBy('pacientes.apellido')->orderBy('pacientes.nombre')->orderBy('pacientes.id')->get();
+        $pacientes = [];
+        foreach ($filas as $p) {
+            $item = $this->formatearPaciente($p);
+            $item['bloqueado'] = (int) $p->vinculo_bloqueado;
+            $item['vinculado_en'] = $p->vinculo_created_at;
+            $pacientes[] = $item;
+        }
+        return $this->ok(['medico_id' => (int) $medico->id, 'total' => count($pacientes), 'pacientes' => $pacientes]);
+    }
+
     /**
      * GET /api/salud360/pacientes/buscar?q=  (DNI, apellido o nombre)
      */
