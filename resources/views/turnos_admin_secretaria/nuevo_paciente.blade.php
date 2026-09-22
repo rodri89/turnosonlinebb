@@ -48,11 +48,14 @@
           <label for="text" class="col-sm-0 control-label">Localidad</label>      
           <input type="text" class="form-control" id="localidad" name="localidad"  placeholder="Localidad"  />
 
-          <label for="text" class="col-sm-0 control-label">Mail</label>      
+          <label for="text" class="col-sm-0 control-label">Mail</label>
           <input type="text" class="form-control" id="mail" name="mail" placeholder="Mail"  />
-          
-          <br>          
-        
+
+          <label for="text" class="col-sm-0 control-label">Nota interna (no la ve el paciente)</label>
+          <textarea class="form-control" id="nota" name="nota" rows="2" placeholder="Ej: no cobrar, es familiar del medico"></textarea>
+
+          <br>
+
   </div>
 
   <div class="col-md-6">
@@ -199,7 +202,8 @@
       var domicilio = document.getElementById("domicilio").value;
       var localidad = document.getElementById("localidad").value;
       var mail = document.getElementById("mail").value;
-      var obrasocial = document.getElementById("obrasocial").value; 
+      var nota = document.getElementById("nota").value;
+      var obrasocial = document.getElementById("obrasocial").value;
       var numero_afiliado = document.getElementById("numero_afiliado").value; 
       var plan = document.getElementById("plan_obra_social").value;         
       var fecha_nacimiento_dia = document.getElementById("fecha_nacimiento_dia").value;     
@@ -220,7 +224,7 @@
              type:'POST',
              dataType:'JSON',
              url:'/alta_paciente_medico_secretaria',
-             data:{dni :dni,nombre:nombre,apellido:apellido,fecha_nacimiento:fecha_nacimiento,telefono:telefono,mail:mail,obra_social:obrasocial,numero_afiliado:numero_afiliado,plan:plan, consultorio:consultorio, domicilio:domicilio, afiliado_obligatorio:afiliado_obligatorio, localidad:localidad, _token: '{{csrf_token()}}'},
+             data:{dni :dni,nombre:nombre,apellido:apellido,fecha_nacimiento:fecha_nacimiento,telefono:telefono,mail:mail,nota:nota,obra_social:obrasocial,numero_afiliado:numero_afiliado,plan:plan, consultorio:consultorio, domicilio:domicilio, afiliado_obligatorio:afiliado_obligatorio, localidad:localidad, _token: '{{csrf_token()}}'},
              success:function(data){              
               if(data.paciente!=null){
                 $('#mensajeModal').modal();    
@@ -234,9 +238,10 @@
                   document.getElementById("domicilio").value = "";
                   document.getElementById("localidad").value = "";
                   document.getElementById("mail").value = "";
+                  document.getElementById("nota").value = "";
                   document.getElementById("obrasocial").value = "N/A";
                   document.getElementById("numero_afiliado").value = "";
-                  document.getElementById("plan_obra_social").value = ""; 
+                  document.getElementById("plan_obra_social").value = "";
                   if(document.getElementById("moduloAfiliadoObligatorio").value == 1){
                     document.getElementById("check_afiliado_obligatorio_si").checked = false;
                     document.getElementById("check_afiliado_obligatorio_no").checked = false;
@@ -264,16 +269,17 @@
           var domicilio = document.getElementById("domicilio");
           var localidad = document.getElementById("localidad");
           var mail = document.getElementById("mail");
-          var obrasocial = document.getElementById("obrasocial");          
+          var nota = document.getElementById("nota");
+          var obrasocial = document.getElementById("obrasocial");
           var fecha_nacimiento_dia = document.getElementById("fecha_nacimiento_dia");
           var fecha_nacimiento_mes = document.getElementById("fecha_nacimiento_mes");
-          var fecha_nacimiento_anio = document.getElementById("fecha_nacimiento_anio");          
+          var fecha_nacimiento_anio = document.getElementById("fecha_nacimiento_anio");
           var plan_obra_social = document.getElementById("plan_obra_social");
-          var numero_afiliado = document.getElementById("numero_afiliado");                    
+          var numero_afiliado = document.getElementById("numero_afiliado");
 
-           if(data.paciente != null) {  
-              document.getElementById("btnContinuar").disabled = true;    
-              document.getElementById("btnContinuar").setAttribute('class', 'rodri_button_disabled contenido3');       
+           if(data.paciente != null) {
+              document.getElementById("btnContinuar").disabled = true;
+              document.getElementById("btnContinuar").setAttribute('class', 'rodri_button_disabled contenido3');
               nombre.value = data.paciente.nombre;
               apellido.value = data.paciente.apellido;
               dni.value = data.paciente.dni;
@@ -281,7 +287,8 @@
               domicilio.value = data.paciente.domicilio;
               localidad.value = data.paciente.localidad;
               mail.value = data.paciente.mail;
-              obrasocial.value = data.paciente.obra_social;              
+              nota.value = data.paciente.nota || '';
+              obrasocial.value = data.paciente.obra_social;
               numero_afiliado.value = data.paciente.numero_afiliado;              
               plan_obra_social.value = data.paciente.obra_social_plan;
               if(data.paciente.fecha_nacimiento.localeCompare('')!=0){
@@ -319,12 +326,13 @@
               domicilio.value = '';
               localidad.value = '';
               mail.value = '';
+              nota.value = '';
               obrasocial.value = 'N/A';
-              numero_afiliado.value = '';              
-              plan_obra_social.value = '';              
-              fecha_nacimiento_dia.value = '';  
-              fecha_nacimiento_mes.value = '';             
-              fecha_nacimiento_anio.value = ''; 
+              numero_afiliado.value = '';
+              plan_obra_social.value = '';
+              fecha_nacimiento_dia.value = '';
+              fecha_nacimiento_mes.value = '';
+              fecha_nacimiento_anio.value = '';
               if(document.getElementById("moduloAfiliadoObligatorio").value == 1) {
                 document.getElementById("check_afiliado_obligatorio_si").checked = false;
                 document.getElementById("check_afiliado_obligatorio_no").checked = false;

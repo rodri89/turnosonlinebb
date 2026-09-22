@@ -3297,7 +3297,12 @@ class PacienteController extends Controller
                 $paciente->localidad = $request->localidad;
                 $huboUnCambio = 1;
             }
-            
+
+            if(($request->nota != null) && (strcmp($request->nota, $paciente->nota) != 0)){
+                $paciente->nota = $request->nota;
+                $huboUnCambio = 1;
+            }
+
             if(($request->afiliado_obligatorio != null) && (strcmp($request->afiliado_obligatorio, $paciente->afiliado_obligatorio) != 0)){
                 $paciente->afiliado_obligatorio = $request->afiliado_obligatorio;
                 $huboUnCambio = 1;
@@ -3368,12 +3373,17 @@ class PacienteController extends Controller
         else
             $paciente->domicilio = $request->get('domicilio'); 
 
-        if($request->get('localidad')== null)        
+        if($request->get('localidad')== null)
             $paciente->localidad = '';
         else
-            $paciente->localidad = $request->get('localidad'); 
+            $paciente->localidad = $request->get('localidad');
 
-        if($request->get('one_signal_id')== null)        
+        if($request->get('nota')== null)
+            $paciente->nota = '';
+        else
+            $paciente->nota = $request->get('nota');
+
+        if($request->get('one_signal_id')== null)
             $paciente->one_signal_id = '';
         else
             $paciente->one_signal_id = $request->get('one_signal_id'); 

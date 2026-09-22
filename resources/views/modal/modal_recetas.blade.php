@@ -357,10 +357,13 @@
           <label for="text" class="col-sm-0 control-label"><b>Domicilio</b></label>      
           <input type="text" class="form-control editText" id="modal_domicilio"  placeholder="Domicilio" />
 
-          <label for="text" class="col-sm-0 control-label"><b>Mail</b></label>      
+          <label for="text" class="col-sm-0 control-label"><b>Mail</b></label>
           <input type="text" class="form-control editText" id="modal_mail" placeholder="Mail"  />
 
-          <label for="text" class="col-sm-0 control-label"><b>Obra Social</b></label>      
+          <label for="text" class="col-sm-0 control-label"><b>Nota interna</b></label>
+          <textarea class="form-control editText" id="modal_nota" rows="2" placeholder="Sin nota"></textarea>
+
+          <label for="text" class="col-sm-0 control-label"><b>Obra Social</b></label>
           <input type="text" class="form-control editText" id="modal_obra_social" name="obra_social" placeholder="Obra Social"  />
 
           <label for="text" class="col-sm-0 control-label"><b>N° Afiliado</b></label>      

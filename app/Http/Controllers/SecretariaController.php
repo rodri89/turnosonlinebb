@@ -3706,9 +3706,9 @@ class SecretariaController extends Controller
     }
 
     public function getTurnosPaciente($medico_id, $consultorio, $dia) {
-    	$turnosPaciente = DB::table('turno_registrados')						                              
+    	$turnosPaciente = DB::table('turno_registrados')
 						->join('pacientes','pacientes.id','=','turno_registrados.paciente')
-						->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno', 'turno_registrados.especialidad', 'pacientes.obra_social', 'turno_registrados.pago', 'turno_registrados.pago_estado', 'turno_registrados.mercadopago_payment_id', 'turno_registrados.mercadopago_preference_id', 'turno_registrados.importe_reserva')
+						->select('turno_registrados.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrados.horario', 'turno_registrados.asistio','pacientes.dni','turno_registrados.sobreturno','turno_registrados.primerControl','pacientes.telefono','turno_registrados.caja','turno_registrados.comentario', 'turno_registrados.tipo_turno', 'turno_registrados.especialidad', 'pacientes.obra_social', 'pacientes.nota', 'turno_registrados.pago', 'turno_registrados.pago_estado', 'turno_registrados.mercadopago_payment_id', 'turno_registrados.mercadopago_preference_id', 'turno_registrados.importe_reserva')
 	                    ->where('turno_registrados.medico',$medico_id)
 	                   	->where('turno_registrados.consultorio', $consultorio)
 	                   	->where('turno_registrados.fechaTurno', $dia)
@@ -3722,7 +3722,7 @@ class SecretariaController extends Controller
 	    	$fecha = str_replace("/", "-", $dia);
 	    	$turnosPacientePeg = DB::table('turno_registrado_videollamadas')						                              
 						->join('pacientes','pacientes.id','=','turno_registrado_videollamadas.paciente')
-						->select('turno_registrado_videollamadas.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrado_videollamadas.horario', 'turno_registrado_videollamadas.asistio','pacientes.dni','turno_registrado_videollamadas.sobreturno','turno_registrado_videollamadas.primerControl','pacientes.telefono','turno_registrado_videollamadas.pago as caja','turno_registrado_videollamadas.comentario','turno_registrado_videollamadas.medico as tipo_turno', DB::raw('NULL as especialidad'), 'pacientes.obra_social', DB::raw('0 as pago'), DB::raw('NULL as pago_estado'), DB::raw('NULL as mercadopago_payment_id'), DB::raw('NULL as mercadopago_preference_id'), DB::raw('NULL as importe_reserva'))
+						->select('turno_registrado_videollamadas.id as trid','pacientes.nombre as nombrep','pacientes.apellido as apellidop','turno_registrado_videollamadas.horario', 'turno_registrado_videollamadas.asistio','pacientes.dni','turno_registrado_videollamadas.sobreturno','turno_registrado_videollamadas.primerControl','pacientes.telefono','turno_registrado_videollamadas.pago as caja','turno_registrado_videollamadas.comentario','turno_registrado_videollamadas.medico as tipo_turno', DB::raw('NULL as especialidad'), 'pacientes.obra_social', 'pacientes.nota', DB::raw('0 as pago'), DB::raw('NULL as pago_estado'), DB::raw('NULL as mercadopago_payment_id'), DB::raw('NULL as mercadopago_preference_id'), DB::raw('NULL as importe_reserva'))
 	                    ->where('turno_registrado_videollamadas.medico',$medico_id)
 	                   	->where('turno_registrado_videollamadas.consultorio', $consultorio)
 	                   	->where('turno_registrado_videollamadas.fechaTurno', $fecha)

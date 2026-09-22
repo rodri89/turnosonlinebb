@@ -303,7 +303,7 @@ class PacienteController extends Salud360Controller
 
     private function aplicarCampos(Paciente $paciente, Request $request)
     {
-        $texto = ['nombre', 'apellido', 'telefono', 'domicilio', 'localidad', 'mail', 'obra_social', 'numero_afiliado', 'obra_social_plan'];
+        $texto = ['nombre', 'apellido', 'telefono', 'domicilio', 'localidad', 'mail', 'nota', 'obra_social', 'numero_afiliado', 'obra_social_plan'];
         foreach ($texto as $campo) {
             if ($request->has($campo)) {
                 $v = $request->input($campo);

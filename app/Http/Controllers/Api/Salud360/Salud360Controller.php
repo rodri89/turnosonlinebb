@@ -209,6 +209,7 @@ abstract class Salud360Controller extends Controller
             'domicilio' => $p->domicilio,
             'localidad' => $p->localidad,
             'mail' => $p->mail,
+            'nota' => $p->nota,
             'fecha_nacimiento' => ($p->fecha_nacimiento && substr((string) $p->fecha_nacimiento, 0, 4) !== '1000') ? substr((string) $p->fecha_nacimiento, 0, 10) : null,
             'obra_social' => $p->obra_social,
             'numero_afiliado' => $p->numero_afiliado,

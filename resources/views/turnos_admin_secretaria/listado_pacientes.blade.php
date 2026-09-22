@@ -37,6 +37,15 @@
       #tabla_pacientes input[name='comentario'] {
         min-width: 140px;
       }
+      /* Punto junto al nombre cuando el paciente tiene una nota interna cargada */
+      .punto-nota {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background-color: #f0ad4e;
+        vertical-align: middle;
+      }
     </style>
 </head>
 
@@ -306,6 +315,7 @@
         sumarCaja(data.turnosPaciente[i].caja);
         console.log(data.turnosPaciente[i]);
         var tipoTurno = etiquetaTipoFila(data.turnosPaciente[i]);
+        var puntoNota = (data.turnosPaciente[i].nota && data.turnosPaciente[i].nota.trim().length > 0) ? " <span class='punto-nota' title='Tiene nota'></span>" : "";
         if(consultorio_id == 6){
           // muestro obra social en el listado; caja y comentario solo si el modulo esta activo
           var celdasCajaComentario = "";
@@ -318,12 +328,12 @@
             var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>Cancelado</td><td></td><td></td><td></td><td></td>"+celdasCajaComentarioVacias+"<td></td></tr>";
             } else {
               if(data.turnosPaciente[i].asistio == 0){ // todavia no se realizo accion
-              var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_aceptar_si' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",1)'>SI</button><button class='rodri_button_cancelar_no' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",2)'>NO</button></td></tr>";
+              var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_aceptar_si' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",1)'>SI</button><button class='rodri_button_cancelar_no' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",2)'>NO</button></td></tr>";
               } else {
                 if(data.turnosPaciente[i].asistio == 1){ // asistio SI
-                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_aceptar_si' disabled>SI</button></td></tr>";
+                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_aceptar_si' disabled>SI</button></td></tr>";
                 } else { //asisitio = 2   asistio NO
-                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_cancelar_no' disabled>NO</button></td></tr>";
+                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].obra_social+"</td><td>"+data.turnosPaciente[i].primerControl+"</td>"+celdasCajaComentario+"<td><button class='rodri_button_cancelar_no' disabled>NO</button></td></tr>";
                 }
               }
             }
@@ -333,12 +343,12 @@
             var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>Cancelado</td><td></td><td></td><td></td><td></td></tr>";  
             } else {
               if(data.turnosPaciente[i].asistio == 0){ // todavia no se realizo accion
-              var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_aceptar_si' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",1)'>SI</button><button class='rodri_button_cancelar_no' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",2)'>NO</button></td></tr>";                    
+              var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_aceptar_si' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",1)'>SI</button><button class='rodri_button_cancelar_no' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",2)'>NO</button></td></tr>";                    
               } else {                      
                 if(data.turnosPaciente[i].asistio == 1){ // asistio SI                      
-                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_aceptar_si' disabled>SI</button></td></tr>";      
+                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_aceptar_si' disabled>SI</button></td></tr>";      
                 } else { //asisitio = 2   asistio NO
-                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_cancelar_no' disabled>NO</button></td></tr>";      
+                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><button class='rodri_button_cancelar_no' disabled>NO</button></td></tr>";      
                 }
               }
             }
@@ -347,12 +357,12 @@
               var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>Cancelado</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>";  
             } else {
               if(data.turnosPaciente[i].asistio == 0){ // todavia no se realizo accion
-              var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><input size='8' type='text' onchange=guardarCaja("+data.turnosPaciente[i].trid+") id="+caja_id+" name='caja' value="+data.turnosPaciente[i].caja+"></td><td><input type='text' onchange=guardarComentario("+data.turnosPaciente[i].trid+") id="+comentario_id+" name='comentario' value='"+data.turnosPaciente[i].comentario+"'></td><td><button class='rodri_button_aceptar_si' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",1)'>SI</button><button class='rodri_button_cancelar_no' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",2)'>NO</button></td></tr>";                    
+              var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><input size='8' type='text' onchange=guardarCaja("+data.turnosPaciente[i].trid+") id="+caja_id+" name='caja' value="+data.turnosPaciente[i].caja+"></td><td><input type='text' onchange=guardarComentario("+data.turnosPaciente[i].trid+") id="+comentario_id+" name='comentario' value='"+data.turnosPaciente[i].comentario+"'></td><td><button class='rodri_button_aceptar_si' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",1)'>SI</button><button class='rodri_button_cancelar_no' onclick='registrarAsistencia("+data.turnosPaciente[i].trid+",2)'>NO</button></td></tr>";                    
               } else {                      
                 if(data.turnosPaciente[i].asistio == 1){ // asistio SI                      
-                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><input size='8' type='text' onchange=guardarCaja("+data.turnosPaciente[i].trid+") id="+caja_id+" name='caja' value="+data.turnosPaciente[i].caja+"></td><td><input type='text' onchange=guardarComentario("+data.turnosPaciente[i].trid+") id="+comentario_id+" name='comentario' value='"+data.turnosPaciente[i].comentario+"'></td><td><button class='rodri_button_aceptar_si' disabled>SI</button></td></tr>";      
+                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><input size='8' type='text' onchange=guardarCaja("+data.turnosPaciente[i].trid+") id="+caja_id+" name='caja' value="+data.turnosPaciente[i].caja+"></td><td><input type='text' onchange=guardarComentario("+data.turnosPaciente[i].trid+") id="+comentario_id+" name='comentario' value='"+data.turnosPaciente[i].comentario+"'></td><td><button class='rodri_button_aceptar_si' disabled>SI</button></td></tr>";      
                 } else { //asisitio = 2   asistio NO
-                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><input size='8' type='text' onchange=guardarCaja("+data.turnosPaciente[i].trid+") id="+caja_id+" name='caja' value="+data.turnosPaciente[i].caja+"></td><td><input type='text' onchange=guardarComentario("+data.turnosPaciente[i].trid+") id="+comentario_id+" name='comentario' value='"+data.turnosPaciente[i].comentario+"'  ></td><td><button class='rodri_button_cancelar_no' disabled>NO</button></td></tr>";      
+                var paciente = "<tr><td>"+contador+"</td><td>"+tipoTurno+"</td><td>"+data.turnosPaciente[i].horario+"</td><td>"+data.turnosPaciente[i].apellidop+", "+data.turnosPaciente[i].nombrep+puntoNota+"</td><td class='editText'><a type='button' onclick=verDatosPaciente("+data.turnosPaciente[i].dni+")><u>"+data.turnosPaciente[i].dni+"</u></a></td><td>"+data.turnosPaciente[i].telefono+"</td><td>"+data.turnosPaciente[i].primerControl+"</td><td><input size='8' type='text' onchange=guardarCaja("+data.turnosPaciente[i].trid+") id="+caja_id+" name='caja' value="+data.turnosPaciente[i].caja+"></td><td><input type='text' onchange=guardarComentario("+data.turnosPaciente[i].trid+") id="+comentario_id+" name='comentario' value='"+data.turnosPaciente[i].comentario+"'  ></td><td><button class='rodri_button_cancelar_no' disabled>NO</button></td></tr>";      
                 }
               }
             }
@@ -399,8 +409,9 @@
           $('#modal_telefono').val(data.paciente.telefono);        
           $('#modal_domicilio').val(data.paciente.domicilio);        
           $('#modal_localidad').val(data.paciente.localidad);        
-          $('#modal_mail').val(data.paciente.mail);        
-          $('#modal_obra_social').val(data.paciente.obra_social);        
+          $('#modal_mail').val(data.paciente.mail);
+          $('#modal_nota').val(data.paciente.nota || '');
+          $('#modal_obra_social').val(data.paciente.obra_social);
           $('#modal_numero_afiliado').val(data.paciente.numero_afiliado);        
           $('#modal_plan_obra_social').val(data.paciente.obra_social_plan);        
           $('#modalVerDatosPaciente').modal();  

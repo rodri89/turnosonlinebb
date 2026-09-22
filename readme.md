@@ -154,11 +154,13 @@ Si el paciente no tiene OAuth configurado, se abre Google Calendar directamente 
 
 ## 📚 Documentación Adicional
 
-- [API_SALUD360.md](API_SALUD360.md) — API REST `/api/salud360/...` que usa la app **Salud 360** (médicos, secretarias y administrador) sobre esta misma base de datos.
+- [API_SALUD360.md](md/API_SALUD360.md) — API REST `/api/salud360/...` que usa la app **Salud 360** (médicos, secretarias y administrador) sobre esta misma base de datos.
 
-- [Guía de configuración de Firebase](FIREBASE_SETUP.md)
-- [Guía de Google Cloud Console](GUIA_GOOGLE_CLOUD_CONSOLE.md)
-- [Configuración de OAuth para Google Calendar](GOOGLE_CALENDAR_OAUTH_SETUP.md)
+- [Guía de configuración de Firebase](md/FIREBASE_SETUP.md)
+- [Guía de Google Cloud Console](md/GUIA_GOOGLE_CLOUD_CONSOLE.md)
+- [Configuración de OAuth para Google Calendar](md/GOOGLE_CALENDAR_OAUTH_SETUP.md)
+
+El resto de las guías y checklists (Firebase, PackageManifest, Google Calendar, etc.) también están en [md/](md/).
 
 ## 🤝 Contribuir
 

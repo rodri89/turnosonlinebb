@@ -35,7 +35,7 @@ Route::post('/webhooks/mercadopago', 'TurnoPagoController@webhook');
 |--------------------------------------------------------------------------
 | API Salud 360 (app de médicos, secretarias y administrador)
 |--------------------------------------------------------------------------
-| Autenticación con tokens propios (middleware salud360). Ver API_SALUD360.md.
+| Autenticación con tokens propios (middleware salud360). Ver md/API_SALUD360.md.
 */
 Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function () {
     Route::post('auth/login', 'AuthController@login');
