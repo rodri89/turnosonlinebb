@@ -50,6 +50,11 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         Route::get('catalogos', 'CatalogoController@index');
         Route::get('obras-sociales', 'CatalogoController@obrasSocialesMedico');
         Route::post('obras-sociales', 'CatalogoController@guardarObraSocialMedico');
+
+        // Quiénes pueden entrar, para el panel de administración de la app. Solo el administrador.
+        // Los médicos, los consultorios y las especialidades ya van en `catalogos`.
+        Route::get('usuarios', 'UsuarioController@index');
+        Route::get('secretarias', 'UsuarioController@secretarias');
         Route::get('mensajes', 'CatalogoController@mensajes');
         Route::post('mensajes', 'CatalogoController@guardarMensaje');
         Route::put('mensajes/{id}', 'CatalogoController@actualizarMensaje');
