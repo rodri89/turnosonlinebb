@@ -185,6 +185,24 @@
     @endforeach
   </ul> -->                                                  
 @else
+
+@if($medico->id == 32)  
+  <ul>              
+    <li class="fontColorHeader">Martes: 17:30 a 20:00</li>          
+  </ul>
+  <div class="col-md-8 mb-3">
+    <h6 class="fontColorHeader">Consultorio: Alvarado 575</h6>
+    <h6 class="fontColorHeader">Telefono  2915756022</h6>
+  </div>
+
+  <ul>                  
+    <li class="fontColorHeader letrasrojo">Miercoles: 09:00 a 12:30</li>     
+  </ul>
+  <div class="col-md-8 mb-3">
+    <h6 class="fontColorHeader letrasrojo">Consultorio: {{ $consultorio->direccion}}</h6>
+    <h6 class="fontColorHeader letrasrojo">Telefono {{$consultorio->telefono}}</h6>
+  </div>
+@else
   
     @if($medico->id == 13) <!-- Lucas Sosa -->    
       @if($tipoTurno == 1)
@@ -225,6 +243,7 @@
       @endif
     @endif
   @endif
+@endif
 @endif
 @endif
 @endif

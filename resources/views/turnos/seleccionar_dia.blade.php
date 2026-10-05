@@ -1015,6 +1015,12 @@ $.ajaxSetup({
                   }
                 }
 
+                if(data.medico.id == 32){
+                  if(data.datosTurno.dia == 2) {
+                    consultorio = "Alvarado 575";
+                  }
+                }
+
                 if(data.medico.id == 43) {
                   if(data.datosTurno.dia == 1 || data.datosTurno.dia == 3 || data.datosTurno.dia == 5) {
                     consultorio = "Luiggi 463";
@@ -1266,6 +1272,11 @@ $.ajaxSetup({
                 if(data.medico.id == 24) {
                   if(data.datosTurno.dia == 1 || data.datosTurno.dia == 5) {
                     consultorio = "Luiggi 463";
+                  }
+                }
+                if(data.medico.id == 32){
+                  if(data.datosTurno.dia == 2) {
+                    consultorio = "Alvarado 575";
                   }
                 }
                 if(data.medico.id == 43) {

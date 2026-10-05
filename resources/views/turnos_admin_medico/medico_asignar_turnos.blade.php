@@ -64,7 +64,14 @@
   <button class="rodri_button_calendario divMarginCel"><img class="card-img-top" src="images/iconos/calendario.jpg"/></button>
   </form>
 </div>
-<label for="text" class="col-sm-0 control-label marginLeft10px editText">Fecha libre mas cercana: <input id="fechaLibreDisponible" class="sinBackground"  value="{{$fechaLibreDisponible}}"></input></label>              
+<div class="col-md-4">
+  <label for="text" class="col-sm-0 control-label editText"><strong>Fechas libres mas cercanas:</strong></label>
+  <ul class="fontColorHeader" style="margin-bottom:0;">
+    <li class="editText" id="fechaLibreDisponible">{{$fechaLibreDisponible}}</li>
+    <li class="editText" id="fechaLibreDisponible2">{{$fechaLibreDisponible2}}</li>
+    <li class="editText" id="fechaLibreDisponible3">{{$fechaLibreDisponible3}}</li>
+  </ul>
+</div>
 </div>
 
 <div class="row">	
@@ -489,8 +496,10 @@ function mostrarSnackbar(cs) {
                   generarTablaCardiologo(data);                
                 } else {
                   generarTabla(data);                
-                }      
-               document.getElementById("fechaLibreDisponible").value = data.fechaLibreDisponible;         
+                }
+               document.getElementById("fechaLibreDisponible").innerHTML = data.fechaLibreDisponible;
+               document.getElementById("fechaLibreDisponible2").innerHTML = data.fechaLibreDisponible2;
+               document.getElementById("fechaLibreDisponible3").innerHTML = data.fechaLibreDisponible3;
            }
         });
   }
@@ -597,21 +606,21 @@ function mostrarSnackbar(cs) {
 
   function validarPacienteExiste() {
   	var dni = document.getElementById("dni_paciente").value;      		
-    var consultorio = document.getElementById("consultorio").value;
+    var consultorio = document.getElementById("consultorio").value;    
 		$.ajax({
        type:'POST',
        dataType:'JSON',
        url:'/paciente_consultar',
        data:{dni_paciente :dni, consultorio:consultorio, _token: '{{csrf_token()}}'},
-       success:function(data){           		
+       success:function(data){                  		
 	       	var paciente = document.getElementById("paciente");	       	
   	   		var dni = document.getElementById("dni");
   	   		var telefono = document.getElementById("telefono");
   	   		var mail = document.getElementById("mail");
   	   		var obrasocial = document.getElementById("obrasocial");          
   	   		var horarioSeleccionado = document.getElementById("horario_seleccionado").value;
-          document.getElementById("msj_no_asistio").hidden = true;
-	        if (data.paciente != null) {
+          document.getElementById("msj_no_asistio").hidden = true;        
+	        if (data.paciente != null) {            
             validarAsistioUltimaVes(data.paciente.id);        	       	
 	       		document.getElementById("pacienteNoExiste").hidden=true;	       			       					       		
 	       		paciente.innerHTML = data.paciente.apellido+", "+data.paciente.nombre;	       			       		
@@ -627,7 +636,7 @@ function mostrarSnackbar(cs) {
     					document.getElementById("altaTurno").hidden=false;
     					document.getElementById("debeSeleccionarHorario").hidden=true;					
     				}				
-  	       } else {       
+  	       } else {                    
   	       		document.getElementById("debeSeleccionarHorario").hidden=false;	    
   	       		document.getElementById("pacienteNoExiste").hidden=false;          				
   	       		document.getElementById("debeSeleccionarHorario").hidden=true;					
@@ -862,8 +871,10 @@ function mostrarSnackbar(cs) {
                   generarTablaCardiologo(data);                
                 } else {
                   generarTabla(data);                
-                }      
-              document.getElementById("fechaLibreDisponible").value = data.fechaLibreDisponible;         
+                }
+              document.getElementById("fechaLibreDisponible").innerHTML = data.fechaLibreDisponible;
+              document.getElementById("fechaLibreDisponible2").innerHTML = data.fechaLibreDisponible2;
+              document.getElementById("fechaLibreDisponible3").innerHTML = data.fechaLibreDisponible3;
            }
         });
     }

@@ -848,8 +848,17 @@ class MedicoController extends Controller
         // $data = $this->agregarSobreturnos($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0, $data);
         $someArray = json_decode($data, true);
         
-        $fechaLibreDisponible = $this->turnoLibreMasCercano($medico_id, 0, 0);
-        $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible);
+        $fechaLibreDisponible_aux1 = $this->turnoLibreMasCercano($medico_id, 0, 0);
+
+        $siguienteDia = date('Y-m-d', strtotime('+1 day', strtotime($fechaLibreDisponible_aux1)));
+        $fechaLibreDisponible_aux2 = $this->turnoLibreMasCercano($medico_id, 0, 0, $siguienteDia);
+
+        $siguienteDia = date('Y-m-d', strtotime('+1 day', strtotime($fechaLibreDisponible_aux2)));
+        $fechaLibreDisponible_aux3 = $this->turnoLibreMasCercano($medico_id, 0, 0, $siguienteDia);
+
+        $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux1);
+        $fechaLibreDisponible2 = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux2);
+        $fechaLibreDisponible3 = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux3);
 
            // Modulo id: 3 | corresponde a Primer Control Doble
         $moduloPrimerControlDoble = $this->moduloActivo($medico->id, 3);
@@ -864,7 +873,7 @@ class MedicoController extends Controller
                         ->orderBy('obra_socials.nombre')                                                 
                         ->get();   
 
-        return view('turnos_admin_medico.medico_asignar_turnos')                
+        return view('turnos_admin_medico.medico_asignar_turnos')
                 ->with('turnos',$someArray)
                 ->with('medico',$medico)
                 ->with('tipo_estudio', 0)
@@ -874,7 +883,9 @@ class MedicoController extends Controller
                 ->with('moduloPrimerControlDoble',$moduloPrimerControlDoble)
                 ->with('moduloAfiliadoObligatorio',$moduloAfiliadoObligatorio)
                 ->with('fechaLibreDisponible',$fechaLibreDisponible)
-                ->with('primerControl','NO')        
+                ->with('fechaLibreDisponible2',$fechaLibreDisponible2)
+                ->with('fechaLibreDisponible3',$fechaLibreDisponible3)
+                ->with('primerControl','NO')
                 ->with('dias_deshabilitados',$dias_deshabilitados)
                 ->with('esFeriado',$esFeriado)
                 ->with('dia',$dia); 
@@ -2270,10 +2281,10 @@ class MedicoController extends Controller
         return $encontre;
     }
 
-     function turnoLibreMasCercano($medico, $primerControl, $esVideollamada){
+     function turnoLibreMasCercano($medico, $primerControl, $esVideollamada, $diaInicio = null){
         date_default_timezone_set('America/Argentina/Buenos_Aires');
-        $dia= date("Y-m-d");        
-        $encontre = 0;                
+        $dia = $diaInicio ?? date("Y-m-d");
+        $encontre = 0;
         //$hayTurnoLibre= $this->checkTurnoLibre($medico, $dia);
         while($encontre==0){
             if($this->esFeriado($dia) == null) // si no es feriado
@@ -2526,26 +2537,39 @@ class MedicoController extends Controller
         $diaSeleccionado = $this->getDiaSeleccionado($diaLetras);
 
         // es peg
-        if($tipo_estudio == 1){         
-           $data = $this-> createJsonPeg($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0);          
-           $fechaLibreDisponible = $this->turnoLibreMasCercano($request->get('medico_id'), 0, 1);
-           $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible);                  
+        if($tipo_estudio == 1){
+           $data = $this-> createJsonPeg($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0);
+           $primerControlNum = 0;
+           $esVideollamadaNum = 1;
         } else {
             if($primerControl == 0){
-               $data = $this-> createJson($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0);    
-               $fechaLibreDisponible = $this->turnoLibreMasCercano($request->get('medico_id'), 0, 0);
-               $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible);      
+               $data = $this-> createJson($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0);
+               $primerControlNum = 0;
+               $esVideollamadaNum = 0;
                //return response()->json(array('msj'=>'rodri true'));
             } else {
-                //turnos especiales cada 1 hora.                   
+                //turnos especiales cada 1 hora.
                 $data = $this-> createJsonTurnosDobles($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha);
-                $fechaLibreDisponible = $this->turnoLibreMasCercano($request->get('medico_id'), 1, 0);
-                $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible);
+                $primerControlNum = 1;
+                $esVideollamadaNum = 0;
             }
         }
-        $someArray = json_decode($data, true);      
+
+        $fechaLibreDisponible_aux1 = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControlNum, $esVideollamadaNum);
+
+        $siguienteDia = date('Y-m-d', strtotime('+1 day', strtotime($fechaLibreDisponible_aux1)));
+        $fechaLibreDisponible_aux2 = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControlNum, $esVideollamadaNum, $siguienteDia);
+
+        $siguienteDia = date('Y-m-d', strtotime('+1 day', strtotime($fechaLibreDisponible_aux2)));
+        $fechaLibreDisponible_aux3 = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControlNum, $esVideollamadaNum, $siguienteDia);
+
+        $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux1);
+        $fechaLibreDisponible2 = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux2);
+        $fechaLibreDisponible3 = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux3);
+
+        $someArray = json_decode($data, true);
         $esFeriado = $this->esFeriado($nuevaFecha);
-        return response()->json(array('turnosPaciente'=>$someArray,'medico_id'=>$medico_id,'consultorio'=>$consultorio,'dia'=>$dia, 'primerControl'=>$primerControl, 'fechaLibreDisponible'=>$fechaLibreDisponible, 'esFeriado'=>$esFeriado));
+        return response()->json(array('turnosPaciente'=>$someArray,'medico_id'=>$medico_id,'consultorio'=>$consultorio,'dia'=>$dia, 'primerControl'=>$primerControl, 'fechaLibreDisponible'=>$fechaLibreDisponible, 'fechaLibreDisponible2'=>$fechaLibreDisponible2, 'fechaLibreDisponible3'=>$fechaLibreDisponible3, 'esFeriado'=>$esFeriado));
     }
 
         // recibo fecha con formato 2020-01-01  Y-m-d
@@ -4836,17 +4860,28 @@ class MedicoController extends Controller
             [$medico_id , $consultorio, $diaSeleccionado]); 
 
         if($primerControl==0){
-           $data = $this-> createJson($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0);    
-           $fechaLibreDisponible = $this->turnoLibreMasCercano($request->get('medico_id'), 0, 0);
-           $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible);                 
+           $data = $this-> createJson($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0);
+           $primerControlNum = 0;
         } else {
-            //turnos especiales cada 1 hora.                   
+            //turnos especiales cada 1 hora.
             $data = $this-> createJsonTurnosDobles($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha);
-            $fechaLibreDisponible = $this->turnoLibreMasCercano($request->get('medico_id'), 1, 0);
-            $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible);
+            $primerControlNum = 1;
         }
-        $someArray = json_decode($data, true);      
-        return response()->json(array('turnosPaciente'=>$someArray,'medico_id'=>$medico_id,'consultorio'=>$consultorio,'dia'=>$dia, 'primerControl'=>$primerControl, 'fechaLibreDisponible'=>$fechaLibreDisponible));
+
+        $fechaLibreDisponible_aux1 = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControlNum, 0);
+
+        $siguienteDia = date('Y-m-d', strtotime('+1 day', strtotime($fechaLibreDisponible_aux1)));
+        $fechaLibreDisponible_aux2 = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControlNum, 0, $siguienteDia);
+
+        $siguienteDia = date('Y-m-d', strtotime('+1 day', strtotime($fechaLibreDisponible_aux2)));
+        $fechaLibreDisponible_aux3 = $this->turnoLibreMasCercano($request->get('medico_id'), $primerControlNum, 0, $siguienteDia);
+
+        $fechaLibreDisponible = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux1);
+        $fechaLibreDisponible2 = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux2);
+        $fechaLibreDisponible3 = $this->convertirFechaParaMostrar($fechaLibreDisponible_aux3);
+
+        $someArray = json_decode($data, true);
+        return response()->json(array('turnosPaciente'=>$someArray,'medico_id'=>$medico_id,'consultorio'=>$consultorio,'dia'=>$dia, 'primerControl'=>$primerControl, 'fechaLibreDisponible'=>$fechaLibreDisponible, 'fechaLibreDisponible2'=>$fechaLibreDisponible2, 'fechaLibreDisponible3'=>$fechaLibreDisponible3));
      }
 
 

@@ -1514,19 +1514,19 @@ class PacienteController extends Controller
                     ->where('pacientes.dni',$dni_paciente)                                                      
                     ->first();
             $primerControl = 0;
-            if($paciente != null){                        
-                $primerControl = DB::table('turno_registrados')                                                
+            if($paciente != null){
+                $primerControl = DB::table('turno_registrados')
                     ->where('turno_registrados.paciente',$paciente->id)
-                    ->where('turno_registrados.activo', 1)    
+                    ->where('turno_registrados.activo', 1)
                     ->get()
                     ->count();
-        if($showOneSignal != null && $showOneSignal == 1) {
-            return response()->json(array('success'=>true,'paciente'=>$paciente, 'primerControl'=>$primerControl, 'oneSignalHtml' => view('components.onesignal', ['paciente' => $paciente])->render()
-));    
-        } else {
-            return response()->json(array('paciente'=>$paciente, 'primerControl'=>$primerControl));    
-        }                          
-    }
+            }
+
+            if($showOneSignal != null && $showOneSignal == 1) {
+                return response()->json(array('success'=>true,'paciente'=>$paciente, 'primerControl'=>$primerControl, 'oneSignalHtml' => view('components.onesignal', ['paciente' => $paciente])->render()));
+            } else {
+                return response()->json(array('paciente'=>$paciente, 'primerControl'=>$primerControl));
+            }
     }
 
 

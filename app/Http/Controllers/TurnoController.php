@@ -4604,6 +4604,13 @@ class TurnoController extends Controller
                                $json['telefono_consultorio'] = "4814538";                                                    
                             }
                         }
+
+                        if($medico->id == 32) {
+                            if($paciente->dia == 2) {
+                               $json['direccion'] = 'Alvarado 575'; 
+                               $json['telefono_consultorio'] = "2915756022";                                                    
+                            }
+                        }
                        
                         if($this->estaEnListaNegra($paciente->telefono) == false) {
                             $data[] = $json;                                                     

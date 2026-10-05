@@ -12,3 +12,8 @@ yarn-error.log
 /storage/app/firebase-service-account.json
 /.idea
 /.vscode
+
+# Rescate de turnos desde Gmail: contienen datos de pacientes
+/turnos_14_15_septiembre.xlsx
+/turnosconfirmados.txt
+/pass_rescate_turnos.txt

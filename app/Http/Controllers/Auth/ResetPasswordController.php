@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\ResetsPasswords;
-use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -24,7 +23,6 @@ class ResetPasswordController extends Controller
     */
 
     use ResetsPasswords;
-    use AuthenticatesUsers;
 
     /**
      * Where to redirect users after resetting their password.
@@ -40,8 +38,7 @@ class ResetPasswordController extends Controller
      */
     public function __construct()
     {
-        $this->middleware('guest', ['except' => 'logout']);
-        //$this->middleware('guest');
+        $this->middleware('guest');
     }
 
     public function irHome(){           
