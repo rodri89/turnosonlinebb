@@ -353,17 +353,9 @@
                   @endif
                 </div>
               </div>                                            
-              @if(($medico->id == 2 && $tipoTurno == 24) || $medico->id == 39)
-                @if(isset($diferencialPaciente) && $diferencialPaciente->encontrado)
-                  <p class="fontColorHeader mb-1"><strong>Valor diferencial para su obra social ({{ $diferencialPaciente->nombre_obra }}):</strong> ${{ number_format($diferencialPaciente->importe, 0, ',', '.') }}</p>
-                  <p class="fontColorHeader small mb-0"><i>Otras obras sociales: <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">ver listado completo</a>.</i></p>
-                @elseif(isset($diferencialPaciente) && ($diferencialPaciente->mensaje ?? '') === 'sin_obra')
-                  <p class="fontColorHeader"><i>No tenemos cargada una obra social en su perfil. Para ver los valores <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">clic aquí</a>.</i></p>
-                @elseif(isset($diferencialPaciente) && ($diferencialPaciente->mensaje ?? '') === 'no_tabla')
-                  <p class="fontColorHeader"><i>No hay un valor cargado para «{{ $diferencialPaciente->nombre_obra }}». <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">Ver listado de obras sociales</a>.</i></p>
-                @else
-                  <p class="fontColorHeader"><i>Para conocer el valor de la consulta según su obra social haga <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">clic aquí</a>.</i></p>
-                @endif
+              @if(($moduloDiferencialObraSocial ?? 0) == 1 && isset($diferencialPaciente) && $diferencialPaciente->encontrado)
+                <p class="fontColorHeader mb-1"><strong>Valor diferencial para su obra social ({{ $diferencialPaciente->nombre_obra }}):</strong> ${{ number_format($diferencialPaciente->importe, 0, ',', '.') }}</p>
+                <p class="fontColorHeader small mb-0"><i>Otras obras sociales: <a href="#" class="text-danger" onclick="showObraSocialDiferncial(); return false;">ver listado completo</a>.</i></p>
               @endif
               <br>
                  <div hidden class="contenedor3">                           
@@ -487,6 +479,7 @@ $.ajaxSetup({
   });
 
   var confirmDiferencialOs = @json($confirmDiferencialPayload);
+  var moduloDiferencialObraSocialActivo = @json((($moduloDiferencialObraSocial ?? 0) == 1));
 
   var medico_id = document.getElementById("medico_id").value;
   console.log('[Seleccionar día] Especialidad del especialista', {
@@ -914,36 +907,27 @@ $.ajaxSetup({
         return numero.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   }
 
-  function mostrarArancelDiferencial() {
-    var medico_id = document.getElementById("medico_id").value;    
-    var tipoTurno = document.getElementById("tipoTurno").value;
-    if (medico_id == 2 && tipoTurno == 24) {      
-      return true;
-    }
-    if(medico_id == 39) {     
-      return true;
-    }
-    return false;
+  /**
+   * Gate de "mostrar diferencial por obra social": módulo activo para el médico
+   * (moduloDiferencialObraSocialActivo, calculado server-side) Y valor cargado
+   * para la obra social del paciente (confirmDiferencialOs.encontrado).
+   * Nombrada distinto de mostrarArancelDiferencial() (la que abre/cierra el modal
+   * de listado completo, definida en modal.modal_obra_social_diferencial) para no
+   * pisarla: antes ambas se llamaban igual y la última en cargar ganaba.
+   */
+  function debeMostrarDiferencialObraSocial() {
+    return moduloDiferencialObraSocialActivo && !!confirmDiferencialOs && !!confirmDiferencialOs.encontrado;
   }
 
   function textoHtmlDiferencialObraSocialConfirm() {
-    var mid = parseInt(document.getElementById('medico_id').value, 10);
-    var tt = parseInt(document.getElementById('tipoTurno').value, 10);
-    //if (mid !== 2 || tt !== 24 || !confirmDiferencialOs) {
-    if(mostrarArancelDiferencial() === false) {
+    if(debeMostrarDiferencialObraSocial() === false) {
       return '';
     }
-    if (confirmDiferencialOs.encontrado && confirmDiferencialOs.importe != null) {
+    if (confirmDiferencialOs.importe != null) {
       var nombre = String(confirmDiferencialOs.nombre_obra || '')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       var imp = formatearNumero(Math.round(Number(confirmDiferencialOs.importe)));
       return '<br><br><b>Valor diferencial para su obra social (' + nombre + '): $' + imp + '</b>';
-    }
-    if (confirmDiferencialOs.mensaje === 'sin_obra') {
-      return '<br><br><i>No tenemos cargada una obra social en su perfil; consulte el valor con el consultorio.</i>';
-    }
-    if (confirmDiferencialOs.mensaje === 'no_tabla') {
-      return '<br><br><i>No hay un valor cargado para su obra social en el sistema.</i>';
     }
     return '';
   }

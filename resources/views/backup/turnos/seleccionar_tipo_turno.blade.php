@@ -1,7 +1,7 @@
 
 @extends('turnos/modelo_plantilla')
 
-@section('titulo_header','Seleccionar Tipo Turno o Solicitud de Receta')
+@section('titulo_header','Seleccionar Tipo Turno')
 
 @if($medico->id == 11)
   @section('headerContainer')

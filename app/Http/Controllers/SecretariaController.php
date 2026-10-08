@@ -3764,23 +3764,18 @@ class SecretariaController extends Controller
                     ->where('horario_medico_dhs_videollamadas.dia','=', $dia)
                     ->where('horario_medico_dhs_videollamadas.activo','=', 1)
                     ->get();
-        } else {
-            $desdeHasta = DB::table('horario_medico_d_h_s')
-                    ->where('horario_medico_d_h_s.medico','=', $medicoId)
-                    ->where('horario_medico_d_h_s.dia','=', $dia)
-                    ->where('horario_medico_d_h_s.activo','=', 1)
-                    ->get();
-        }
 
-        if($desdeHasta->count()>0){
-            $aux = $desdeHasta[0]->desde.' a '.$desdeHasta[0]->hasta;
-            if($desdeHasta->count()>1){
-                $aux = $aux.' - '.$desdeHasta[1]->desde.' a '.$desdeHasta[1]->hasta;           
+            if($desdeHasta->count()>0){
+                $aux = $desdeHasta[0]->desde.' a '.$desdeHasta[0]->hasta;
+                if($desdeHasta->count()>1){
+                    $aux = $aux.' - '.$desdeHasta[1]->desde.' a '.$desdeHasta[1]->hasta;
+                }
+                return $aux;
             }
-            return $aux;
-        } else {
             return '';
         }
+
+        return HorarioMedico::desdeHastaTexto($medicoId, $dia, $tipoTurno);
     }
 
     public function diasAtencion($medico_id, $consultorio_id, $esVideollamada, $tipoTurno) {

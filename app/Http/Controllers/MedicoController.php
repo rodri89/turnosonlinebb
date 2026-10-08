@@ -113,6 +113,9 @@ class MedicoController extends Controller
         // Historias clínicas de Salud 360 (pediatría, clínica, ...) que el médico puede abrir desde la app
         $historiasClinicas = app(\App\Services\Salud360\HistoriaClinicaService::class)->estadoPara($medico_id);
 
+        // Tipos de turno (Consulta, Videollamada, Entrevista con padres, ...) que ofrece el médico
+        $tipoTurnos = app(\App\Services\TipoTurnoService::class)->estadoPara($medico_id);
+
     	return View('turnos_admin.alta_medico')
     	->with('especialidad',$especialidad)
         ->with('user',$usuario_actual)
@@ -120,9 +123,10 @@ class MedicoController extends Controller
         ->with('medico',$medico[0])
         ->with('moduloMedicos',$data)
         ->with('historiasClinicas',$historiasClinicas)
+        ->with('tipoTurnos',$tipoTurnos)
         ->with('videollamada',$videollamada)
         ->with('moduloMercadoPago',$moduloMercadoPago)
-    	->with('consultorios',$consultorios);    	        
+    	->with('consultorios',$consultorios);
     }
 
     public function actualizarFoto(Request $request){
@@ -450,23 +454,18 @@ class MedicoController extends Controller
                     ->where('horario_medico_dhs_videollamadas.dia','=', $dia)
                     ->where('horario_medico_dhs_videollamadas.activo','=', 1)
                     ->get();
-        } else {
-            $desdeHasta = DB::table('horario_medico_d_h_s')
-                    ->where('horario_medico_d_h_s.medico','=', $medicoId)
-                    ->where('horario_medico_d_h_s.dia','=', $dia)
-                    ->where('horario_medico_d_h_s.activo','=', 1)
-                    ->get();
-        }
 
-        if($desdeHasta->count()>0){
-            $aux = $desdeHasta[0]->desde.' a '.$desdeHasta[0]->hasta;
-            if($desdeHasta->count()>1){
-                $aux = $aux.' - '.$desdeHasta[1]->desde.' a '.$desdeHasta[1]->hasta;           
+            if($desdeHasta->count()>0){
+                $aux = $desdeHasta[0]->desde.' a '.$desdeHasta[0]->hasta;
+                if($desdeHasta->count()>1){
+                    $aux = $aux.' - '.$desdeHasta[1]->desde.' a '.$desdeHasta[1]->hasta;
+                }
+                return $aux;
             }
-            return $aux;
-        } else {
             return '';
         }
+
+        return HorarioMedico::desdeHastaTexto($medicoId, $dia, $tipoTurno);
     }
 
     public function diaAtencionDesdeHastaAgregadas($medico_id, $consultorio_id, $dia){        
@@ -4407,6 +4406,23 @@ class MedicoController extends Controller
         return response()->json(['response' => 1, 'historias_clinicas' => $guardadas]);
     }
 
+    /**
+     * POST admin_tipo_turno_medico {medico_id, tipos_turno: [id, ...]}
+     * Deja habilitados para el médico exactamente los tipos de turno indicados.
+     */
+    public function adminTipoTurnoMedico(Request $request){
+        $medico_id = (int) $request->medico_id;
+        if ($medico_id <= 0) {
+            return response()->json(['response' => 0, 'mensaje' => 'Falta el médico'], 422);
+        }
+        $ids = $request->input('tipos_turno', []);
+        if (!is_array($ids)) {
+            $ids = array_filter(explode(',', (string) $ids));
+        }
+        $guardados = app(\App\Services\TipoTurnoService::class)->guardar($medico_id, $ids);
+        return response()->json(['response' => 1, 'tipos_turno' => $guardados]);
+    }
+
     public function adminModuloMedico(Request $request){
         $medico_id = $request->medico_id;
         $consultorio_id = $request->consultorio_id;
@@ -4422,7 +4438,8 @@ class MedicoController extends Controller
         $extraTurnoCheck = $request->extraTurno; // modulo 10
         $mostrarDosCheck = $request->input('mostrarDos', 0);
         $cobroTurnosMpCheck = $request->input('cobroTurnosMp', 0);
-     
+        $diferencialObraSocialCheck = $request->input('diferencialObraSocial', 0); // modulo 13
+
         $moduloActivarPacienteExiste = $this->moduloExiste($medico_id, 1);
         if($activarPacienteCheck == 1){    
             if($moduloActivarPacienteExiste->count()==0){ // quiere decir que NO existe
@@ -4534,6 +4551,15 @@ class MedicoController extends Controller
         } else {
             if($moduloCobroTurnosMp->count()>0)
                 $this->eliminarModulo($moduloCobroTurnosMp[0]->id);
+        }
+
+        $moduloDiferencialObraSocial = $this->moduloExiste($medico_id, 13);
+        if((int)$diferencialObraSocialCheck == 1){
+            if($moduloDiferencialObraSocial->count()==0)
+                $this->agregarModulo($medico_id, 13);
+        } else {
+            if($moduloDiferencialObraSocial->count()>0)
+                $this->eliminarModulo($moduloDiferencialObraSocial[0]->id);
         }
 
         return response()->json(array('response'=>11));
@@ -5191,13 +5217,22 @@ class MedicoController extends Controller
          }
          $tieneVigencia = Schema::hasColumn('horario_medicos', 'valido_desde');
          $tieneQuincenal = $tieneVigencia && Schema::hasColumn('horario_medicos', 'quincenal');
+
+         $tipoTurnoService = app(\App\Services\TipoTurnoService::class);
+         $tiposHabilitados = $tipoTurnoService->habilitadosConNombre($medico->id);
+         $tieneMultiplesTipos = count($tiposHabilitados) > 1;
+         $tipoTurnoNombrePorId = $tipoTurnoService->nombresPorId();
+
          return view('turnos_admin_medico.admin_horarios_fijos')
              ->with('medico', $medico)
              ->with('consultorio', $consultorio)
              ->with('horariosPorDia', $horariosPorDia)
              ->with('slotsDisponibles', $slotsDisponibles)
              ->with('tieneVigencia', $tieneVigencia)
-             ->with('tieneQuincenal', $tieneQuincenal);
+             ->with('tieneQuincenal', $tieneQuincenal)
+             ->with('tieneMultiplesTipos', $tieneMultiplesTipos)
+             ->with('tiposHabilitados', $tiposHabilitados)
+             ->with('tipoTurnoNombrePorId', $tipoTurnoNombrePorId);
      }
 
      /**
@@ -5233,7 +5268,16 @@ class MedicoController extends Controller
          $reg->doble = 0;
          $reg->activo = 1;
          if (Schema::hasColumn('horario_medicos', 'tipo_turno')) {
-             $reg->tipo_turno = 1;
+             $tipoTurnoService = app(\App\Services\TipoTurnoService::class);
+             $tiposHabilitados = $tipoTurnoService->habilitados($medico->id);
+             $tipoTurnoId = 1;
+             if (count($tiposHabilitados) > 1) {
+                 $tipoTurnoSolicitado = (int) $request->input('tipo_turno', 0);
+                 $tipoTurnoId = in_array($tipoTurnoSolicitado, $tiposHabilitados, true)
+                     ? $tipoTurnoSolicitado
+                     : $tiposHabilitados[0];
+             }
+             $reg->tipo_turno = $tipoTurnoId;
          }
          if (Schema::hasColumn('horario_medicos', 'valido_desde')) {
              $reg->valido_desde = $this->parseFechaVigencia($request->input('valido_desde'));
@@ -5248,9 +5292,15 @@ class MedicoController extends Controller
          }
          $reg->save();
          $resp = ['ok' => true, 'id' => $reg->id, 'horario' => $horario];
+         if (Schema::hasColumn('horario_medicos', 'tipo_turno')) {
+             $resp['tipo_turno'] = $reg->tipo_turno;
+             $resp['tipo_turno_nombre'] = app(\App\Services\TipoTurnoService::class)->nombre($reg->tipo_turno);
+         }
          if (Schema::hasColumn('horario_medicos', 'valido_desde')) {
-             $resp['valido_desde'] = $reg->valido_desde ? $reg->valido_desde : null;
-             $resp['valido_hasta'] = $reg->valido_hasta ? $reg->valido_hasta : null;
+             // $reg->valido_desde es Carbon (HorarioMedico::$dates): formatear a Y-m-d plano,
+             // igual que lo devuelve actualizarVigenciaHorarioFijo() (que lee de DB::table, no Eloquent).
+             $resp['valido_desde'] = $reg->valido_desde ? $reg->valido_desde->format('Y-m-d') : null;
+             $resp['valido_hasta'] = $reg->valido_hasta ? $reg->valido_hasta->format('Y-m-d') : null;
          }
          if (Schema::hasColumn('horario_medicos', 'quincenal')) {
              $resp['quincenal'] = (bool) $reg->quincenal;

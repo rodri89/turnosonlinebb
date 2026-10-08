@@ -27,8 +27,9 @@ class ConsultorioController extends Controller
         $consultorio->telefono = $request->get('telefono');
         $consultorio->foto = $name;
         $consultorio->activo = 1;
-        $consultorio->config = $this->buildConfigFromRequest($request);
-    
+        // config queda sin setear (null): el consultorio nuevo hereda el estilo por defecto
+        // del sitio. Los colores propios se eligen aparte, desde "Configurar Estilos".
+
         $consultorio->save();
 		
         //return;//.$request->get('nombre');

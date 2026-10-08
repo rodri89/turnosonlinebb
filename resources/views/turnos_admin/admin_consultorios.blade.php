@@ -44,36 +44,7 @@
           <label for="text" class="col-sm-0 control-label">Foto</label><br>
           <input type="file" name="foto" placeholder="foto"  />
 
-          <hr>
-          <h4>Configuración de Estilos</h4>
-          <small class="text-muted">Personalice los colores y fuente del consultorio para las pantallas públicas.</small>
-          <br><br>
-
-          <label for="text" class="col-sm-0 control-label">Color Primario (Nav y Footer)</label>      
-          <input type="color" class="form-control" name="color_primario" value="#1a5276"  />
-          
-          <label for="text" class="col-sm-0 control-label">Color Secundario (Header)</label>      
-          <input type="color" class="form-control" name="color_secundario" value="#2e86c1"  />
-          
-          <label for="text" class="col-sm-0 control-label">Color Terciario (detalles)</label>      
-          <input type="color" class="form-control" name="color_terciario" value="#85c1e9"  />
-
-          <label for="text" class="col-sm-0 control-label">Color Título (texto del header)</label>      
-          <input type="color" class="form-control" name="titulo_color" value="#ffffff"  />
-
-          <label for="text" class="col-sm-0 control-label">Color Subtítulo</label>      
-          <input type="color" class="form-control" name="subtitulo_color" value="#d4e6f1"  />
-
-          <label for="text" class="col-sm-0 control-label">Tipo de Letra (Nav)</label>      
-          <select class="form-control" name="titulo_tipo_letra">
-            <option value="Arial, sans-serif">Arial</option>
-            <option value="Helvetica, sans-serif">Helvetica</option>
-            <option value="'Times New Roman', serif">Times New Roman</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="Verdana, sans-serif">Verdana</option>
-            <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
-            <option value="'Segoe UI', sans-serif">Segoe UI</option>
-          </select>
+          <small class="text-muted">El consultorio se crea con el estilo por defecto del sitio. Para personalizar colores y fuente, usá "Configurar Estilos" una vez creado.</small>
 
           <br> <br>
           <div>

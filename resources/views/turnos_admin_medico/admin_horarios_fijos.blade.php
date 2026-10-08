@@ -13,6 +13,9 @@
             @if(isset($tieneQuincenal) && $tieneQuincenal)
                 <p class="text-muted small mt-1">Tildando <strong>cada 15 días</strong> ese horario se ofrece una semana sí, una semana no, tomando "Válido desde" como semana de referencia.</p>
             @endif
+            @if(isset($tieneMultiplesTipos) && $tieneMultiplesTipos)
+                <p class="text-muted small mt-1">Tenés más de un <strong>tipo de turno</strong> habilitado: elegí a cuál corresponde cada horario que cargues. El paciente va a poder elegir el tipo antes de ver el calendario.</p>
+            @endif
             @if(isset($consultorio) && $consultorio)
                 <p class="text-muted small mt-1"><strong>Consultorio:</strong> {{ $consultorio->nombre }}</p>
             @endif
@@ -42,6 +45,9 @@
                                     <div class="d-flex justify-content-between align-items-start">
                                         <div>
                                             <span class="horario-texto font-weight-bold">{{ $h->horario }}</span>
+                                            @if(isset($tieneMultiplesTipos) && $tieneMultiplesTipos && !empty($tipoTurnoNombrePorId[$h->tipo_turno] ?? null))
+                                                <span class="badge badge-secondary tipo-turno-badge ml-1">{{ $tipoTurnoNombrePorId[$h->tipo_turno] }}</span>
+                                            @endif
                                             @if(isset($tieneQuincenal) && $tieneQuincenal && !empty($h->quincenal))
                                                 <span class="badge badge-info quincenal-badge ml-1">Cada 15 días</span>
                                             @endif
@@ -86,6 +92,16 @@
                                 <div class="form-check mb-2">
                                     <input type="checkbox" class="form-check-input input-quincenal" id="input-quincenal-{{ $numDia }}" data-dia="{{ $numDia }}">
                                     <label class="form-check-label small mb-0" for="input-quincenal-{{ $numDia }}">Cada 15 días (si no ponés "Válido desde" se usa hoy como referencia)</label>
+                                </div>
+                            @endif
+                            @if(isset($tieneMultiplesTipos) && $tieneMultiplesTipos)
+                                <div class="form-group mb-2">
+                                    <label class="mb-0 small">Tipo de turno</label>
+                                    <select class="form-control form-control-sm input-tipo-turno-dia" data-dia="{{ $numDia }}">
+                                        @foreach($tiposHabilitados as $tt)
+                                            <option value="{{ $tt['id'] }}">{{ $tt['nombre'] }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
                             @endif
                             <div class="input-group input-group-sm">
@@ -147,6 +163,7 @@
     var urlVigencia = '{{ isset($tieneVigencia) && $tieneVigencia ? route("medicoactualizarvigenciahorariofijo") : "" }}';
     var tieneVigencia = {{ isset($tieneVigencia) && $tieneVigencia ? 'true' : 'false' }};
     var tieneQuincenal = {{ isset($tieneQuincenal) && $tieneQuincenal ? 'true' : 'false' }};
+    var tieneMultiplesTipos = {{ isset($tieneMultiplesTipos) && $tieneMultiplesTipos ? 'true' : 'false' }};
 
     function fechaHoyInput() {
         var d = new Date();
@@ -157,6 +174,10 @@
 
     function badgeQuincenalHtml(esQuincenal) {
         return (tieneQuincenal && esQuincenal) ? '<span class="badge badge-info quincenal-badge ml-1">Cada 15 días</span>' : '';
+    }
+
+    function badgeTipoTurnoHtml(nombreTipoTurno) {
+        return (tieneMultiplesTipos && nombreTipoTurno) ? '<span class="badge badge-secondary tipo-turno-badge ml-1">' + nombreTipoTurno + '</span>' : '';
     }
 
     function mostrarMensaje(texto, esError) {
@@ -204,6 +225,10 @@
                 return;
             }
             var payload = { dia: dia, horario: horario, _token: csrf };
+            if (tieneMultiplesTipos) {
+                var selectTipoTurno = document.querySelector('.input-tipo-turno-dia[data-dia="' + dia + '"]');
+                if (selectTipoTurno) payload.tipo_turno = selectTipoTurno.value;
+            }
             var inputDesde = null;
             if (tieneVigencia) {
                 inputDesde = document.querySelector('.input-valido-desde[data-dia="' + dia + '"]');
@@ -247,7 +272,7 @@
                     var li = document.createElement('li');
                     li.className = 'list-group-item px-2 py-2';
                     li.setAttribute('data-id', data.id);
-                    li.innerHTML = '<div class="d-flex justify-content-between align-items-start"><div><span class="horario-texto font-weight-bold">' + data.horario + '</span>' + badgeQuincenalHtml(data.quincenal) + vigenciaHtml + '</div><div class="d-flex align-items-center">' +
+                    li.innerHTML = '<div class="d-flex justify-content-between align-items-start"><div><span class="horario-texto font-weight-bold">' + data.horario + '</span>' + badgeTipoTurnoHtml(data.tipo_turno_nombre) + badgeQuincenalHtml(data.quincenal) + vigenciaHtml + '</div><div class="d-flex align-items-center">' +
                         (tieneVigencia ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 mr-1 vigencia-horario" data-id="' + data.id + '" data-quincenal="' + (data.quincenal ? 1 : 0) + '" title="Vigencia">Vig.</button>' : '') +
                         '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 eliminar-horario" data-id="' + data.id + '" title="Quitar este horario">✕</button></div></div>';
                     list.appendChild(li);

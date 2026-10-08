@@ -265,11 +265,13 @@ class TurnoController extends Controller
 
         $obrasSociales = $this->getDiferencialObraSocial($medico->id);
         $diferencialPaciente = $this->getImporteDiferencialParaPaciente($medico->id, $paciente);
+        $moduloDiferencialObraSocial = $this->moduloActivo($medico->id, 13);
         return view('turnos.seleccionar_dia')
                         ->with('esVideollamada', $esVideollamada)
                         ->with('tipoTurno', $opcion)
                         ->with('obrasSociales', $obrasSociales)
                         ->with('diferencialPaciente', $diferencialPaciente)
+                        ->with('moduloDiferencialObraSocial', $moduloDiferencialObraSocial)
                         ->with('end_date', $end_date)
                         ->with('medico', $medico)
                         ->with('consultorio',$consultorio[0])
@@ -491,11 +493,13 @@ class TurnoController extends Controller
         
         $obrasSociales = $this->getDiferencialObraSocial($medico[0]->id);
         $diferencialPaciente = $this->getImporteDiferencialParaPaciente($medico[0]->id, $paciente);
+        $moduloDiferencialObraSocial = $this->moduloActivo($medico[0]->id, 13);
     	return view('turnos.seleccionar_dia')
         ->with('esVideollamada',$esVideollamada)
         ->with('tipoTurno',$tipoTurno)
         ->with('obrasSociales', $obrasSociales)
         ->with('diferencialPaciente', $diferencialPaciente)
+        ->with('moduloDiferencialObraSocial', $moduloDiferencialObraSocial)
         ->with('primerControl',$primerControl)
         ->with('end_date',$end_date)
         ->with('diferenciaDias',$diferenciaDias)
@@ -1114,38 +1118,24 @@ class TurnoController extends Controller
 
 
     public function diaAtencionDesdeHasta($medicoId, $dia, $esVideollamada, $tipoTurno){
-        if($tipoTurno == 22) {
-            $desdeHasta = DB::table('horario_medico_d_h_s')
-                        ->where('horario_medico_d_h_s.medico','=', $medicoId)
-                        ->where('horario_medico_d_h_s.dia','=', $dia)
-                        ->where('horario_medico_d_h_s.tipo_turno', '=', $tipoTurno)
-                        ->where('horario_medico_d_h_s.activo','=', 1)
-                        ->get();
-        } else {
-            if($esVideollamada == 1){
-                $desdeHasta = DB::table('horario_medico_dhs_videollamadas')
-                        ->where('horario_medico_dhs_videollamadas.medico','=', $medicoId)
-                        ->where('horario_medico_dhs_videollamadas.dia','=', $dia)
-                        ->where('horario_medico_dhs_videollamadas.activo','=', 1)
-                        ->get();
-            } else {
-                $desdeHasta = DB::table('horario_medico_d_h_s')
-                        ->where('horario_medico_d_h_s.medico','=', $medicoId)
-                        ->where('horario_medico_d_h_s.dia','=', $dia)
-                        ->where('horario_medico_d_h_s.activo','=', 1)
-                        ->get();
-            }
-        }
+        if($esVideollamada == 1){
+            $desdeHasta = DB::table('horario_medico_dhs_videollamadas')
+                    ->where('horario_medico_dhs_videollamadas.medico','=', $medicoId)
+                    ->where('horario_medico_dhs_videollamadas.dia','=', $dia)
+                    ->where('horario_medico_dhs_videollamadas.activo','=', 1)
+                    ->get();
 
-        if($desdeHasta->count()>0){
-            $aux = $desdeHasta[0]->desde.' a '.$desdeHasta[0]->hasta;
-            if($desdeHasta->count()>1){
-                $aux = $aux.' - '.$desdeHasta[1]->desde.' a '.$desdeHasta[1]->hasta;           
+            if($desdeHasta->count()>0){
+                $aux = $desdeHasta[0]->desde.' a '.$desdeHasta[0]->hasta;
+                if($desdeHasta->count()>1){
+                    $aux = $aux.' - '.$desdeHasta[1]->desde.' a '.$desdeHasta[1]->hasta;
+                }
+                return $aux;
             }
-            return $aux;
-        } else {
             return '';
         }
+
+        return HorarioMedico::desdeHastaTexto($medicoId, $dia, $tipoTurno);
     }
 
     

@@ -287,6 +287,10 @@
       return "Ecografia";
     if(tipoTurno == 25)
       return "Consulta + Eco";
+    if(tipoTurno == 26)
+      return "Entrevista con padres";
+    if(tipoTurno == 27)
+      return "Consulta y evaluación";
     return "Consulta";
   }
 

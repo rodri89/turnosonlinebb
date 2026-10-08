@@ -926,6 +926,7 @@ class PacienteController extends Controller
 
         $obrasSociales = $this->getDiferencialObraSocial($medico[0]->id);
         $diferencialPaciente = app(\App\Http\Controllers\TurnoController::class)->getImporteDiferencialParaPaciente($medico[0]->id, $paciente);
+        $moduloDiferencialObraSocial = $this->moduloActivo($medico[0]->id, 13);
 
         // especialidad 2 es cardiologo
         if($medico[0]->especialidad == 2) {
@@ -939,7 +940,10 @@ class PacienteController extends Controller
                     ->with('especialidad_id', $especialidad_id);
         }
 
-        if(($moduloVideollamadas == 1)||($moduloRecetas == 1) || ($moduloExtraTurnos == 1)) {            
+        $tipoTurnoHabilitados = app(\App\Services\TipoTurnoService::class)->habilitadosConNombre($medico[0]->id);
+        $tieneMultiplesTiposTurno = count($tipoTurnoHabilitados) > 1;
+
+        if(($moduloVideollamadas == 1)||($moduloRecetas == 1) || ($moduloExtraTurnos == 1) || $tieneMultiplesTiposTurno) {
             return view('turnos.seleccionar_tipo_turno')
                     ->with('esVideollamada', 1)
                     ->with('tipoTurno', 1)
@@ -955,14 +959,16 @@ class PacienteController extends Controller
                     ->with('dias_habilitados',$dias_habilitados)
                     ->with('moduloRecetas',$moduloRecetas)
                     ->with('moduloVideollamadas',$moduloVideollamadas)
+                    ->with('tipoTurnoHabilitados',$tipoTurnoHabilitados)
                     ->with('dias_deshabilitados',$dias_deshabilitados);
-        } else {        
+        } else {
             return view('turnos.seleccionar_dia')
                     ->with('esVideollamada', 0)
                     ->with('tipoTurno', 1)
                     ->with('end_date', $end_date)
                     ->with('obrasSociales',$obrasSociales)
                     ->with('diferencialPaciente', $diferencialPaciente)
+                    ->with('moduloDiferencialObraSocial', $moduloDiferencialObraSocial)
                     ->with('diferenciaDias',$diferenciaDias)
                     ->with('medico',$medico[0])
                     ->with('consultorio',$consultorio[0])
@@ -1064,11 +1070,13 @@ class PacienteController extends Controller
         $valorConsulta = 0;
         $obrasSociales = $this->getDiferencialObraSocial($medico->id);
         $diferencialPaciente = app(\App\Http\Controllers\TurnoController::class)->getImporteDiferencialParaPaciente($medico->id, $paciente);
+        $moduloDiferencialObraSocial = $this->moduloActivo($medico->id, 13);
         return view('turnos.seleccionar_dia')
                         ->with('esVideollamada', $esVideollamada)
                         ->with('tipoTurno', $opcion)
                         ->with('obrasSociales', $obrasSociales)
                         ->with('diferencialPaciente', $diferencialPaciente)
+                        ->with('moduloDiferencialObraSocial', $moduloDiferencialObraSocial)
                         ->with('end_date', $end_date)
                         ->with('medico', $medico)
                         ->with('consultorio',$consultorio[0])
@@ -1120,10 +1128,12 @@ class PacienteController extends Controller
         return $query_os;
     }
 
-    public function tipoTurno(Request $request) {        
-        if($request->tipo_turno == 22 || $request->tipo_turno == 23 || $request->tipo_turno == 24) {            
+    public function tipoTurno(Request $request) {
+        $tipoTurnoSolicitado = (int) $request->tipo_turno;
+        if($tipoTurnoSolicitado == 22 || $tipoTurnoSolicitado == 23 || $tipoTurnoSolicitado == 24
+            || ($tipoTurnoSolicitado > 1 && app(\App\Services\TipoTurnoService::class)->esTipoValidoParaMedico($request->medico_id, $tipoTurnoSolicitado))) {
             return $this->seleccionarDiaTurnoOnline($request);
-        }        
+        }
 
         $opcion = $request->tipo_turno;
         $medico = medico::find($request->medico_id);        
@@ -1213,13 +1223,15 @@ class PacienteController extends Controller
         }        
         $obrasSociales = $this->getDiferencialObraSocial($medico->id);
         $diferencialPaciente = app(\App\Http\Controllers\TurnoController::class)->getImporteDiferencialParaPaciente($medico->id, $paciente);
-        //return $dias_deshabilitados; 
+        $moduloDiferencialObraSocial = $this->moduloActivo($medico->id, 13);
+        //return $dias_deshabilitados;
         return view('turnos.seleccionar_dia')
                         ->with('esVideollamada', $esVideollamada)
                         ->with('tipoTurno', 1)
                         ->with('end_date', $end_date)
                         ->with('obrasSociales', $obrasSociales)
                         ->with('diferencialPaciente', $diferencialPaciente)
+                        ->with('moduloDiferencialObraSocial', $moduloDiferencialObraSocial)
                         ->with('medico', $medico)
                         ->with('consultorio',$consultorio[0])
                         ->with('diasAtencion',$diasAtencion)
@@ -1451,38 +1463,24 @@ class PacienteController extends Controller
     }
 
     public function diaAtencionDesdeHasta($medicoId, $dia, $esVideollamada, $tipoTurno){
-        if($tipoTurno == 22) {
-            $desdeHasta = DB::table('horario_medico_d_h_s')
-                        ->where('horario_medico_d_h_s.medico','=', $medicoId)
-                        ->where('horario_medico_d_h_s.dia','=', $dia)
-                        ->where('horario_medico_d_h_s.tipo_turno', '=', $tipoTurno)
-                        ->where('horario_medico_d_h_s.activo','=', 1)
-                        ->get();
-        } else {
-            if($esVideollamada == 1 || $tipoTurno == 4){
-                $desdeHasta = DB::table('horario_medico_dhs_videollamadas')
-                        ->where('horario_medico_dhs_videollamadas.medico','=', $medicoId)
-                        ->where('horario_medico_dhs_videollamadas.dia','=', $dia)
-                        ->where('horario_medico_dhs_videollamadas.activo','=', 1)
-                        ->get();
-            } else {
-                $desdeHasta = DB::table('horario_medico_d_h_s')
-                        ->where('horario_medico_d_h_s.medico','=', $medicoId)
-                        ->where('horario_medico_d_h_s.dia','=', $dia)
-                        ->where('horario_medico_d_h_s.activo','=', 1)
-                        ->get();
-            }
-        }
+        if($esVideollamada == 1 || $tipoTurno == 4){
+            $desdeHasta = DB::table('horario_medico_dhs_videollamadas')
+                    ->where('horario_medico_dhs_videollamadas.medico','=', $medicoId)
+                    ->where('horario_medico_dhs_videollamadas.dia','=', $dia)
+                    ->where('horario_medico_dhs_videollamadas.activo','=', 1)
+                    ->get();
 
-        if($desdeHasta->count()>0){
-            $aux = $desdeHasta[0]->desde.' a '.$desdeHasta[0]->hasta;
-            if($desdeHasta->count()>1){
-                $aux = $aux.' - '.$desdeHasta[1]->desde.' a '.$desdeHasta[1]->hasta;           
+            if($desdeHasta->count()>0){
+                $aux = $desdeHasta[0]->desde.' a '.$desdeHasta[0]->hasta;
+                if($desdeHasta->count()>1){
+                    $aux = $aux.' - '.$desdeHasta[1]->desde.' a '.$desdeHasta[1]->hasta;
+                }
+                return $aux;
             }
-            return $aux;
-        } else {
             return '';
         }
+
+        return HorarioMedico::desdeHastaTexto($medicoId, $dia, $tipoTurno);
     }
 
     function consultarPacienteId(Request $request){

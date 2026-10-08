@@ -27,6 +27,7 @@ class AgendaService
     const MODULO_VENTANA_DIAS = 9;
     const MODULO_MOSTRAR_DOS = 11;
     const MODULO_COBRO_TURNOS_MP = 12;
+    const MODULO_DIFERENCIAL_OBRA_SOCIAL = 13;
 
     const TIPO_TURNO_CONSULTA = 1;
     const TIPO_TURNO_VIDEOLLAMADA = 4;

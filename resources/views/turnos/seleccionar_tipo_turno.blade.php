@@ -1,7 +1,7 @@
 
 @extends('turnos/modelo_plantilla')
 
-@section('titulo_header','Seleccionar Tipo Turno o Solicitud de Receta')
+@section('titulo_header','Seleccionar Tipo Turno')
 
 @if($medico->id == 11)
   @section('headerContainer')
@@ -46,10 +46,15 @@
 @php
   $__espFlujo = $especialidad_nombre_flujo ?? '';
   $__espId = $especialidad_id ?? '';
+  // Si el médico tiene múltiples tipos de turno configurados y "Consulta" (id 1) no es uno de
+  // ellos, no mostramos el botón genérico "Presencial": solo ofrecemos sus tipos específicos.
+  $__ocultarPresencial = isset($tipoTurnoHabilitados)
+      && count($tipoTurnoHabilitados) > 1
+      && !collect($tipoTurnoHabilitados)->contains('id', 1);
 @endphp
 
 <div class="row">
-      @if($especialidad_id != 18)        
+      @if($especialidad_id != 18 && !$__ocultarPresencial)
     <form method="POST" action="{{ route('tipoturno') }}">
         @csrf
         <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
@@ -238,6 +243,30 @@
             <h6 class="fontImage" align="center">Ecografias Tiroides <br> y Vasos de cuello</h6>  
           </div>        
       </form>         
+    @endif
+
+    @if(isset($tipoTurnoHabilitados))
+      @foreach($tipoTurnoHabilitados as $tt)
+        @if($tt['id'] != 1 && $tt['id'] != 2)
+          <form method="POST" action="{{ route('tipoturno') }}">
+              @csrf
+              <input type="hidden" name="especialidad_nombre_flujo" value="{{ $__espFlujo }}" />
+              <input type="hidden" name="especialidad_id" value="{{ $__espId }}" />
+              <input type="hidden" name="tipo_turno" value="{{ $tt['id'] }}"  />
+              <input type="hidden" name="medico_id" value="{{$medico->id}}"  />
+              <input type="hidden" name="consultorio_id" value="{{$consultorio->id}}"  />
+              <input type="hidden" name="paciente_id" value="{{$paciente->id}}"  />
+              <input type="hidden" name="primerControl" value="{{$primerControl}}"  />
+              <input type="hidden" name="moduloRecetas" value="{{$moduloRecetas}}"  />
+              <button class="btn btn-primary-outline img-responsive img_home">
+                <img class="card-img-top " src="images/iconos/turno_comun.png" alt="">
+              </button>
+              <div class="card-body">
+                <h6 class="fontImage" align="center">{{ $tt['nombre'] }}</h6>
+              </div>
+          </form>
+        @endif
+      @endforeach
     @endif
 
     @if($medico->id == 35)

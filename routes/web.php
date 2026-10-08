@@ -119,6 +119,9 @@ Route::group(['middleware' => ['auth', 'usuarioAdmin']], function () {
 	// Historias clínicas de Salud 360 habilitadas al médico (tabla salud360_medico_hc)
 	Route::post('admin_hc_medico','MedicoController@adminHistoriasClinicasMedico');
 
+	// Tipos de turno (Consulta, Entrevista con padres, ...) habilitados al médico (tabla medico_tipo_turnos)
+	Route::post('admin_tipo_turno_medico','MedicoController@adminTipoTurnoMedico');
+
 	Route::post('guardar_ventana_dias','MedicoController@guardarVentanaDias');
 	
 	Route::get('admin_feriados','TurnoController@adminFeriados')->name('adminferiados');

@@ -548,6 +548,7 @@ class MedicoMercadoPagoController extends Controller
 
         $obrasSociales = $pacienteCtrl->getDiferencialObraSocial($medicoId);
         $diferencialPaciente = $turnoCtrl->getImporteDiferencialParaPaciente($medicoId, $paciente);
+        $moduloDiferencialObraSocial = $pacienteCtrl->moduloActivo($medicoId, 13);
         $especialidadNombreFlujo = EspecialidadFlujoHelper::nombreParaTurno(null, null, $medico->especialidad, $medico->especialidad);
 
         session([
@@ -562,6 +563,7 @@ class MedicoMercadoPagoController extends Controller
             ->with('end_date', $end_date)
             ->with('obrasSociales', $obrasSociales)
             ->with('diferencialPaciente', $diferencialPaciente)
+            ->with('moduloDiferencialObraSocial', $moduloDiferencialObraSocial)
             ->with('diferenciaDias', $diferenciaDias)
             ->with('medico', $medico)
             ->with('consultorio', $consultorio)

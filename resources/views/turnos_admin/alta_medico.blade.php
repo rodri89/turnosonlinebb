@@ -191,6 +191,23 @@
             <button type="button" onclick="actualizarHistoriasClinicasMedico()">Actualizar</button>
           </div>
 
+      <h2>Tipos de turno</h2>
+          <p class="text-muted">Qué tipos de turno ofrece el médico. Si marca más de uno, en "Mis horarios fijos" podrá elegir el tipo al cargar cada horario, y el paciente va a poder elegir entre ellos antes de ver el calendario.</p>
+          <div class="form-check">
+            @foreach($tipoTurnos as $tt)
+              @if($tt["activo"]==1)
+                <input checked type="checkbox" class="form-check-input check-tipo-turno" id="checkTipoTurno_{{$tt['id']}}" value="{{$tt['id']}}">
+              @else
+                <input type="checkbox" class="form-check-input check-tipo-turno" id="checkTipoTurno_{{$tt['id']}}" value="{{$tt['id']}}">
+              @endif
+              <label class="form-check-label" for="checkTipoTurno_{{$tt['id']}}">{{$tt["nombre"]}}</label><br>
+            @endforeach
+          </div>
+          <br>
+          <div>
+            <button type="button" onclick="actualizarTipoTurnoMedico()">Actualizar</button>
+          </div>
+
       <h2>Ventana Dias</h2>
       <div>
       @if($ventanaDias != null)
@@ -204,8 +221,8 @@
           <button type="button" onclick="actualizarVentanaDiasMedico()">Actualizar</button>     
       </div>
 
-      @if($moduloMercadoPago == 1)
-      <h2>Asignar credenciales MercadoPago</h2>        
+      @if($moduloMercadoPago == 1 && $videollamada)
+      <h2>Asignar credenciales MercadoPago</h2>
           <input type="hidden" class="form-control" id="mp_medico_id" name="mp_medico_id"  value="{{$medico->id}}"  />
           <form>
               @if($videollamada->key)
@@ -259,6 +276,7 @@
     var extraTurnoCheck = document.getElementById("checkModulo10").checked;
     var mostrarDosCheck = document.getElementById("checkModulo11").checked;
     var cobroTurnosMpCheck = document.getElementById("checkModulo12").checked;
+    var diferencialObraSocialCheck = document.getElementById("checkModulo13").checked;
 
     var activarPaciente = 0;
     var cajaComentario = 0;
@@ -272,6 +290,7 @@
     var extraTurno = 0;
     var mostrarDos = 0;
     var cobroTurnosMp = 0;
+    var diferencialObraSocial = 0;
 
     if(activarPacienteCheck)
       activarPaciente = 1;
@@ -297,12 +316,14 @@
       mostrarDos = 1;
     if(cobroTurnosMpCheck)
       cobroTurnosMp = 1;
+    if(diferencialObraSocialCheck)
+      diferencialObraSocial = 1;
 
     $.ajax({
          type:'POST',
          dataType:'JSON',
          url:'/admin_modulo_medico',
-         data:{medico_id:medico_id,consultorio_id:consultorio_id,activarPaciente:activarPaciente, cajaComentario:cajaComentario, primerControlDoble:primerControlDoble, soloUnTurno:soloUnTurno, recetas:recetas, videollamadas:videollamadas, mercadopago:mercadopago, afiliadoObligatorio:afiliadoObligatorio, ventanaDias:ventanaDias,extraTurno:extraTurno, mostrarDos:mostrarDos, cobroTurnosMp:cobroTurnosMp, _token: '{{csrf_token()}}'},
+         data:{medico_id:medico_id,consultorio_id:consultorio_id,activarPaciente:activarPaciente, cajaComentario:cajaComentario, primerControlDoble:primerControlDoble, soloUnTurno:soloUnTurno, recetas:recetas, videollamadas:videollamadas, mercadopago:mercadopago, afiliadoObligatorio:afiliadoObligatorio, ventanaDias:ventanaDias,extraTurno:extraTurno, mostrarDos:mostrarDos, cobroTurnosMp:cobroTurnosMp, diferencialObraSocial:diferencialObraSocial, _token: '{{csrf_token()}}'},
          success:function(data){                          
               alert("Los modulos fueron actualizados");
            }
@@ -323,6 +344,24 @@
            },
          error:function(){
               alert("No se pudieron actualizar las historias clínicas");
+           }
+      });
+  }
+
+  function actualizarTipoTurnoMedico(){
+    var medico_id = document.getElementById("medico_id").value;
+    var ids = [];
+    document.querySelectorAll(".check-tipo-turno").forEach(function (c) { if (c.checked) ids.push(c.value); });
+    $.ajax({
+         type:'POST',
+         dataType:'JSON',
+         url:'/admin_tipo_turno_medico',
+         data:{medico_id:medico_id, tipos_turno:ids, _token: '{{csrf_token()}}'},
+         success:function(data){
+              alert("Los tipos de turno fueron actualizados");
+           },
+         error:function(){
+              alert("No se pudieron actualizar los tipos de turno");
            }
       });
   }
