@@ -114,7 +114,15 @@ class MedicoController extends Controller
         $historiasClinicas = app(\App\Services\Salud360\HistoriaClinicaService::class)->estadoPara($medico_id);
 
         // Tipos de turno (Consulta, Videollamada, Entrevista con padres, ...) que ofrece el médico
-        $tipoTurnos = app(\App\Services\TipoTurnoService::class)->estadoPara($medico_id);
+        $tipoTurnoService = app(\App\Services\TipoTurnoService::class);
+        $tipoTurnos = $tipoTurnoService->estadoPara($medico_id);
+
+        // Opciones configuradas para cada tipo de turno del médico (ej. "Consulta con opciones"
+        // -> Estudio 1/2/3), elegibles recién al confirmar el turno.
+        $tipoTurnoOpcionesPorPadre = [];
+        foreach ($tipoTurnos as $tt) {
+            $tipoTurnoOpcionesPorPadre[$tt['id']] = $tipoTurnoService->opciones($medico_id, $tt['id']);
+        }
 
     	return View('turnos_admin.alta_medico')
     	->with('especialidad',$especialidad)
@@ -124,6 +132,7 @@ class MedicoController extends Controller
         ->with('moduloMedicos',$data)
         ->with('historiasClinicas',$historiasClinicas)
         ->with('tipoTurnos',$tipoTurnos)
+        ->with('tipoTurnoOpcionesPorPadre',$tipoTurnoOpcionesPorPadre)
         ->with('videollamada',$videollamada)
         ->with('moduloMercadoPago',$moduloMercadoPago)
     	->with('consultorios',$consultorios);
@@ -4421,6 +4430,39 @@ class MedicoController extends Controller
         }
         $guardados = app(\App\Services\TipoTurnoService::class)->guardar($medico_id, $ids);
         return response()->json(['response' => 1, 'tipos_turno' => $guardados]);
+    }
+
+    /**
+     * POST admin_crear_tipo_turno {nombre}
+     * Crea un tipo de turno nuevo en el catálogo global (tabla tipo_turnos).
+     */
+    public function adminCrearTipoTurno(Request $request){
+        $nombre = $request->input('nombre');
+        if (!$nombre) {
+            return response()->json(['response' => 0, 'mensaje' => 'Falta el nombre'], 422);
+        }
+        $id = app(\App\Services\TipoTurnoService::class)->crear($nombre);
+        return response()->json(['response' => 1, 'id' => $id, 'nombre' => $nombre]);
+    }
+
+    /**
+     * POST admin_tipo_turno_opciones_medico {medico_id, tipo_turno_padre, opciones: [id, ...]}
+     * Deja configuradas para el médico, sobre ese tipo padre, exactamente las opciones indicadas
+     * (tabla tipo_turno_opciones). Las opciones se eligen recién al confirmar el turno, no afectan
+     * la disponibilidad de horarios (que sigue filtrando por el tipo padre).
+     */
+    public function adminTipoTurnoOpcionesMedico(Request $request){
+        $medico_id = (int) $request->medico_id;
+        $tipo_turno_padre = (int) $request->tipo_turno_padre;
+        if ($medico_id <= 0 || $tipo_turno_padre <= 0) {
+            return response()->json(['response' => 0, 'mensaje' => 'Faltan datos'], 422);
+        }
+        $ids = $request->input('opciones', []);
+        if (!is_array($ids)) {
+            $ids = array_filter(explode(',', (string) $ids));
+        }
+        $guardadas = app(\App\Services\TipoTurnoService::class)->guardarOpciones($medico_id, $tipo_turno_padre, $ids);
+        return response()->json(['response' => 1, 'opciones' => $guardadas]);
     }
 
     public function adminModuloMedico(Request $request){

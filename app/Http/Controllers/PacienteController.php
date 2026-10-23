@@ -940,8 +940,26 @@ class PacienteController extends Controller
                     ->with('especialidad_id', $especialidad_id);
         }
 
-        $tipoTurnoHabilitados = app(\App\Services\TipoTurnoService::class)->habilitadosConNombre($medico[0]->id);
-        $tieneMultiplesTiposTurno = count($tipoTurnoHabilitados) > 1;
+        $tipoTurnoHabilitados = app(\App\Services\TipoTurnoService::class)->habilitadosConNombre($medico[0]->id, $primerControl);
+
+        // Si hay exactamente un tipo aplicable a este caso (ya resuelto el primerControl), no hace
+        // falta mostrarle al paciente un selector con un único botón: se va directo al calendario
+        // con ese tipo. Las opciones de ese tipo (si las tiene) se elegirán en el modal de confirmación.
+        if (count($tipoTurnoHabilitados) === 1 && $moduloVideollamadas == 0 && $moduloRecetas == 0 && $moduloExtraTurnos == 0) {
+            $request->merge([
+                'tipo_turno' => $tipoTurnoHabilitados[0]['id'],
+                'medico_id' => $medico[0]->id,
+                'consultorio_id' => $consultorio[0]->id,
+                'paciente_id' => $paciente->id,
+                'primerControl' => $primerControl,
+                'moduloRecetas' => $moduloRecetas,
+            ]);
+            return $this->seleccionarDiaTurnoOnline($request);
+        }
+
+        // A partir de aquí hay 0 tipos (médico sin tipo_turno configurado, sigue el flujo default
+        // con tipo_turno=1) o 2+ tipos (hace falta el selector para que el paciente elija cuál).
+        $tieneMultiplesTiposTurno = count($tipoTurnoHabilitados) > 0;
 
         if(($moduloVideollamadas == 1)||($moduloRecetas == 1) || ($moduloExtraTurnos == 1) || $tieneMultiplesTiposTurno) {
             return view('turnos.seleccionar_tipo_turno')
@@ -984,9 +1002,10 @@ class PacienteController extends Controller
                     ->with('dias_habilitados',$dias_habilitados)
                     ->with('moduloRecetas',$moduloRecetas)
                     ->with('moduloVideollamadas',$moduloVideollamadas)
+                    ->with('opcionesTipoTurno', app(\App\Services\TipoTurnoService::class)->opciones($medico[0]->id, 1))
                     ->with('dias_deshabilitados',$dias_deshabilitados);
         }
-    }    
+    }
 
     function getMedicoConfig($medico_id, $modulo_id) {
          $aux = DB::table('medico_configs')                                                       
@@ -1091,6 +1110,7 @@ class PacienteController extends Controller
                         ->with('moduloRecetas',$moduloRecetas)
                         ->with('valorConsulta',$valorConsulta)
                         ->with('dias_deshabilitados',$dias_deshabilitados)
+                        ->with('opcionesTipoTurno', app(\App\Services\TipoTurnoService::class)->opciones($medico->id, $opcion))
                         ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
                         ->with('especialidad_id', $request->input('especialidad_id'));
     }
@@ -1131,7 +1151,7 @@ class PacienteController extends Controller
     public function tipoTurno(Request $request) {
         $tipoTurnoSolicitado = (int) $request->tipo_turno;
         if($tipoTurnoSolicitado == 22 || $tipoTurnoSolicitado == 23 || $tipoTurnoSolicitado == 24
-            || ($tipoTurnoSolicitado > 1 && app(\App\Services\TipoTurnoService::class)->esTipoValidoParaMedico($request->medico_id, $tipoTurnoSolicitado))) {
+            || ($tipoTurnoSolicitado > 1 && app(\App\Services\TipoTurnoService::class)->esTipoValidoParaMedico($request->medico_id, $tipoTurnoSolicitado, $request->primerControl))) {
             return $this->seleccionarDiaTurnoOnline($request);
         }
 
@@ -1245,6 +1265,7 @@ class PacienteController extends Controller
                         ->with('dias_habilitados',$dias_habilitados)
                         ->with('moduloRecetas',$moduloRecetas)
                         ->with('dias_deshabilitados',$dias_deshabilitados)
+                        ->with('opcionesTipoTurno', app(\App\Services\TipoTurnoService::class)->opciones($medico->id, 1))
                         ->with('especialidad_nombre_flujo', $especialidadNombreFlujo)
                         ->with('especialidad_id', $request->input('especialidad_id'));
     }

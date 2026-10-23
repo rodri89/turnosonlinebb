@@ -481,6 +481,11 @@ $.ajaxSetup({
   var confirmDiferencialOs = @json($confirmDiferencialPayload);
   var moduloDiferencialObraSocialActivo = @json((($moduloDiferencialObraSocial ?? 0) == 1));
 
+  // Opciones del tipo de turno elegido (ej. "Consulta con opciones" -> Estudio 1/2/3), configurables
+  // desde el admin. Si hay opciones, el paciente elige una al confirmar el turno (ver #seccion_tipo_turnos).
+  var opcionesTipoTurno = @json($opcionesTipoTurno ?? []);
+  var tieneOpcionesTipoTurno = opcionesTipoTurno.length > 0;
+
   var medico_id = document.getElementById("medico_id").value;
   console.log('[Seleccionar día] Especialidad del especialista', {
     medico_id: medico_id,
@@ -1026,11 +1031,7 @@ $.ajaxSetup({
                   consultorio = "Equipo Dubie ";
                 }              
                 document.getElementById("modalTurnoOk_direccion").innerHTML = "<b>Dirección: </b>" + consultorio;            
-                document.getElementById("seccion_tipo_turnos").hidden = true;
-                if(data.medico.id == 13){
-                  //document.getElementById("modalTurnoOk_tipo_turno").innerHTML = "<b>Tipo Turno: </b>" + obtenerTextoSeleccionado();            
-                  document.getElementById("seccion_tipo_turnos").hidden = false;
-                }
+                document.getElementById("seccion_tipo_turnos").hidden = !tieneOpcionesTipoTurno;
 
                 // Guardar URL del recordatorio para abrir cuando se confirme el modal
                 // Si el evento ya se agregó automáticamente a Google Calendar, mostrar mensaje de éxito
@@ -1225,10 +1226,9 @@ $.ajaxSetup({
                 document.getElementById("modalTurnoOk_horario").innerHTML = "<b>Horario: </b>" + horario;
                 document.getElementById("modalTurnoOk_medico").innerHTML = "<b>Especialista: </b>" + medico;
                 
-                document.getElementById("seccion_tipo_turnos").hidden = true;
-                if(data.medico.id == 13) {
-                  document.getElementById("seccion_tipo_turnos").hidden = false;
-                  document.getElementById("modalTurnoOk_tipo_turno").innerHTML = "<b>Tipo Turno: </b>" + obtenerTextoSeleccionado();            
+                document.getElementById("seccion_tipo_turnos").hidden = !tieneOpcionesTipoTurno;
+                if(tieneOpcionesTipoTurno) {
+                  document.getElementById("modalTurnoOk_tipo_turno").innerHTML = "<b>Tipo Turno: </b>" + obtenerTextoSeleccionado();
                 }
 
                 var consultorio = data.consultorio.direccion;
@@ -1495,10 +1495,10 @@ $.ajaxSetup({
 
     if(esVideollamada == 0 || especialidad_id == 2) {        
       var tipoTurno = obtenerRadioSeleccionado();
-      if(medico_id == 13) {
+      if(tieneOpcionesTipoTurno) {
         document.getElementById("modalTurnoOk_tipo_turno").innerHTML = "<b>Tipo Turno: </b>" + obtenerTextoSeleccionado();
         actualizarTipoTurno(turno_id, tipoTurno);
-      }        
+      }
       // Mostrar/ocultar mensaje de calendario según el estado
       var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
       if(calendarMessage) {
@@ -1532,15 +1532,10 @@ $.ajaxSetup({
   }
 
   function obtenerTextoSeleccionado() {
-    var radioSeleccionado = obtenerRadioSeleccionado();
-    
-    if(radioSeleccionado == 1)
-      return "Consulta endocrina";
-    if(radioSeleccionado == 23)
-      return "Ecografía";
-    if(radioSeleccionado == 24)
-      return "Consula endocrina + Ecografía";
-
+    var radio = document.querySelector('input[name="opcion_miRadioGroup"]:checked');
+    if (!radio) return '';
+    var label = document.querySelector('label[for="' + radio.id + '"]');
+    return label ? label.innerText : '';
   }
 
 

@@ -46,10 +46,11 @@
 @php
   $__espFlujo = $especialidad_nombre_flujo ?? '';
   $__espId = $especialidad_id ?? '';
-  // Si el médico tiene múltiples tipos de turno configurados y "Consulta" (id 1) no es uno de
-  // ellos, no mostramos el botón genérico "Presencial": solo ofrecemos sus tipos específicos.
+  // Si el médico tiene tipos de turno configurados para este caso (primera consulta
+  // sí/no) y "Consulta" (id 1) no es uno de ellos, no mostramos el botón genérico
+  // "Presencial": solo ofrecemos sus tipos específicos (aunque sea uno solo).
   $__ocultarPresencial = isset($tipoTurnoHabilitados)
-      && count($tipoTurnoHabilitados) > 1
+      && count($tipoTurnoHabilitados) > 0
       && !collect($tipoTurnoHabilitados)->contains('id', 1);
 @endphp
 

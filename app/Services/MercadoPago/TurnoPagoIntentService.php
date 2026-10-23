@@ -291,7 +291,7 @@ class TurnoPagoIntentService
             ->where('status', 'pending')
             ->where('expires_at', '>', now());
 
-        if ($tipoTurno !== null && (int) $medicoId !== 13) {
+        if ($tipoTurno !== null && !app(\App\Services\TipoTurnoService::class)->tieneOpciones($medicoId, $tipoTurno)) {
             $query->where('tipo_turno', (int) $tipoTurno);
         }
 

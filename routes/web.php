@@ -122,6 +122,12 @@ Route::group(['middleware' => ['auth', 'usuarioAdmin']], function () {
 	// Tipos de turno (Consulta, Entrevista con padres, ...) habilitados al médico (tabla medico_tipo_turnos)
 	Route::post('admin_tipo_turno_medico','MedicoController@adminTipoTurnoMedico');
 
+	// Crea un tipo de turno nuevo en el catálogo global (tabla tipo_turnos)
+	Route::post('admin_crear_tipo_turno','MedicoController@adminCrearTipoTurno');
+
+	// Opciones de un tipo de turno "padre" para un médico (tabla tipo_turno_opciones)
+	Route::post('admin_tipo_turno_opciones_medico','MedicoController@adminTipoTurnoOpcionesMedico');
+
 	Route::post('guardar_ventana_dias','MedicoController@guardarVentanaDias');
 	
 	Route::get('admin_feriados','TurnoController@adminFeriados')->name('adminferiados');

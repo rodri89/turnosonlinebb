@@ -192,7 +192,12 @@
           </div>
 
       <h2>Tipos de turno</h2>
-          <p class="text-muted">Qué tipos de turno ofrece el médico. Si marca más de uno, en "Mis horarios fijos" podrá elegir el tipo al cargar cada horario, y el paciente va a poder elegir entre ellos antes de ver el calendario.</p>
+          <p class="text-muted">Qué tipos de turno ofrece el médico. Si marca más de uno, en "Mis horarios fijos" podrá elegir el tipo al cargar cada horario. Al paciente se le ofrecen según "Primera consulta": "Siempre" los muestra en los dos casos, o se puede acotar a un caso puntual.</p>
+          <p class="text-muted">Un tipo puede tener "opciones" (ej. "Consulta con opciones" &rarr; Estudio 1 / Estudio 2 / Estudio 3): el horario fijo queda asociado al tipo, y el paciente elige la opción recién al confirmar el turno.</p>
+          <div class="form-inline mb-2">
+            <input type="text" id="nuevoTipoTurnoNombre" class="form-control" placeholder="Nombre del nuevo tipo de turno" style="width:auto;display:inline-block;">
+            <button type="button" onclick="crearTipoTurno()">Crear tipo de turno</button>
+          </div>
           <div class="form-check">
             @foreach($tipoTurnos as $tt)
               @if($tt["activo"]==1)
@@ -200,7 +205,25 @@
               @else
                 <input type="checkbox" class="form-check-input check-tipo-turno" id="checkTipoTurno_{{$tt['id']}}" value="{{$tt['id']}}">
               @endif
-              <label class="form-check-label" for="checkTipoTurno_{{$tt['id']}}">{{$tt["nombre"]}}</label><br>
+              <label class="form-check-label" for="checkTipoTurno_{{$tt['id']}}">{{$tt["nombre"]}}</label>
+              <select class="select-tipo-turno-primer-control" id="selectTipoTurnoPrimerControl_{{$tt['id']}}" style="display:inline-block;width:auto;margin:0 0 4px 8px;">
+                <option value="" @if(is_null($tt['primer_control'])) selected @endif>Siempre</option>
+                <option value="1" @if($tt['primer_control'] === 1) selected @endif>Solo primera consulta</option>
+                <option value="0" @if($tt['primer_control'] === 0) selected @endif>Solo consultas de seguimiento</option>
+              </select>
+              <br>
+              @php $opcionesActuales = array_column($tipoTurnoOpcionesPorPadre[$tt['id']] ?? [], 'id'); @endphp
+              <div class="ml-4 mb-2" style="border-left:2px solid #eee;padding-left:10px;">
+                <small class="text-muted">Opciones de "{{ $tt['nombre'] }}" (se eligen al confirmar el turno):</small><br>
+                @foreach($tipoTurnos as $op)
+                  @if($op['id'] != $tt['id'])
+                    <input type="checkbox" class="check-tipo-turno-opcion" data-padre="{{ $tt['id'] }}" id="checkOpcion_{{ $tt['id'] }}_{{ $op['id'] }}" value="{{ $op['id'] }}" @if(in_array($op['id'], $opcionesActuales, true)) checked @endif>
+                    <label for="checkOpcion_{{ $tt['id'] }}_{{ $op['id'] }}">{{ $op['nombre'] }}</label>
+                  @endif
+                @endforeach
+                <br>
+                <button type="button" onclick="actualizarOpcionesTipoTurno({{ $tt['id'] }})">Guardar opciones de "{{ $tt['nombre'] }}"</button>
+              </div>
             @endforeach
           </div>
           <br>
@@ -350,18 +373,60 @@
 
   function actualizarTipoTurnoMedico(){
     var medico_id = document.getElementById("medico_id").value;
-    var ids = [];
-    document.querySelectorAll(".check-tipo-turno").forEach(function (c) { if (c.checked) ids.push(c.value); });
+    var items = [];
+    document.querySelectorAll(".check-tipo-turno").forEach(function (c) {
+      if (!c.checked) return;
+      var select = document.getElementById("selectTipoTurnoPrimerControl_" + c.value);
+      var primerControl = select ? select.value : "";
+      items.push({ id: c.value, primer_control: primerControl });
+    });
     $.ajax({
          type:'POST',
          dataType:'JSON',
          url:'/admin_tipo_turno_medico',
-         data:{medico_id:medico_id, tipos_turno:ids, _token: '{{csrf_token()}}'},
+         data:{medico_id:medico_id, tipos_turno:items, _token: '{{csrf_token()}}'},
          success:function(data){
               alert("Los tipos de turno fueron actualizados");
            },
          error:function(){
               alert("No se pudieron actualizar los tipos de turno");
+           }
+      });
+  }
+
+  function crearTipoTurno(){
+    var nombre = document.getElementById("nuevoTipoTurnoNombre").value;
+    if (!nombre) { alert("Ingrese un nombre"); return; }
+    $.ajax({
+         type:'POST',
+         dataType:'JSON',
+         url:'/admin_crear_tipo_turno',
+         data:{nombre:nombre, _token: '{{csrf_token()}}'},
+         success:function(data){
+              location.reload();
+           },
+         error:function(){
+              alert("No se pudo crear el tipo de turno");
+           }
+      });
+  }
+
+  function actualizarOpcionesTipoTurno(tipoTurnoPadre){
+    var medico_id = document.getElementById("medico_id").value;
+    var opciones = [];
+    document.querySelectorAll('.check-tipo-turno-opcion[data-padre="' + tipoTurnoPadre + '"]').forEach(function (c) {
+      if (c.checked) opciones.push(c.value);
+    });
+    $.ajax({
+         type:'POST',
+         dataType:'JSON',
+         url:'/admin_tipo_turno_opciones_medico',
+         data:{medico_id:medico_id, tipo_turno_padre:tipoTurnoPadre, opciones:opciones, _token: '{{csrf_token()}}'},
+         success:function(data){
+              alert("Las opciones fueron actualizadas");
+           },
+         error:function(){
+              alert("No se pudieron actualizar las opciones");
            }
       });
   }

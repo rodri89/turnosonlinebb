@@ -2862,9 +2862,21 @@ class TurnoController extends Controller
         $turno_id = $request->turno_id;
 
         $turno = TurnoRegistrado::find($turno_id);
-        $turno->tipo_turno = $request->tipoTurno;
+        if (!$turno) {
+            return response()->json(['response' => 0, 'mensaje' => 'Turno no encontrado'], 404);
+        }
+
+        // $turno->tipo_turno todavía tiene el tipo "padre" (el que tenía el horario al insertar
+        // el turno) - la opción elegida por el paciente recién la sobreescribe acá.
+        $tipoTurnoPadre = (int) $turno->tipo_turno;
+        $opcionSolicitada = (int) $request->tipoTurno;
+        if (!app(\App\Services\TipoTurnoService::class)->esOpcionValidaParaPadre($turno->medico, $tipoTurnoPadre, $opcionSolicitada)) {
+            return response()->json(['response' => 0, 'mensaje' => 'Opción de tipo de turno inválida para este médico'], 422);
+        }
+
+        $turno->tipo_turno = $opcionSolicitada;
         $turno->save();
-         
+
          return response()->json(array('turno'=>$turno));
     }
 

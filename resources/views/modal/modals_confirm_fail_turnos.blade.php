@@ -40,18 +40,12 @@
           <br>
           <div class="radio-group" id="miRadioGroup">
               <label>Seleccion el tipo de turno que desea:</label>
-              <div class="radio-item">
-                  <input type="radio" name="opcion_miRadioGroup" value="1" id="radio1">
-                  <label for="radio1">Consulta endocrina</label>
-              </div>
-              <div class="radio-item">
-                  <input type="radio" name="opcion_miRadioGroup" value="23" id="radio2">
-                  <label for="radio2">Ecografía</label>
-              </div>
-              <div class="radio-item">
-                  <input type="radio" name="opcion_miRadioGroup" value="25" id="radio3">
-                  <label for="radio3">Consula endocrina + Ecografía</label>
-              </div>
+              @foreach(($opcionesTipoTurno ?? []) as $op)
+                <div class="radio-item">
+                    <input type="radio" name="opcion_miRadioGroup" value="{{ $op['id'] }}" id="radio_opcion_{{ $op['id'] }}">
+                    <label for="radio_opcion_{{ $op['id'] }}">{{ $op['nombre'] }}</label>
+                </div>
+              @endforeach
           </div>
         </div>
        </div>

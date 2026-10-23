@@ -249,9 +249,13 @@ class AgendaService
             ->where('dia', $dia)
             ->where('fechaTurno', $fecha)
             ->whereIn('activo', self::ACTIVOS_QUE_OCUPAN);
-        // Comportamiento histórico de createJson: el médico 13 ocupa el horario con cualquier tipo de turno.
+        // Si el tipo de turno tiene opciones configuradas (TipoTurnoService), el turno ya registrado
+        // puede tener su tipo_turno sobreescrito a una opción distinta del padre tras el insert
+        // (ver TurnoController::actualizarTipoTurno) - no filtrar por tipo exacto en ese caso, o el
+        // horario dejaría de verse ocupado y se mostraría como libre incorrectamente.
         // Para los turnos dobles (createJsonTurnosDobles) siempre se filtra por tipo.
-        if ($siempreFiltrarTipo || (int) $medicoId !== 13) {
+        $tieneOpciones = app(\App\Services\TipoTurnoService::class)->tieneOpciones($medicoId, $tipoTurno);
+        if ($siempreFiltrarTipo || !$tieneOpciones) {
             $q->where('tipo_turno', $tipoTurno);
         }
         $registrados = $q->orderBy('horario')->get();

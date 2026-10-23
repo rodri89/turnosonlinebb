@@ -226,13 +226,25 @@
           <h6 class="fontColorHeader">Telefono {{$consultorio->telefono}}</h6>
         </div>
       @endif
-      
+
     @else
+      @if($medico->id == 14) <!-- Patricia Sosa -->
+      <p class="fontColorHeader"><b>Turnos Presenciales:</b></p>
       <ul>
-        @foreach($diasAtencion as $valor)            
+        <li class="fontColorHeader">Lunes: 15:30 a 18:35</li>
+        <li class="fontColorHeader">Martes: 15:30 a 18:35</li>
+        <li class="fontColorHeader">Jueves: 15:30 a 18:35</li>
+      </ul>
+      <div class="col-md-8 mb-3">
+        <h6 class="fontColorHeader">Consultorio: {{$consultorio->direccion}}</h6>
+        <h6 class="fontColorHeader">Telefono {{$consultorio->telefono}}</h6>
+      </div>
+      @else
+      <ul>
+        @foreach($diasAtencion as $valor)
         <li class="fontColorHeader">{{$valor}}</li>
         @endforeach
-      </ul>          
+      </ul>
       @if($esVideollamada == 0)
       <div class="col-md-8 mb-3">
         @if($tipoTurno == 1)
@@ -240,6 +252,7 @@
         @endif
         <h6 class="fontColorHeader">Telefono {{$consultorio->telefono}}</h6>
       </div>
+      @endif
       @endif
     @endif
   @endif
@@ -254,3 +267,4 @@
 @endif
 @endif
 @endif
+
