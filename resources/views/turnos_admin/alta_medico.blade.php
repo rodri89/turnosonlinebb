@@ -201,9 +201,9 @@
           <div class="form-check">
             @foreach($tipoTurnos as $tt)
               @if($tt["activo"]==1)
-                <input checked type="checkbox" class="form-check-input check-tipo-turno" id="checkTipoTurno_{{$tt['id']}}" value="{{$tt['id']}}">
+                <input checked type="checkbox" class="form-check-input check-tipo-turno" id="checkTipoTurno_{{$tt['id']}}" value="{{$tt['id']}}" onchange="toggleOpcionesTipoTurno({{ $tt['id'] }})">
               @else
-                <input type="checkbox" class="form-check-input check-tipo-turno" id="checkTipoTurno_{{$tt['id']}}" value="{{$tt['id']}}">
+                <input type="checkbox" class="form-check-input check-tipo-turno" id="checkTipoTurno_{{$tt['id']}}" value="{{$tt['id']}}" onchange="toggleOpcionesTipoTurno({{ $tt['id'] }})">
               @endif
               <label class="form-check-label" for="checkTipoTurno_{{$tt['id']}}">{{$tt["nombre"]}}</label>
               <select class="select-tipo-turno-primer-control" id="selectTipoTurnoPrimerControl_{{$tt['id']}}" style="display:inline-block;width:auto;margin:0 0 4px 8px;">
@@ -213,12 +213,14 @@
               </select>
               <br>
               @php $opcionesActuales = array_column($tipoTurnoOpcionesPorPadre[$tt['id']] ?? [], 'id'); @endphp
-              <div class="ml-4 mb-2" style="border-left:2px solid #eee;padding-left:10px;">
-                <small class="text-muted">Opciones de "{{ $tt['nombre'] }}" (se eligen al confirmar el turno):</small><br>
+              <div class="ml-4 mb-2" id="bloqueOpciones_{{ $tt['id'] }}" style="border-left:2px solid #eee;padding-left:10px;@if($tt['activo'] != 1) display:none; @endif">
+                <small class="text-muted">Opciones de "{{ $tt['nombre'] }}" (se eligen al confirmar el turno):</small>
                 @foreach($tipoTurnos as $op)
                   @if($op['id'] != $tt['id'])
-                    <input type="checkbox" class="check-tipo-turno-opcion" data-padre="{{ $tt['id'] }}" id="checkOpcion_{{ $tt['id'] }}_{{ $op['id'] }}" value="{{ $op['id'] }}" @if(in_array($op['id'], $opcionesActuales, true)) checked @endif>
-                    <label for="checkOpcion_{{ $tt['id'] }}_{{ $op['id'] }}">{{ $op['nombre'] }}</label>
+                    <div>
+                      <input type="checkbox" class="check-tipo-turno-opcion" data-padre="{{ $tt['id'] }}" id="checkOpcion_{{ $tt['id'] }}_{{ $op['id'] }}" value="{{ $op['id'] }}" @if(in_array($op['id'], $opcionesActuales, true)) checked @endif>
+                      <label for="checkOpcion_{{ $tt['id'] }}_{{ $op['id'] }}">{{ $op['nombre'] }}</label>
+                    </div>
                   @endif
                 @endforeach
                 <br>
@@ -369,6 +371,12 @@
               alert("No se pudieron actualizar las historias clínicas");
            }
       });
+  }
+
+  function toggleOpcionesTipoTurno(tipoTurnoPadre){
+    var checkbox = document.getElementById("checkTipoTurno_" + tipoTurnoPadre);
+    var bloque = document.getElementById("bloqueOpciones_" + tipoTurnoPadre);
+    bloque.style.display = checkbox.checked ? "" : "none";
   }
 
   function actualizarTipoTurnoMedico(){
