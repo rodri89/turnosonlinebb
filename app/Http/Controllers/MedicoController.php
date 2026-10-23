@@ -408,9 +408,14 @@ class MedicoController extends Controller
                         ->where('turno_registrados.activo', 1)
                         ->distinct()
                         ->orderByRaw('turno_registrados.horario')
-                        ->get();  
+                        ->get();
 
-        $medico = Medico::find($medico_id);        
+        $tipoTurnoService = app(\App\Services\TipoTurnoService::class);
+        foreach ($turnosPaciente as $turno) {
+            $turno->tipo_turno_text = $tipoTurnoService->textoParaListado($medico_id, $turno->tipo_turno);
+        }
+
+        $medico = Medico::find($medico_id);
         if($medico->especialidad == 2){
             $fecha = str_replace("/", "-", $dia);
             $turnosPacientePeg = DB::table('turno_registrado_videollamadas')                                                      
@@ -3015,29 +3020,55 @@ class MedicoController extends Controller
         }           
     }
 
+    /**
+     * Opciones de tipo de turno vigentes para medico+tipo padre (ej. "Consulta con opciones" -> "Estudio 1"),
+     * para poblar el selector de "Asignar turno" cuando la secretaria/medico reserva manualmente
+     * un horario cuyo tipo tiene opciones configuradas. Vacio si ese tipo no tiene opciones.
+     */
+    public function opcionesTipoTurno(Request $request)
+    {
+        $opciones = app(\App\Services\TipoTurnoService::class)->opciones($request->medico_id, $request->tipo_turno_padre);
+        return response()->json(['opciones' => $opciones]);
+    }
+
     public function registrarAsignarTurno(Request $request){
         $tipo_turno = $request->tipo_turno;
         if($tipo_turno == 4){
             return $this->registrarTurnoPeg($request);
         }
-        $fechaTurno = $request->fechaTurno;     
+        $fechaTurno = $request->fechaTurno;
         $fechaAux = explode('/',$fechaTurno);
         $dia = $fechaAux[0];
         $mes = $fechaAux[1];
         $anio = $fechaAux[2];
         $nuevaFecha=$anio.'-'.$mes.'-'.$dia;
-        $date = new DateTime($nuevaFecha);      
-        //return date_format($date, 'g:ia \o\n l jS F Y');   //12:00am on Friday 7th June 2019  
+        $date = new DateTime($nuevaFecha);
+        //return date_format($date, 'g:ia \o\n l jS F Y');   //12:00am on Friday 7th June 2019
         $diaLetras = date_format($date, 'l');
 
         $diaSeleccionado = $this->getDiaSeleccionado($diaLetras);
-        
+
         $paciente_id = $request->paciente_id;
         $medico_id = $request->medico_id;
-        $consultorio = $request->consultorio;           
+        $consultorio = $request->consultorio;
         $horario = $request->horario;
         $horario2 = $request->horario2;
         $primerControl = $request->primerControl;
+
+        // El horario fijo lleva su propio tipo_turno "padre"; si el tipo que llego del select
+        // no es ese padre, tiene que ser una opcion vigente para ese padre, o se ignora.
+        $horarioMedico = DB::table('horario_medicos')
+            ->where('medico', $medico_id)
+            ->where('consultorio', $consultorio)
+            ->where('dia', $diaSeleccionado)
+            ->where('horario', $horario)
+            ->where('activo', 1)
+            ->first();
+        if ($horarioMedico !== null && (int) $tipo_turno !== (int) $horarioMedico->tipo_turno) {
+            if (!app(\App\Services\TipoTurnoService::class)->esOpcionValidaParaPadre($medico_id, $horarioMedico->tipo_turno, $tipo_turno)) {
+                $tipo_turno = $horarioMedico->tipo_turno;
+            }
+        }
 
         $medico = medico::find($request->get('medico_id'));
            // Modulo id: 3 | corresponde a Primer Control Doble
@@ -3525,13 +3556,28 @@ class MedicoController extends Controller
             return $this->registrarTurnoAgendaSemanalPeg($request);
         }
 
-        $turnoLibre = $this->consultarTurno($medico_id, $consultorio, $diaSeleccionado, $fechaTurno, $horario);     
-        
+        // El horario fijo lleva su propio tipo_turno "padre"; si el tipo que llego del select
+        // no es ese padre, tiene que ser una opcion vigente para ese padre, o se ignora.
+        $horarioMedico = DB::table('horario_medicos')
+            ->where('medico', $medico_id)
+            ->where('consultorio', $consultorio)
+            ->where('dia', $diaSeleccionado)
+            ->where('horario', $horario)
+            ->where('activo', 1)
+            ->first();
+        if ($horarioMedico !== null && (int) $tipoTurno !== (int) $horarioMedico->tipo_turno) {
+            if (!app(\App\Services\TipoTurnoService::class)->esOpcionValidaParaPadre($medico_id, $horarioMedico->tipo_turno, $tipoTurno)) {
+                $tipoTurno = $horarioMedico->tipo_turno;
+            }
+        }
+
+        $turnoLibre = $this->consultarTurno($medico_id, $consultorio, $diaSeleccionado, $fechaTurno, $horario);
+
         if($turnoLibre->count() == 0){
-            $turnoRegistrado = $this->registrarTurno($paciente->id, $medico_id, $consultorio, $diaSeleccionado, $horario, $fechaTurno, 'NO', 0, $tipoTurno);                     
+            $turnoRegistrado = $this->registrarTurno($paciente->id, $medico_id, $consultorio, $diaSeleccionado, $horario, $fechaTurno, 'NO', 0, $tipoTurno);
 
             // nueva logica
-        
+
             $cincodiasTotal = $this -> obtener5Dias($fechaSeleccionada, $medico, 0);
             $cincodias = array();
             $someArrayTotal = array();
@@ -3590,13 +3636,28 @@ class MedicoController extends Controller
             return $this->registrarTurnoAgendaSemanalPeg($request);
         }
 
-        $turnoLibre = $this->consultarTurno($medico_id, $consultorio, $diaSeleccionado, $fechaTurno, $horario);     
-        
+        // El horario fijo lleva su propio tipo_turno "padre"; si el tipo que llego del select
+        // no es ese padre, tiene que ser una opcion vigente para ese padre, o se ignora.
+        $horarioMedico = DB::table('horario_medicos')
+            ->where('medico', $medico_id)
+            ->where('consultorio', $consultorio)
+            ->where('dia', $diaSeleccionado)
+            ->where('horario', $horario)
+            ->where('activo', 1)
+            ->first();
+        if ($horarioMedico !== null && (int) $tipoTurno !== (int) $horarioMedico->tipo_turno) {
+            if (!app(\App\Services\TipoTurnoService::class)->esOpcionValidaParaPadre($medico_id, $horarioMedico->tipo_turno, $tipoTurno)) {
+                $tipoTurno = $horarioMedico->tipo_turno;
+            }
+        }
+
+        $turnoLibre = $this->consultarTurno($medico_id, $consultorio, $diaSeleccionado, $fechaTurno, $horario);
+
         if($turnoLibre->count() == 0){
-            $turnoRegistrado = $this->registrarTurno($paciente->id, $medico_id, $consultorio, $diaSeleccionado, $horario, $fechaTurno, 'NO', 0, $tipoTurno);                     
+            $turnoRegistrado = $this->registrarTurno($paciente->id, $medico_id, $consultorio, $diaSeleccionado, $horario, $fechaTurno, 'NO', 0, $tipoTurno);
 
             // nueva logica
-        
+
             $cincodiasTotal = $this -> obtener5Dias($fechaInput, $medico, 0);
             $cincodias = array();
             $someArrayTotal = array();

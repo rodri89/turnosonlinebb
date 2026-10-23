@@ -270,7 +270,9 @@ Route::group(['middleware' => ['auth', 'usuarioMedico']], function () {
 	// Route::post('medico_registrar_paciente','MedicoController@registrarPaciente')->name('medicoregistrarpaciente');	
 
 	Route::post('medico_registrar_asignar_turno','MedicoController@registrarAsignarTurno')->name('medicoregistrarasignarturno');
-	
+
+	Route::post('medico_opciones_tipo_turno','MedicoController@opcionesTipoTurno')->name('medicoopcionestipoturno');
+
 	Route::post('medico_registrar_asignar_turno_doble','MedicoController@registrarAsignarTurnoDoble')->name('medicoregistrarasignarturnodoble');
 	Route::post('medico_ver_semana','MedicoController@mostrarSemana')->name('medicomostrarsemana');			
 
@@ -420,6 +422,8 @@ Route::group(['middleware' => ['auth', 'usuarioSecretaria']], function () {
 	Route::post('registrar_sobreturno','SecretariaController@registrarSobreturno')->name('registrarsobreturno');
 
 	Route::post('registrar_asignar_turno','SecretariaController@registrarAsignarTurno')->name('registrarasignarturno');
+
+	Route::post('secretaria_opciones_tipo_turno','SecretariaController@opcionesTipoTurno')->name('secretariaopcionestipoturno');
 
 	Route::post('registrar_asignar_turno_doble','SecretariaController@registrarAsignarTurnoDoble')->name('registrarasignarturnodoble');
 

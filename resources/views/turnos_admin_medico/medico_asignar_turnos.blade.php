@@ -109,15 +109,12 @@
     </div>
     
     <div class="col-md-3">
-      @if($medico->id == 13)                
       <input type="hidden" id="estudio_seleccionado" value="0">
-      <h4>Tipo Turno:</h4>
-      <select class="form-control mercadopago_collapse_250px" id="tipo_turno_select" name="tipo_turno_select">
-          <option value="1">Consulta</option>    
-          <option value="23">Ecografia</option>    
-          <option value="25">Consulta + Ecografia</option>              
-      </select>
-      @endif
+      <div id="bloque_tipo_turno_select" hidden>
+        <h4>Tipo Turno:</h4>
+        <select class="form-control mercadopago_collapse_250px" id="tipo_turno_select" name="tipo_turno_select">
+        </select>
+      </div>
 
     	<h4 class="editText">Horario Reservado:</h4>
       <input disabled type="hidden" id="horario_seleccionado_tipo_turno" name="horario_seleccionado_tipo_turno" value="" placeholder="" />
@@ -446,15 +443,49 @@ function mostrarSnackbar(cs) {
         }); 
   }
 
- function reservarTurno(horario, tipoTurno){  	  
-  	var horarioSeleccionado = document.getElementById("horario_seleccionado");     
+ function reservarTurno(horario, tipoTurno){
+  	var horarioSeleccionado = document.getElementById("horario_seleccionado");
   	horarioSeleccionado.value= horario;
     document.getElementById("horario_seleccionado_tipo_turno").value = tipoTurno;
-  	var paciente = document.getElementById("paciente").innerHTML;	 	
+    actualizarSelectorTipoTurno(tipoTurno);
+  	var paciente = document.getElementById("paciente").innerHTML;
    	if(paciente.localeCompare('')!=0){
-   		document.getElementById("altaTurno").hidden=false;	
-   		document.getElementById("debeSeleccionarHorario").hidden=true;	 		
+   		document.getElementById("altaTurno").hidden=false;
+   		document.getElementById("debeSeleccionarHorario").hidden=true;
    	}
+  }
+
+  /**
+   * Si el tipo de turno del horario elegido tiene opciones configuradas (ej. Nadia/Lucas Sosa:
+   * "Consulta con opciones" -> "Estudio 1"), muestra el selector para que se elija una; si no
+   * tiene opciones, lo oculta y se reserva directamente con el tipo del horario.
+   */
+  function actualizarSelectorTipoTurno(tipoTurnoPadre) {
+    var medico = document.getElementById("medico_id").value;
+    var select = document.getElementById("tipo_turno_select");
+    var bloque = document.getElementById("bloque_tipo_turno_select");
+    select.innerHTML = "";
+    bloque.hidden = true;
+    if (tipoTurnoPadre == null || String(tipoTurnoPadre).trim() === "") {
+      return;
+    }
+    $.ajax({
+      type: 'POST',
+      dataType: 'JSON',
+      url: '/medico_opciones_tipo_turno',
+      data: {medico_id: medico, tipo_turno_padre: tipoTurnoPadre, _token: '{{csrf_token()}}'},
+      success: function(data) {
+        if (data.opciones && data.opciones.length > 0) {
+          data.opciones.forEach(function(op) {
+            var opt = document.createElement("option");
+            opt.value = op.id;
+            opt.text = op.nombre;
+            select.appendChild(opt);
+          });
+          bloque.hidden = false;
+        }
+      }
+    });
   }
 
   function reservarTurnoPrimerControl(horario, horario2){    
@@ -657,6 +688,8 @@ function mostrarSnackbar(cs) {
     document.getElementById("horario_seleccionado_tipo_turno").value = "";
 	  	document.getElementById("horario_seleccionado").value ="";
       document.getElementById("horario_seleccionado2").value ="";
+      document.getElementById("bloque_tipo_turno_select").hidden = true;
+      document.getElementById("tipo_turno_select").innerHTML = "";
 	  	document.getElementById("paciente").innerHTML="";	       	
 	   	document.getElementById("dni").innerHTML="";
 	   	document.getElementById("telefono").innerHTML="";
@@ -703,9 +736,10 @@ function mostrarSnackbar(cs) {
     var especialidad_id = document.getElementById("especialidad_id").value;
     document.getElementById("msj_no_asistio").hidden = true;
     var tipo_turno = document.getElementById("horario_seleccionado_tipo_turno").value;
-    
-    if(medico_id == 13) {
-      tipo_turno = document.getElementById("tipo_turno_select").value;      
+    var bloqueTipoTurno = document.getElementById("bloque_tipo_turno_select");
+
+    if(bloqueTipoTurno && !bloqueTipoTurno.hidden) {
+      tipo_turno = document.getElementById("tipo_turno_select").value;
     }
 
     var primerControl = document.getElementById("primerControlCheck").checked;

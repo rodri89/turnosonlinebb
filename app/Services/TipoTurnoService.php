@@ -289,4 +289,28 @@ class TipoTurnoService
     {
         return in_array((int) $opcionId, array_column($this->opciones($medicoId, $tipoTurnoPadreId), 'id'), true);
     }
+
+    /**
+     * Texto para la columna "Tipo" de los listados de turnos.
+     * Si el id grabado en turno_registrados.tipo_turno es una opción vigente del médico
+     * (el paciente eligió una opción concreta al confirmar, ej. "Estudio 1" dentro de
+     * "Consulta con opciones"), muestra "<padre>: <opción>"; si no, el nombre simple del tipo.
+     */
+    public function textoParaListado($medicoId, $tipoTurnoId)
+    {
+        $tipoTurnoId = (int) $tipoTurnoId;
+
+        $opcion = DB::table('tipo_turno_opciones')
+            ->where('medico', (int) $medicoId)
+            ->where('tipo_turno_opcion', $tipoTurnoId)
+            ->where('activo', 1)
+            ->first();
+
+        if ($opcion === null) {
+            return \App\Util\Util::getTipoTurno($tipoTurnoId);
+        }
+
+        $padre = \App\Util\Util::getTipoTurno((int) $opcion->tipo_turno_padre);
+        return $padre . ': ' . \App\Util\Util::getTipoTurno($tipoTurnoId);
+    }
 }

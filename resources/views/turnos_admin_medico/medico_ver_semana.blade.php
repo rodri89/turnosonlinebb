@@ -304,14 +304,11 @@
           <input type="text" class="form-control editText" id="modal_plan_obra_social" name="plan_obra_social" placeholder="Plan Obra Social"  />
           </div>
 
-          @if($medico->id == 13)
+          <div id="bloque_tipo_turno_select" hidden>
             <label id="tipo_turno_label" for="text" class="col-sm-0 control-label">Tipo Turno</label>
-            <select class="form-control mercadopago_collapse_250px" id="tipo_turno_select" name="tipo_turno_select">            
-                    <option value="1">Consulta</option>    
-                    <option value="23">Ecografia</option>    
-                    <option value="25">Consulta + Ecografia</option>    
+            <select class="form-control mercadopago_collapse_250px" id="tipo_turno_select" name="tipo_turno_select">
             </select>
-          @endif     
+          </div>
 
           <label for="text" class="col-sm-0 control-label">Fecha</label>      
           <input disabled type="text" class="form-control" id="modal_fecha"  placeholder="Fecha" />
@@ -420,31 +417,61 @@
 
   function reservarTurno(hora, fecha, tipo_turno_id, tipo_turno_text) {
     $('#modal_tipo_turno_id').val(tipo_turno_id);
-    $('#modal_tipo_turno').val(tipo_turno_text);    
-    $('#modal_fecha').val(fecha);
-    $('#modal_hora').val(hora);
-    $('#modal_dni').val("");
-    $('#modal_nombre').val("");
-    $('#modal_apellido').val(""); 
-    document.getElementById("modal_paciente_no_existe").hidden=true;
-    if(document.getElementById("especialidad_id").value == 2){
-      document.getElementById("tipo_turno_select").hidden = false;
-      document.getElementById("tipo_turno_label").hidden =false;
-    }
-    $("#reservarTurnoModal").modal();                                                           
-  }
-
-  function reservarTurnoPeg(hora, fecha){        
+    $('#modal_tipo_turno').val(tipo_turno_text);
     $('#modal_fecha').val(fecha);
     $('#modal_hora').val(hora);
     $('#modal_dni').val("");
     $('#modal_nombre').val("");
     $('#modal_apellido').val("");
-    document.getElementById("tipo_turno_select").hidden = true;
-    document.getElementById("tipo_turno_label").hidden = true;    
-    
     document.getElementById("modal_paciente_no_existe").hidden=true;
-    $("#reservarTurnoModal").modal();                                                           
+    actualizarSelectorTipoTurno(tipo_turno_id);
+    $("#reservarTurnoModal").modal();
+  }
+
+  /**
+   * Si el tipo de turno del horario elegido tiene opciones configuradas (ej. Nadia/Lucas Sosa:
+   * "Consulta con opciones" -> "Estudio 1"), muestra el selector para que se elija una; si no
+   * tiene opciones, lo oculta y se registra directamente con el tipo del horario.
+   */
+  function actualizarSelectorTipoTurno(tipoTurnoPadre) {
+    var medico = document.getElementById("medico_id").value;
+    var select = document.getElementById("tipo_turno_select");
+    var bloque = document.getElementById("bloque_tipo_turno_select");
+    select.innerHTML = "";
+    bloque.hidden = true;
+    if (tipoTurnoPadre == null || String(tipoTurnoPadre).trim() === "") {
+      return;
+    }
+    $.ajax({
+      type: 'POST',
+      dataType: 'JSON',
+      url: '/medico_opciones_tipo_turno',
+      data: {medico_id: medico, tipo_turno_padre: tipoTurnoPadre, _token: '{{csrf_token()}}'},
+      success: function(data) {
+        if (data.opciones && data.opciones.length > 0) {
+          data.opciones.forEach(function(op) {
+            var opt = document.createElement("option");
+            opt.value = op.id;
+            opt.text = op.nombre;
+            select.appendChild(opt);
+          });
+          bloque.hidden = false;
+        }
+      }
+    });
+  }
+
+  function reservarTurnoPeg(hora, fecha){
+    $('#modal_fecha').val(fecha);
+    $('#modal_hora').val(hora);
+    $('#modal_dni').val("");
+    $('#modal_nombre').val("");
+    $('#modal_apellido').val("");
+    document.getElementById("bloque_tipo_turno_select").hidden = true;
+    document.getElementById("tipo_turno_select").innerHTML = "";
+
+    document.getElementById("modal_paciente_no_existe").hidden=true;
+    $("#reservarTurnoModal").modal();
   }
 
   function actualizarListado(fechaSeleccionada) {    
@@ -623,13 +650,14 @@
     fechaTurno = convertirFecha(fechaTurno);
     var fechaSeleccionada = document.getElementById("dia").value;  
     
-    var tipo_turno = document.getElementById("modal_tipo_turno_id").value;         
-    
-    if(medico == 13) {        
-      tipo_turno = document.getElementById("tipo_turno_select").value;                  
+    var tipo_turno = document.getElementById("modal_tipo_turno_id").value;
+    var bloqueTipoTurno = document.getElementById("bloque_tipo_turno_select");
+
+    if(bloqueTipoTurno && !bloqueTipoTurno.hidden) {
+      tipo_turno = document.getElementById("tipo_turno_select").value;
     }
 
-    if(!validarTelefono()){       
+    if(!validarTelefono()){
       document.getElementById("error_mensaje_registrar").hidden = false;
     } else {
       $.ajax({
@@ -656,10 +684,11 @@
     fechaTurno = convertirFecha(fechaTurno);
     var fechaSeleccionada = document.getElementById("dia").value;        
 
-    var tipo_turno = document.getElementById("modal_tipo_turno_id").value;   
-              
-    if(medico == 13) {        
-      tipo_turno = document.getElementById("tipo_turno_select").value;                  
+    var tipo_turno = document.getElementById("modal_tipo_turno_id").value;
+    var bloqueTipoTurno = document.getElementById("bloque_tipo_turno_select");
+
+    if(bloqueTipoTurno && !bloqueTipoTurno.hidden) {
+      tipo_turno = document.getElementById("tipo_turno_select").value;
     }
      $.ajax({
            type:'POST',

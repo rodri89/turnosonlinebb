@@ -294,7 +294,11 @@
     return "Consulta";
   }
 
-  /** Médico 3 (secretaría): columna Tipo muestra texto guardado en turno_registrados.especialidad */
+  /**
+   * Médico 3 (secretaría): columna Tipo muestra texto guardado en turno_registrados.especialidad.
+   * Resto: tipo_turno_text viene calculado del backend (catálogo tipo_turnos),
+   * y ya incluye "<padre>: <opción>" cuando el paciente elegió una opción al confirmar.
+   */
   function etiquetaTipoFila(row) {
     var medicoId = parseInt(document.getElementById("medico_id").value, 10);
     if (medicoId === 3) {
@@ -303,6 +307,9 @@
         return escapeHtml(String(e).trim());
       }
       return '—';
+    }
+    if (row.tipo_turno_text != null && String(row.tipo_turno_text).trim().length > 0) {
+      return escapeHtml(String(row.tipo_turno_text));
     }
     return getTipoTurno(row.tipo_turno);
   }
