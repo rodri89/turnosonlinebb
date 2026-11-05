@@ -24,14 +24,14 @@ class RedirectIfAuthenticated
             switch($us_tipo)
                 {
                    case '1': //Administrador
-                        return redirect()->route('adminshowmedicos');
+                        return '/admin_show_medicos';
                         break;
                     case '2': //medico
-                        return redirect()->route('medicohome');                        
+                        return '/medico_home';
                         break;
                     case '3': //secretaria
-                        return redirect()->route('secretaria_home');
-                        //return '/secretaria_home';                        
+                        return '/secretaria_home';
+                        //return '/turnos_admin_secretaria/seleccionar_consultorio';
                         break;
                 }
         }

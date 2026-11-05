@@ -26,8 +26,3 @@
   <input type="hidden" name="option" value="11" />
   <button type="submit" class="dropdown-item">Obra Social (elegir médico)</button>
 </form>
-<form method="POST" action="{{ route('seleccionarconsultorio') }}" class="d-inline">
-  @csrf
-  <input type="hidden" name="option" value="12" />
-  <button type="submit" class="dropdown-item">Pagos / Mercado Pago (elegir médico)</button>
-</form>

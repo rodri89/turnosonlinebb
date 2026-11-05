@@ -240,31 +240,5 @@ class GoogleCalendarService
         // Verificar si el token expiró (con margen de 5 minutos)
         return strtotime($expiresAt) > (time() + 300);
     }
-
-    /**
-     * Eliminar evento de Google Calendar
-     */
-    public function deleteEvent($eventId, $accessToken = null, $refreshToken = null, $expiresAt = null)
-    {
-        try {
-            // Si se proporcionan tokens, configurarlos
-            if ($accessToken) {
-                $this->setAccessToken($accessToken, $refreshToken, $expiresAt);
-            }
-            
-            $service = new Google_Service_Calendar($this->client);
-            
-            // Eliminar el evento
-            $service->events->delete('primary', $eventId);
-            
-            \Log::info("Evento de Google Calendar eliminado exitosamente: {$eventId}");
-            return true;
-        } catch (\Exception $e) {
-            \Log::error('Error eliminando evento de Google Calendar: ' . $e->getMessage());
-            \Log::error('Event ID: ' . $eventId);
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
-            return false;
-        }
-    }
 }
 

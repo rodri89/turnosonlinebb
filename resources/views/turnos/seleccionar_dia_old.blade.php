@@ -48,93 +48,6 @@
     <!-- Languaje -->
     <script src="{{asset('datePicker/locales/bootstrap-datepicker.es.min.js')}}"></script>
     
-    <style>
-      /* Estilos para días disponibles (verde) */
-      .datepicker table tr td.dia-disponible {
-        background-color: #28a745 !important;
-        background-image: none !important;
-        color: #fff !important;
-        border-color: #28a745 !important;
-        font-weight: bold;
-      }
-      
-      .datepicker table tr td.dia-disponible:hover {
-        background-color: #218838 !important;
-        color: #fff !important;
-      }
-      
-      /* Día disponible y seleccionado (más oscuro) */
-      .datepicker table tr td.dia-disponible.active,
-      .datepicker table tr td.dia-disponible.active:hover,
-      .datepicker table tr td.dia-disponible.selected,
-      .datepicker table tr td.dia-disponible.selected:hover,
-      .datepicker table tr td.active.dia-disponible,
-      .datepicker table tr td.selected.dia-disponible {
-        background-color: #155724 !important;
-        background-image: none !important;
-        color: #fff !important;
-        border-color: #155724 !important;
-        font-weight: bold;
-        box-shadow: inset 0 0 5px rgba(0,0,0,0.3) !important;
-      }
-      
-      /* Estilos para días sin turnos disponibles (rojo) */
-      .datepicker table tr td.dia-sin-turnos {
-        background-color: #dc3545 !important;
-        background-image: none !important;
-        color: #fff !important;
-        border-color: #dc3545 !important;
-        font-weight: bold;
-      }
-      
-      .datepicker table tr td.dia-sin-turnos:hover {
-        background-color: #c82333 !important;
-        color: #fff !important;
-      }
-      
-      .datepicker table tr td.dia-sin-turnos.active,
-      .datepicker table tr td.dia-sin-turnos.active:hover,
-      .datepicker table tr td.dia-sin-turnos.selected,
-      .datepicker table tr td.dia-sin-turnos.selected:hover {
-        background-color: #bd2130 !important;
-        background-image: none !important;
-        color: #fff !important;
-        border-color: #bd2130 !important;
-        font-weight: bold;
-        box-shadow: inset 0 0 5px rgba(0,0,0,0.3) !important;
-      }
-      
-      /* Ocultar el datepicker inline */
-      /* Ocultar el input pero mantenerlo funcional para el datepicker */
-      #fecha_seleccionada {
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-        height: 0;
-        width: 0;
-        border: none;
-        padding: 0;
-        margin: 0;
-      }
-      
-      /* Estilos para el contenedor del datepicker inline */
-      #datepicker-container {
-        width: 100%;
-      }
-      
-      #datepicker-container .datepicker {
-        width: 100%;
-        border: 1px solid rgba(0, 0, 0, 0.125);
-        border-radius: 0.25rem;
-        padding: 0.75rem;
-        background-color: #fff;
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-      }
-      
-      #datepicker-container .datepicker table {
-        margin: 0 auto;
-      }            
-    </style>
 </head>
 
 <input type="hidden" id="valor_consulta" value="{{$valorConsulta}}">
@@ -165,57 +78,6 @@
               <button onclick="modalRecetas()" class="rodri_button_receta divMarginCel botonReceta"><img class="card-img-top" src="images/iconos/receta1.png"/></button>                                             
           </div>  
           @endif
-          
-          {{-- Mensajes de éxito/error --}}
-          @if(session('success'))
-          <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-bottom: 1rem;">
-            {{ session('success') }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          @endif
-          @if(session('error'))
-          <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-bottom: 1rem;">
-            {{ session('error') }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          @endif
-          
-          {{-- Sección de Google Calendar --}}
-          @if(!$paciente->google_calendar_access_token)
-          <div hidden class="card-body mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 1rem;">
-            <div class="d-flex align-items-center">
-              <div class="flex-grow-1">
-                <h6 class="fontColorHeader mb-1" style="font-weight: bold;">
-                  📅 Recordatorios automáticos
-                </h6>
-                <p class="fontColorHeader mb-0" style="font-size: 0.9rem;">
-                  Conecta tu Google Calendar para recibir recordatorios automáticos de tus turnos.
-                </p>
-              </div>
-              <div class="ml-3">
-                <button onclick="$('#modalGoogleCalendar').modal('show');" 
-                        class="btn btn-primary btn-sm" 
-                        style="white-space: nowrap;">
-                  Conectar Google Calendar
-                </button>
-              </div>
-            </div>
-          </div>
-          @else
-          <div hidden class="card-body mb-2" style="background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 0.25rem; padding: 0.75rem;">
-            <div class="d-flex align-items-center">
-              <span style="color: #155724; font-size: 1.2rem; margin-right: 0.5rem;">✅</span>
-              <span style="color: #155724; font-size: 0.9rem; font-weight: 500;">
-                Google Calendar conectado. Tus turnos se guardarán automáticamente.
-              </span>
-            </div>
-          </div>
-          @endif
-          
           <div class="card-body">
             <h5 class="fontColorHeader fontMedicoNombre">Seleccione un dia:</h5>            
             @if($esVideollamada == 0)
@@ -248,33 +110,26 @@
               <input type="hidden" id="consultorio_id" name="consultorio" value="{{$consultorio->id}}" />
               <input type="hidden" id="paciente_id" name="paciente_id" value="{{$paciente->id}}" />               
               <input type="hidden" name="primer_control" id="primer_control" value="{{$primerControl}}" />
-              <input type="hidden" id="diferencia_dias_id" value="{{$diferenciaDias}}" />
               <div class="input-group">
-                  <input type="text" class="form-control editText" name="fecha_seleccionada" id="fecha_seleccionada" placeholder="Click aqui para seleccionar la fecha" required autocomplete="off" onchange="actualizarHorarios()">                                
+                  <input type="text" class="form-control datepicker editText" name="fecha_seleccionada" id="fecha_seleccionada" placeholder="Click aqui para seleccionar la fecha" required autocomplete="off" onchange="actualizarHorarios()">                                
               </div>
-              <div class="row">
-                <div class="col-md-7">
-                  <div id="datepicker-container" style="display: inline-block;"></div>
-                </div>
-                <div class="col-md-5">
-                  @if($diferenciaDias < 0)
-                    <?php $diferenciaDias = -1*$diferenciaDias; ?>
-                    <p hidden class="letrasrojo"><i hidden>En {{$diferenciaDias}} dias se habilitaran nuevos turnos</i></p>
-                  @else
-                    <p class="fontColorHeader"><i><strong>Sugerencia: fechas disponibles más cercanas</strong></i></p>
-                    <ul id="sugerencia-fechas-list" class="fontColorHeader">
-                      {{-- Se actualiza por JS con las mismas fechas que el datepicker (get_fechas_disponibles) --}}
-                      <li class="fontColorHeader">{{ $fechaLibreDisponible ?? 'Cargando...' }}</li>
-                      @if(isset($fechaLibreDisponible1) && $fechaLibreDisponible1 != null)
-                        <li class="fontColorHeader">{{ $fechaLibreDisponible1 }}</li>
-                      @endif
-                      @if(isset($fechaLibreDisponible2) && $fechaLibreDisponible2 != null)
-                        <li class="fontColorHeader">{{ $fechaLibreDisponible2 }}</li>
-                      @endif
-                    </ul>
+              <input hidden id="diferencia_dias_id" value="{{$diferenciaDias}}" />
+              @if($diferenciaDias < 0)
+                <?php $diferenciaDias = -1*$diferenciaDias; ?>
+                <br>
+                <p hidden class="letrasrojo"><i hidden>En {{$diferenciaDias}} dias se habilitaran nuevos turnos</i></p>
+              @else
+                <p class="fontColorHeader"><i>Sugerencia: fechas disponibles más cercanas </i></p>
+                <ul>
+                  <li class="fontColorHeader">{{$fechaLibreDisponible}}</li>
+                  @if($fechaLibreDisponible1 != null)
+                    <li class="fontColorHeader">{{$fechaLibreDisponible1}}</li>
                   @endif
-                </div>
-              </div>
+                  @if($fechaLibreDisponible2 != null)
+                    <li class="fontColorHeader">{{$fechaLibreDisponible2}}</li>
+                  @endif
+                </ul>
+              @endif
               @if($medico->id == 2 && $tipoTurno == 24)              
                 <p><i>Para conocer el valor de la consulta segun su obra social haga <a style="color:red; cursor:pointer" onclick="showObraSocialDiferncial()">clic aqui</a></i></p>
               @endif
@@ -309,75 +164,6 @@
 @include('modal.modals_confirm_fail_turnos')
 @include('modal.modal_obra_social_diferencial')
 
-{{-- Modal de Google Calendar --}}
-@if(!$paciente->google_calendar_access_token)
-<div class="modal fade" id="modalGoogleCalendar" tabindex="-1" role="dialog" aria-labelledby="modalGoogleCalendarLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
-  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
-    <div class="modal-content">
-      <div class="modal-header" style="background-color: #4285f4; color: white;">
-        <h4 class="modal-title" id="modalGoogleCalendarLabel" style="font-weight: bold;">
-          📅 Recordatorios Automáticos de Turnos
-        </h4>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: white; opacity: 0.8;">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body" style="padding: 1.5rem;">
-        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin-bottom: 1.5rem; border-radius: 0.25rem;">
-          <p class="mb-1" style="font-size: 1rem; color: #856404; font-weight: 600;">
-          <strong>⚠️ Información importante sobre la autorización:</strong>
-          </p>
-          <p class="mb-0" style="font-size: 0.95rem; color: #856404; line-height: 1.6;">
-            Para poder agregar recordatorios automáticos de tus turnos en tu Google Calendar, necesitamos tu autorización. 
-            Al hacer clic en "Autorizar y Conectar", serás redirigido a Google para que autorices el acceso a tu calendario. 
-            <strong>Este proceso es seguro y solo necesitas hacerlo una vez.</strong>
-          </p>
-        </div>
-        
-        <div style="margin-bottom: 1.5rem;">
-          <h5 style="color: #333; font-weight: 600; margin-bottom: 1rem;">
-            ¿Qué beneficios obtienes?
-          </h5>
-          <ul style="font-size: 0.95rem; line-height: 1.8; color: #555; padding-left: 1.5rem;">
-            <li><strong>Recordatorios automáticos</strong> el día anterior a tu turno</li>
-            <li><strong>Sin esfuerzo:</strong> No necesitas hacer nada más, se guarda automáticamente</li>
-            <li><strong>Acceso desde cualquier dispositivo:</strong> Puedes ver tus turnos en tu celular, tablet o computadora</li>
-            <li><strong>Integración completa:</strong> Tus turnos aparecen directamente en tu calendario de Google</li>
-          </ul>
-        </div>
-        
-        <div style="background-color: #e7f3ff; border: 1px solid #b3d9ff; padding: 1rem; border-radius: 0.25rem; margin-bottom: 1.5rem;">
-          <p class="mb-0" style="font-size: 0.9rem; color: #004085;">
-            <strong>🔒 Seguridad:</strong> Solo solicitamos acceso para agregar eventos a tu calendario. 
-            No accedemos a tus datos personales ni a otros eventos de tu calendario.
-          </p>
-        </div>
-      </div>
-      <div class="modal-footer" style="border-top: 1px solid #dee2e6; padding: 1rem 1.5rem;">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal" style="font-weight: 500;">
-          Cancelar
-        </button>
-        <a href="{{ url('/google-calendar/authorize?paciente_id=' . $paciente->id . '&return_url=' . urlencode(request()->url())) }}" 
-           class="btn btn-primary" 
-           style="font-weight: 600; padding: 0.5rem 1.5rem;"
-           onclick="event.preventDefault(); window.location.href = this.href;">
-          🔗 Autorizar y Conectar Google Calendar
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-  // TEMPORALMENTE DESHABILITADO: No mostrar el modal de autorización de Google Calendar al cargar
-  // $(document).ready(function() {
-  //   setTimeout(function() {
-  //     $('#modalGoogleCalendar').modal('show');
-  //   }, 500);
-  // });
-</script>
-@endif
-
 <script type="text/javascript">  
 
 $.ajaxSetup({
@@ -400,264 +186,18 @@ $.ajaxSetup({
   }
 
   var end_date = document.getElementById("end_date").value;  
-  var fechasDisponibles = [];
-  var fechasSinTurnos = [];
-  
-  // Cargar fechas disponibles desde el endpoint
-  function cargarFechasDisponibles() {
-    var medico_id = document.getElementById("medico_id").value;
-    var tipoTurno = document.getElementById("tipoTurno").value;
-    var esVideollamada = document.getElementById("esVideollamada").value;
-    var consultorio = document.getElementById("consultorio_id").value;
-    var primer_control = document.getElementById("primer_control").value;
-    
-    // Calcular fecha hasta (end_date)
-    var fechaHasta = end_date;
-    var fechaDesde = new Date();
-    
-    // Convertir end_date si viene como '+180d'
-    if (typeof fechaHasta === 'string' && fechaHasta.startsWith('+')) {
-      var dias = parseInt(fechaHasta.replace(/\D/g, ''));
-      fechaHasta = new Date();
-      fechaHasta.setDate(fechaHasta.getDate() + dias);
-      fechaHasta = fechaHasta.toISOString().split('T')[0];
-    } else if (typeof fechaHasta === 'string' && fechaHasta.includes('/')) {
-      // Ya viene en formato DD/MM/YYYY, convertir a YYYY-MM-DD
-      var fechaArray = fechaHasta.split('/');
-      fechaHasta = fechaArray[2] + '-' + fechaArray[1] + '-' + fechaArray[0];
-    }
-    
-    var fechaDesdeStr = fechaDesde.toISOString().split('T')[0];
-    
-    // Convertir formato de fecha para el endpoint (DD/MM/YYYY)
-    var fechaDesdeFormato = fechaDesdeStr.split('-').reverse().join('/');
-    var fechaHastaFormato = fechaHasta.split('-').reverse().join('/');
-    
-    $.ajax({
-      type: 'POST',
-      dataType: 'JSON',
-      url: '/get_fechas_disponibles',
-      data: {
-        medico: medico_id,
-        tipoTurno: tipoTurno,
-        esVideollamada: esVideollamada,
-        consultorio: consultorio,
-        primer_control: primer_control,
-        fecha_desde: fechaDesdeFormato,
-        fecha_hasta: fechaHastaFormato,
-        _token: '{{csrf_token()}}'
-      },
-      success: function(data) {
-        fechasDisponibles = data.fechas || [];
-        fechasSinTurnos = data.fechasSinTurnos || [];
-        
-        // Actualizar lista "Sugerencia: fechas disponibles más cercanas" con las mismas fechas del datepicker
-        var $lista = $('#sugerencia-fechas-list');
-        if ($lista.length) {
-          $lista.empty();
-          if (fechasDisponibles.length === 0) {
-            $lista.append('<li class="fontColorHeader">No hay fechas disponibles en el rango mostrado.</li>');
-          } else {
-            var maxSugerencias = Math.min(3, fechasDisponibles.length);
-            for (var s = 0; s < maxSugerencias; s++) {
-              $lista.append('<li class="fontColorHeader">' + fechasDisponibles[s] + '</li>');
-            }
-          }
-        }
-        
-        // Actualizar ambos datepickers para que muestren los días en verde y rojo
-        setTimeout(function() {
-          if ($('#datepicker-container').data('datepicker')) {
-            $('#datepicker-container').datepicker('update');
-          }
-          if ($('#fecha_seleccionada').data('datepicker')) {
-            $('#fecha_seleccionada').datepicker('update');
-          }
-        }, 100);
-        
-        // Seleccionar automáticamente el primer día disponible
-        if (fechasDisponibles.length > 0) {
-          var primeraFecha = fechasDisponibles[0]; // Formato: DD/MM/YYYY
-          var fechaArray = primeraFecha.split('/');
-          var fechaDate = new Date(fechaArray[2], fechaArray[1] - 1, fechaArray[0]);
-          
-          // Establecer el valor en el input y seleccionar en ambos datepickers
-          setTimeout(function() {
-            // Establecer el valor en el input primero
-            $('#fecha_seleccionada').val(primeraFecha);
-            
-            // Seleccionar en ambos datepickers
-            if ($('#datepicker-container').data('datepicker')) {
-              $('#datepicker-container').datepicker('setDate', fechaDate);
-            }
-            if ($('#fecha_seleccionada').data('datepicker')) {
-              $('#fecha_seleccionada').datepicker('setDate', fechaDate);
-            }
-            
-            // Actualizar ambos datepickers para que se muestren los estilos
-            setTimeout(function() {
-              $('#datepicker-container').datepicker('update');
-              $('#fecha_seleccionada').datepicker('update');
-              
-              // Usar la función manejarSeleccionFecha para actualizar horarios
-              setTimeout(function() {
-                if ($('#fecha_seleccionada').val()) {
-                  actualizarHorarios();
-                }
-              }, 300);
-            }, 200);
-          }, 400);
-        }
-      },
-      error: function(xhr, status, error) {
-        console.error('Error al cargar fechas disponibles:', error);
-      }
-    });
-  }
 
-  // Función para inicializar los datepickers
-  function inicializarDatepickers() {
-    // Inicializar datepicker inline en el contenedor (siempre visible)
-    $('#datepicker-container').datepicker({
-      weekStart: 0,
-      language: "es",
-      startDate: '-0d',
-      endDate: end_date,
-      keyboardNavigation: false,
-      forceParse: false,
-      autoclose: false,
-      daysOfWeekHighlighted: dias_habilitados, 
-      daysOfWeekDisabled: dias_deshabilitados,
-      beforeShowDay: function(date) {
-        // Médico 1: no permitir seleccionar fechas a partir de abril
-        if (medico_id == 1) {
-          var abrilPrimero = new Date(date.getFullYear(), 3, 1); // mes 3 = abril
-          if (date >= abrilPrimero) {
-            return { enabled: false };
-          }
-        }
-
-        // Formatear fecha como DD/MM/YYYY
-        var fechaStr = ('0' + date.getDate()).slice(-2) + '/' + ('0' + (date.getMonth() + 1)).slice(-2) + '/' + date.getFullYear();
-        
-        // Verificar si la fecha está en el array de fechas disponibles
-        var disponible = fechasDisponibles.indexOf(fechaStr) !== -1;
-        
-        // Verificar si la fecha está en el array de fechas sin turnos
-        var sinTurnos = fechasSinTurnos.indexOf(fechaStr) !== -1;
-        
-        var result = {
-          enabled: true
-        };
-        
-        if (disponible) {
-          result.classes = 'dia-disponible';
-        } else if (sinTurnos) {
-          result.classes = 'dia-sin-turnos';
-        }
-        
-        return result;
-      }
-    });
-    
-    // Inicializar datepicker en el input (oculto, para compatibilidad)
-    $('#fecha_seleccionada').datepicker({
-      weekStart: 0,
-      language: "es",
-      startDate: '-0d',
-      endDate: end_date,
-      keyboardNavigation: false,
-      forceParse: false,
-      autoclose: false,
-      daysOfWeekHighlighted: dias_habilitados, 
-      daysOfWeekDisabled: dias_deshabilitados,
-      beforeShowDay: function(date) {
-        // Médico 1: no permitir seleccionar fechas a partir de abril
-        if (medico_id == 1) {
-          var abrilPrimero = new Date(date.getFullYear(), 3, 1); // mes 3 = abril
-          if (date >= abrilPrimero) {
-            return { enabled: false };
-          }
-        }
-
-        var fechaStr = ('0' + date.getDate()).slice(-2) + '/' + ('0' + (date.getMonth() + 1)).slice(-2) + '/' + date.getFullYear();
-        var disponible = fechasDisponibles.indexOf(fechaStr) !== -1;
-        var sinTurnos = fechasSinTurnos.indexOf(fechaStr) !== -1;
-        var result = { enabled: true };
-        if (disponible) {
-          result.classes = 'dia-disponible';
-        } else if (sinTurnos) {
-          result.classes = 'dia-sin-turnos';
-        }
-        return result;
-      }
-    });
-    
-    // Función para manejar la selección de fecha
-    function manejarSeleccionFecha(fechaDate) {
-      if (!fechaDate) return;
-      
-      var fecha = ('0' + fechaDate.getDate()).slice(-2) + '/' + ('0' + (fechaDate.getMonth() + 1)).slice(-2) + '/' + fechaDate.getFullYear();
-      
-      // Establecer el valor en el input
-      $('#fecha_seleccionada').val(fecha);
-      
-      // Asegurar que ambos datepickers tengan la fecha seleccionada
-      if ($('#fecha_seleccionada').data('datepicker')) {
-        $('#fecha_seleccionada').datepicker('setDate', fechaDate);
-      }
-      
-      // Actualizar horarios después de un pequeño delay
-      setTimeout(function() {
-        var fechaActual = $('#fecha_seleccionada').val();
-        if (fechaActual) {
-          actualizarHorarios();
-        }
-      }, 200);
-    }
-    
-    // Cuando se seleccione una fecha en el datepicker inline
-    $('#datepicker-container').on('changeDate', function(e) {
-      if (e && e.date) {
-        manejarSeleccionFecha(e.date);
-      }
-    });
-    
-    // También capturar cambios en el input
-    $('#fecha_seleccionada').on('changeDate', function(e) {
-      if (e && e.date) {
-        manejarSeleccionFecha(e.date);
-      }
-    });
-    
-    // Fallback: capturar cambios en el valor del input
-    $('#fecha_seleccionada').on('change', function() {
-      var valor = $(this).val();
-      if (valor && valor.length > 0) {
-        setTimeout(function() {
-          actualizarHorarios();
-        }, 200);
-      }
-    });
-    
-    // Capturar clicks directos en los días del datepicker (fallback adicional)
-    $(document).on('click', '#datepicker-container .datepicker-days tbody td:not(.old):not(.new):not(.disabled)', function() {
-      setTimeout(function() {
-        var selectedDate = $('#datepicker-container').datepicker('getDate');
-        if (selectedDate) {
-          manejarSeleccionFecha(selectedDate);
-        }
-      }, 100);
-    });
-  }
-  
-  // Inicializar datepickers primero (aunque aún no tengan las fechas)
-  inicializarDatepickers();
-  
-  // Luego cargar fechas disponibles - esto actualizará los datepickers automáticamente
-  setTimeout(function() {
-    cargarFechasDisponibles();
-  }, 200);
+  $('.datepicker').datepicker({
+    weekStart: 0,
+    language: "es",
+    startDate: '-0d',
+    endDate: end_date,
+    keyboardNavigation: false,
+    forceParse: false,
+    autoclose: true,
+    daysOfWeekHighlighted: dias_habilitados, 
+    daysOfWeekDisabled: dias_deshabilitados    
+  }).attr('readonly','readonly');
 
   function borrarSeccion(seccion){
     var myNode = document.getElementById(seccion);
@@ -712,13 +252,13 @@ $.ajaxSetup({
     let [dia, mes, anio] = fecha_seleccionada.split("/");    
     let fechaFormateada = `${anio}-${mes}-${dia}`;
 
-    /*if(medico == 29 && fechaFormateada >= '2025-10-01') {      
+    if(medico == 29 && fechaFormateada >= '2025-10-01') {      
       document.getElementById("modalMensajeTitulo").innerHTML = "AVISO";
       document.getElementById("modalMensajeTexto").innerHTML = "¡Hola! Me encuentro de licencia por maternidad hasta nuevo aviso. Durante este tiempo -para turnos programados- me van a estar ayudando dos colegas, especialistas en Pediatría, Florencia García Elliot y Antonela Luini. Los turnos podrán obtenerlos a través de la página www.turnosonlinebb.com, o bien comunicandose al teléfono de la secretaria: 2915134858. Nos vemos al regreso! Saludos!";            
         
         $('#modalMensaje').modal();
       return;      
-    } */
+    }
     
     $.ajax({
        type:'POST',
@@ -857,11 +397,6 @@ $.ajaxSetup({
                 document.getElementById("modalTurnoOk_horario").innerHTML = "<b>Horario: </b>" + horario;
                 document.getElementById("modalTurnoOk_medico").innerHTML = "<b>Especialista: </b>" + medico;
                 var consultorio = data.consultorio.direccion;
-                if(data.medico.id == 24){
-                  if(data.datosTurno.dia == 1 || data.datosTurno.dia == 5) {
-                    consultorio = "Luiggi 463";
-                  }
-                }
                 if(data.medico.id == 2) {                  
                   consultorio = "Equipo Dubie ";
                 }              
@@ -870,43 +405,6 @@ $.ajaxSetup({
                 if(data.medico.id == 13){
                   //document.getElementById("modalTurnoOk_tipo_turno").innerHTML = "<b>Tipo Turno: </b>" + obtenerTextoSeleccionado();            
                   document.getElementById("seccion_tipo_turnos").hidden = false;
-                }
-
-                // Guardar URL del recordatorio para abrir cuando se confirme el modal
-                // Si el evento ya se agregó automáticamente a Google Calendar, mostrar mensaje de éxito
-                if(data.calendar_event_added) {
-                    console.log('✅ Evento agregado automáticamente a Google Calendar');
-                    // Mostrar mensaje de éxito en el modal
-                    var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
-                    if(calendarMessage) {
-                        calendarMessage.style.display = 'block';
-                    }
-                    // Limpiar URLs guardadas
-                    window.calendarReminderUrl = null;
-                    window.calendarIcsContent = null;
-                } else {
-                    // Ocultar mensaje si no se agregó automáticamente
-                    var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
-                    if(calendarMessage) {
-                        calendarMessage.style.display = 'none';
-                    }
-                }
-                
-                if(data.google_calendar_reminder_url && data.google_calendar_reminder_url !== null && data.google_calendar_reminder_url !== 'null') {
-                    // Guardar URL del recordatorio para abrir cuando se confirme el modal
-                    window.calendarReminderUrl = data.google_calendar_reminder_url;
-                    window.calendarIcsContent = null;
-                    console.log('📅 URL de recordatorio guardada. Se abrirá cuando confirmes el turno.');
-                    console.log('URL:', data.google_calendar_reminder_url);
-                } else if(data.ics_content) {
-                    // Fallback: Guardar contenido .ics para abrir cuando se confirme
-                    window.calendarReminderUrl = null;
-                    window.calendarIcsContent = data.ics_content;
-                    console.log('📅 Contenido .ics guardado. Se abrirá cuando confirmes el turno.');
-                } else {
-                    // Limpiar URLs guardadas
-                    window.calendarReminderUrl = null;
-                    window.calendarIcsContent = null;
                 }
 
                 $('#modalConfirmar').modal();
@@ -999,7 +497,7 @@ $.ajaxSetup({
                     consultorio = "Blandengues 505";
                   }
                 }
-                if(data.medico.id == 24) {
+                if(data.medico.id == 24){
                   if(data.datosTurno.dia == 1 || data.datosTurno.dia == 5) {
                     consultorio = "Luiggi 463";
                   }
@@ -1011,46 +509,6 @@ $.ajaxSetup({
                   consultorio = "Florida 700";                  
                 }
                 document.getElementById("modalTurnoOk_direccion").innerHTML = "<b>Dirección: </b>" + consultorio;            
-
-                // Guardar URL del recordatorio para abrir cuando se confirme el modal
-                // Si el evento ya se agregó automáticamente a Google Calendar, mostrar mensaje de éxito
-                if(data.calendar_event_added) {
-                    console.log('✅ Evento agregado automáticamente a Google Calendar');
-                    // Guardar estado para mostrar en el modal final
-                    window.calendarEventAdded = true;
-                    // Mostrar mensaje de éxito en el modal
-                    var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
-                    if(calendarMessage) {
-                        calendarMessage.style.display = 'block';
-                    }
-                    // Limpiar URLs guardadas
-                    window.calendarReminderUrl = null;
-                    window.calendarIcsContent = null;
-                } else {
-                    // Ocultar mensaje si no se agregó automáticamente
-                    window.calendarEventAdded = false;
-                    var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
-                    if(calendarMessage) {
-                        calendarMessage.style.display = 'none';
-                    }
-                }
-                
-                if(data.google_calendar_reminder_url && data.google_calendar_reminder_url !== null && data.google_calendar_reminder_url !== 'null') {
-                    // Guardar URL del recordatorio para abrir cuando se confirme el modal
-                    window.calendarReminderUrl = data.google_calendar_reminder_url;
-                    window.calendarIcsContent = null;
-                    console.log('📅 URL de recordatorio guardada. Se abrirá cuando confirmes el turno.');
-                    console.log('URL:', data.google_calendar_reminder_url);
-                } else if(data.ics_content) {
-                    // Fallback: Guardar contenido .ics para abrir cuando se confirme
-                    window.calendarReminderUrl = null;
-                    window.calendarIcsContent = data.ics_content;
-                    console.log('📅 Contenido .ics guardado. Se abrirá cuando confirmes el turno.');
-                } else {
-                    // Limpiar URLs guardadas
-                    window.calendarReminderUrl = null;
-                    window.calendarIcsContent = null;
-                }
 
                 $('#modalConfirmar').modal();
             }  
@@ -1091,101 +549,12 @@ $.ajaxSetup({
     var medico_id = document.getElementById("medico_id").value;
     var turno_id = document.getElementById("turno_id").value;    
 
-    // TEMPORALMENTE DESHABILITADO: Abrir calendario cuando se confirma el modal
-    // console.log('🔍 Verificando calendarReminderUrl:', window.calendarReminderUrl);
-    // console.log('🔍 Tipo:', typeof window.calendarReminderUrl);
-    // 
-    // var reminderUrl = window.calendarReminderUrl;
-    // var isValidUrl = reminderUrl && 
-    //                  reminderUrl !== null && 
-    //                  reminderUrl !== 'null' && 
-    //                  reminderUrl !== undefined &&
-    //                  String(reminderUrl).trim() !== '' &&
-    //                  String(reminderUrl).indexOf('http') === 0;
-    // 
-    // if(isValidUrl) {
-    //   // Abrir solo el recordatorio del día anterior en un popup
-    //   var urlToOpen = String(reminderUrl);
-    //   console.log('✅ Abriendo URL válida:', urlToOpen);
-    //   setTimeout(function() {
-    //     // Abrir en un popup centrado (no en nueva pestaña completa)
-    //     var width = 800;
-    //     var height = 600;
-    //     var left = (screen.width / 2) - (width / 2);
-    //     var top = (screen.height / 2) - (height / 2);
-    //     var popup = window.open(
-    //       urlToOpen, 
-    //       'GoogleCalendar',
-    //       'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes'
-    //     );
-    //     
-    //     // Verificar si el popup se abrió correctamente (puede estar bloqueado)
-    //     if (popup) {
-    //       popup.focus();
-    //       console.log('📅 Recordatorio del día anterior abierto en Google Calendar. Por favor, haz clic en "Guardar" y luego cierra la ventana para volver.');
-    //     } else {
-    //       // Si el popup está bloqueado, abrir en nueva pestaña como fallback
-    //       window.open(urlToOpen, '_blank');
-    //       console.log('📅 Recordatorio del día anterior abierto en nueva pestaña. Por favor, haz clic en "Guardar".');
-    //     }
-    //   }, 500);
-    //   
-    //   // Limpiar URLs después de abrirlas
-    //   window.calendarReminderUrl = null;
-    //   window.calendarTurnoUrl = null;
-    // } else {
-    //   console.warn('⚠️ URL de recordatorio no válida o no disponible:', reminderUrl);
-    //   // Limpiar URLs inválidas
-    //   window.calendarReminderUrl = null;
-    //   window.calendarTurnoUrl = null;
-    // }
-    // 
-    // if(window.calendarIcsContent) {
-    //   // Fallback: Usar archivo .ics para calendario nativo
-    //   setTimeout(function() {
-    //     var encodedContent = encodeURIComponent(window.calendarIcsContent);
-    //     var dataUri = 'data:text/calendar;charset=utf-8,' + encodedContent;
-    //     
-    //     // Crear enlace temporal con data URI
-    //     var link = document.createElement('a');
-    //     link.href = dataUri;
-    //     link.target = '_blank';
-    //     link.style.display = 'none';
-    //     document.body.appendChild(link);
-    //     
-    //     // Hacer click programático
-    //     link.click();
-    //     
-    //     // Remover el enlace después de un momento
-    //     setTimeout(function() {
-    //       if (link.parentNode) {
-    //         document.body.removeChild(link);
-    //       }
-    //     }, 1000);
-    //     
-    //     console.log('📅 Se abrió el calendario nativo. Por favor, haz clic en "Guardar" o "Agregar" para agregar el evento con recordatorio.');
-    //     
-    //     // Limpiar contenido después de abrirlo
-    //     window.calendarIcsContent = null;
-    //   }, 500);
-    // }
-
     if(esVideollamada == 0 || especialidad_id == 2) {        
       var tipoTurno = obtenerRadioSeleccionado();
       if(medico_id == 13) {
         document.getElementById("modalTurnoOk_tipo_turno").innerHTML = "<b>Tipo Turno: </b>" + obtenerTextoSeleccionado();
         actualizarTipoTurno(turno_id, tipoTurno);
       }        
-      // Mostrar/ocultar mensaje de calendario según el estado
-      var calendarMessage = document.getElementById('modalTurnoOk_calendar_message');
-      if(calendarMessage) {
-          if(window.calendarEventAdded) {
-              calendarMessage.style.display = 'block';
-          } else {
-              calendarMessage.style.display = 'none';
-          }
-      }
-      
       $('#modalTurnoOk').modal();
     } else {
     //  var turno_id = document.getElementById("turno_id").value;    
@@ -1387,15 +756,6 @@ $.ajaxSetup({
       "Saludos!!";
       $("#modalMensaje").modal();
     }    
-    if(medico_id == 1) {      
-      document.getElementById("modalMensajeTitulo").innerHTML = "Aviso";
-      document.getElementById("modalMensajeTexto").innerHTML =       
-      "Queridas familias<br><br>" +
-      "Por el momento no me encontraré atendiendo en el consultorio debido a mi licencia por embarazo.<br><br>" +
-      "Quiero agradecerles profundamente la confianza de siempre y el cariño brindado en cada consulta. Oportunamente estaré informando mi regreso y la reanudación de la atención.<br><br>" +
-      "Les envío un afectuoso saludo. Flor 🤍";
-      $("#modalMensaje").modal();
-    }
 
     if(medico_id == 2 && tipoTurno == 24) {
       showObraSocialDiferncial();
@@ -1493,12 +853,6 @@ $.ajaxSetup({
   }
 
 </script>
-
-{{-- 
-  Firebase Cloud Messaging (FCM) - ELIMINADO
-  Esta funcionalidad fue removida porque no funciona correctamente en iOS.
-  Se implementará una solución alternativa en el futuro.
---}}
 
 @endsection
 

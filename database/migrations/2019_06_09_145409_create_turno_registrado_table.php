@@ -29,8 +29,6 @@ class CreateTurnoRegistradoTable extends Migration
             $table->string('primerControl');
             $table->float('caja');
             $table->string('comentario');
-            $table->string('otorgado_por');
-            $table->integer('msj_enviado');
             $table->integer('activo');
             $table->timestamps();
         });

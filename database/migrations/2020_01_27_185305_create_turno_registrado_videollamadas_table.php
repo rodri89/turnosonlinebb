@@ -32,7 +32,6 @@ class CreateTurnoRegistradoVideollamadasTable extends Migration
             $table->integer('disponible_medico'); // lo va a poner en la pagina de mis_turnos para avisar que ya esta ahi.           
             $table->integer('pago'); // 1 si, 0 no.
             $table->string('pago_ticket'); // por si mercado pago te da un numero de pagado 
-            $table->integer('cargado');   
             $table->integer('activo');   
             $table->timestamps();
         });

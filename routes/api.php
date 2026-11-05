@@ -54,6 +54,9 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         // Quiénes pueden entrar, para el panel de administración de la app. Solo el administrador.
         // Los médicos, los consultorios y las especialidades ya van en `catalogos`.
         Route::get('usuarios', 'UsuarioController@index');
+        // Alta de médicos y secretarias desde el panel de la app: el mismo alta que la web hace en
+        // dos pantallas. La identidad es de acá, así que el alta también.
+        Route::post('usuarios', 'AltaUsuarioController@crear');
         Route::get('secretarias', 'UsuarioController@secretarias');
         Route::get('mensajes', 'CatalogoController@mensajes');
         Route::post('mensajes', 'CatalogoController@guardarMensaje');

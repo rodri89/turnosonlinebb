@@ -193,6 +193,10 @@ abstract class Salud360Controller extends Controller
             'especialidad' => $especialidad !== null ? $especialidad->nombre : null,
             'consultorio_id' => (int) $m->consultorio,
             'activo' => (int) $m->activo,
+            // Si atiende por agenda. No alcanza con tener consultorio: la ficha lo exige siempre, así
+            // que el médico que solo usa historia clínica también tiene uno. Lo que lo distingue es no
+            // tener ningún horario cargado, y con esto la app no le muestra una agenda vacía.
+            'tiene_horarios' => DB::table('horario_medicos')->where('medico', $m->id)->where('activo', 1)->exists() ? 1 : 0,
             // Historias clínicas de Salud 360 habilitadas por el administrador (tabla salud360_medico_hc).
             'historias_clinicas' => app(HistoriaClinicaService::class)->habilitadas($m->id),
         ];

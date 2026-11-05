@@ -19,16 +19,13 @@ class CreatePacienteTable extends Migration
             $table->string('apellido');
             $table->integer('dni')->unique();
             $table->string('telefono');
-            $table->string('domicilio');
-            $table->string('localidad');            
+            $table->string('domicilio');            
             $table->string('mail');
             $table->date('fecha_nacimiento');  
             $table->date('fecha_castigo');              
             $table->string('obra_social');            
             $table->string('numero_afiliado');            
-            $table->string('obra_social_plan');
-            $table->string('obra_social_foto');   
-            $table->integer('afiliado_obligatorio');
+            $table->string('obra_social_plan');   
             $table->integer('terminos_condiciones');         
             $table->integer('activo');
             $table->timestamps();

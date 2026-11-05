@@ -24,9 +24,6 @@ class CreateRecetaTable extends Migration
             $table->string('motivo');
             $table->unsignedInteger('estado');                    
             $table->foreign('estado')->references('id')->on('receta_estados');
-            $table->string('foto');
-            $table->integer('retira_consultorio');
-            $table->string('comentario');
             $table->integer('activo');  
             $table->timestamps();
         });
