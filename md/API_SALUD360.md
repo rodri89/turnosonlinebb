@@ -22,10 +22,13 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | `app/Services/Salud360/AgendaMedicoReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
 | `app/Http/Controllers/Api/Salud360/MedicoHistoriasClinicasController.php` | `PUT medicos/{id}/historias-clinicas`: historias clínicas habilitadas a un médico (solo administrador). Ver «Historias clínicas por médico». |
 | `app/Services/Salud360/HistoriasClinicasReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
+| `app/Http/Controllers/Api/Salud360/MedicoActivoController.php` | `PUT medicos/{id}/activo`: dar de baja o de alta a un médico (`medicos.activo`, solo administrador). Ver «Activar / desactivar un médico». |
+| `app/Services/Salud360/EstadoMedicoReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
 | `routes/api.php` | Grupo `salud360`. |
 | `tests/Unit/Salud360AgendaServiceTest.php` | Pruebas de los métodos puros del servicio. |
 | `tests/Unit/Salud360AgendaMedicoReglasTest.php` | Pruebas de las reglas de la agenda por médico. |
 | `tests/Unit/Salud360HistoriasClinicasReglasTest.php` | Pruebas de las reglas de las historias clínicas por médico. |
+| `tests/Unit/Salud360EstadoMedicoReglasTest.php` | Pruebas de las reglas de activar / desactivar un médico. |
 
 Migraciones: `salud360_tokens` y `salud360_medico_hc` (idempotentes; las tablas también se crean solas, ver
 `app/Services/Salud360/HistoriaClinicaService.php`) y `2026_11_05_000000_add_tiene_agenda_to_medicos_table`
@@ -321,6 +324,81 @@ curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":[
 # Código que no existe
 curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":["pediatria","oftalmologia"]}'
 # → 422 {"ok":false,"mensaje":"Historia clínica desconocida: «oftalmologia». Códigos válidos: pediatria, clinica, hepatologia, gineco, cardiologia, endocrinologia, hematologia, desarrollo_infantil.","codigo":"datos_invalidos"}
+```
+
+### Activar / desactivar un médico
+
+#### `PUT medicos/{id}/activo` (solo administrador)
+
+Da de baja (`false`) o de alta (`true`) a un médico escribiendo `medicos.activo` (`1`/`0`). `{id}` es el número de médico de turnos
+(el `medico_id` de `GET usuarios`). Cuerpo:
+
+```json
+{ "activo": false }
+```
+
+**Solo los médicos tienen «activo».** `users` no tiene esa columna: para una secretaria o el administrador no existe ni se guarda
+nada (`GET usuarios` informa `activo: 1` fijo para ellos). La app no debe ofrecer este botón para esos roles.
+
+Reglas, en este orden:
+
+1. No es administrador → `403` `sin_permiso`.
+2. Médico inexistente → `404` `no_encontrado` (se busca por `id`, esté activo o dado de baja; así se puede reactivar).
+3. `activo` ausente o que no es un booleano JSON de verdad → `422` `datos_invalidos`. Más estricto que la agenda: **no** valen `1`/`0`,
+   `"true"`/`"false"`, `"si"`, `null`, números ni listas. (Un cuerpo no JSON, p. ej. `activo=false` como formulario, llega como texto y se rechaza.)
+4. Se escribe `medicos.activo` y `updated_at` solo si el valor cambia, en una transacción con la fila bloqueada. Es idempotente:
+   repetir el pedido da lo mismo y no toca la fila.
+
+No toca agenda (`tiene_agenda`, `castigo_automatico`), historias clínicas (`salud360_medico_hc`), licencias, horarios, turnos ni tokens.
+Desactivar y volver a activar deja al médico como estaba.
+
+Respuesta `200`, con el estado final real leído de la base:
+
+```json
+{ "ok": true, "medico_id": 12, "activo": false }
+```
+
+(`activo` va como booleano JSON acá; en `GET usuarios` y `catalogos` va como `0`/`1`.)
+
+**Efecto de `activo = 0`** (`activo = 1` en turnos significa «puede entrar y operar»):
+
+- `GET usuarios` lo informa con `activo: 0`.
+- **Desaparece de `GET catalogos`** (la lista de médicos solo trae `activo = 1`). Para saber que está dado de baja y poder reactivarlo, la app tiene que
+  mirar `GET usuarios`, no `catalogos`.
+- Su `auth/perfil` sigue respondiendo `200`, pero con `medico: null`. La agenda, los turnos, los horarios, los pacientes del médico, los mensajes,
+  las recetas y las obras sociales responden `403 sin_permiso` (la API busca al médico propio con `activo = 1`); el administrador tampoco puede operar
+  sobre él hasta reactivarlo (salvo este mismo `PUT`, `agenda` e `historias-clinicas`, que buscan por `id`).
+- **No cierra sesiones.** El middleware `salud360` solo mira que el token exista y no haya vencido, y que el tipo de usuario sea 1, 2 o 3; no mira `medicos.activo`.
+  Un médico dado de baja con un token vigente (dura 6 meses) puede seguir llamando a las rutas que no buscan al médico: `catalogos`, `auth/perfil`,
+  `auth/password`, `auth/logout`, y `pacientes/buscar`, `pacientes/{id}` y `PUT pacientes/{id}` (no tienen control de rol). No se revocan los tokens.
+  El login sí funciona (`Auth::attempt` no mira `activo`), pero el perfil sale sin ficha de médico.
+
+Errores (formato de siempre: `ok`, `mensaje`, `codigo`):
+
+| HTTP | `codigo` | Cuándo | Ejemplo |
+|---|---|---|---|
+| 401 | `sin_token` / `token` | Sin token, o token inválido o vencido (middleware) | `{"ok":false,"mensaje":"No autenticado.","codigo":"sin_token"}` |
+| 403 | `sin_permiso` | No es administrador | `{"ok":false,"mensaje":"Solo el administrador puede activar o desactivar a un médico.","codigo":"sin_permiso"}` |
+| 404 | `no_encontrado` | Médico inexistente | `{"ok":false,"mensaje":"Médico no encontrado.","codigo":"no_encontrado"}` |
+| 422 | `datos_invalidos` | Falta `activo` | `{"ok":false,"mensaje":"Falta activo: tiene que ser verdadero o falso.","codigo":"datos_invalidos"}` |
+| 422 | `datos_invalidos` | `activo` no es un booleano JSON | `{"ok":false,"mensaje":"El campo activo tiene que ser verdadero o falso (un booleano, no un número ni un texto).","codigo":"datos_invalidos"}` |
+
+Ejemplos (datos inventados):
+
+```bash
+# Dar de baja al médico 12
+curl -s -X PUT https://turnosonlinebb.com/api/salud360/medicos/12/activo \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' -H 'Authorization: Bearer <token admin>' \
+  -d '{"activo":false}'
+# → {"ok":true,"medico_id":12,"activo":false}
+
+# Reactivarlo
+curl -s -X PUT .../medicos/12/activo ... -d '{"activo":true}'
+# → {"ok":true,"medico_id":12,"activo":true}
+
+# Valor que no es booleano
+curl -s -X PUT .../medicos/12/activo ... -d '{"activo":1}'
+# → 422 {"ok":false,"mensaje":"El campo activo tiene que ser verdadero o falso (un booleano, no un número ni un texto).","codigo":"datos_invalidos"}
 ```
 
 ### Alta de usuarios (`POST usuarios`)
