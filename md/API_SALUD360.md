@@ -18,11 +18,15 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | `app/Http/Controllers/Api/Salud360/*` | Controladores de la API (`Auth`, `Agenda`, `Turno`, `Paciente`, `Horario`, `Catalogo`, `Receta`). |
 | `app/Services/Salud360/TokenService.php` | Emite y valida los tokens (hash SHA-256 en `salud360_tokens`; la tabla se crea sola en el primer ingreso o con la migración). |
 | `app/Http/Middleware/Salud360Api.php` | Autentica por token y restringe la API a admin / médico / secretaria (alias `salud360` en `Kernel.php`). |
+| `app/Http/Controllers/Api/Salud360/MedicoAgendaController.php` | `PUT medicos/{id}/agenda`: «tiene agenda» y «visible para pacientes» de un médico (solo administrador). Ver «Agenda por médico». |
+| `app/Services/Salud360/AgendaMedicoReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
 | `routes/api.php` | Grupo `salud360`. |
 | `tests/Unit/Salud360AgendaServiceTest.php` | Pruebas de los métodos puros del servicio. |
+| `tests/Unit/Salud360AgendaMedicoReglasTest.php` | Pruebas de las reglas de la agenda por médico. |
 
 Migraciones: `salud360_tokens` y `salud360_medico_hc` (idempotentes; las tablas también se crean solas, ver
-`app/Services/Salud360/HistoriaClinicaService.php`). Sin cambios de versión de PHP/Laravel (PHP 7.1 / Laravel 5.8).
+`app/Services/Salud360/HistoriaClinicaService.php`) y `2026_11_05_000000_add_tiene_agenda_to_medicos_table`
+(columna `medicos.tiene_agenda`, ver «Agenda por médico»). Sin cambios de versión de PHP/Laravel (PHP 7.1 / Laravel 5.8).
 
 ## CORS
 
@@ -56,6 +60,9 @@ Casi todos los endpoints reciben `medico_id`. Quién puede usar cada médico:
 - `medico`: datos del médico, `especialidad`, `consultorio` (`consultorio_id` = 0 si no tiene agenda), `modulos`
   (ids activos de `modulo_medicos`), `ventana_dias`, `cupo_primer_control` y `historias_clinicas`.
 - `secretaria`: `consultorios` y `medicos` que puede gestionar (cada uno con el mismo detalle que arriba).
+
+El médico de `medico` y cada uno de `secretaria.medicos[]` (y de `catalogos`) traen además `tiene_horarios`,
+`tiene_agenda` y `visible_en_turnos`; ver «Agenda por médico».
 
 `historias_clinicas` son los códigos de las historias clínicas de Salud 360 que el administrador habilitó al médico
 (`pediatria`, `clinica`, `hepatologia`, `gineco`, `cardiologia`, `endocrinologia`, `hematologia`, `desarrollo_infantil`),
@@ -139,7 +146,7 @@ Formato de un turno:
 | Método | Ruta | Notas |
 |---|---|---|
 | GET | `medicos/{id}/foto` | Foto del médico (`public/images/medicos`), imagen binaria, sin token. 404 `sin_foto` si no tiene |
-| GET | `catalogos` | `consultorios`, `especialidades`, `medicos`, `obras_sociales`, `feriados` (desde 60 días atrás), `modulos`, `receta_estados`, `tipos_turno`, `hoy` |
+| GET | `catalogos` | `consultorios`, `especialidades`, `medicos` (con `tiene_horarios`, `tiene_agenda` y `visible_en_turnos`), `obras_sociales`, `feriados` (desde 60 días atrás), `modulos`, `receta_estados`, `tipos_turno`, `hoy` |
 | GET | `obras-sociales?medico_id` | Obras sociales del médico con `activo`, `importe`, `importe_reserva` |
 | POST | `obras-sociales` | `medico_id`, `obra_social_id`, `[activo]`, `[importe]` |
 | GET | `mensajes?medico_id` | Mensajes especiales del médico |
@@ -148,6 +155,147 @@ Formato de un turno:
 | DELETE | `mensajes/{id}` | Borra el mensaje |
 | POST | `feriados` | `fecha`, `descripcion` (solo admin) |
 | DELETE | `feriados/{id}` | (solo admin) |
+
+### Agenda por médico
+
+Dos datos independientes por médico, que el administrador decide desde el panel de la app:
+
+| Dato | Dónde se guarda | Qué significa |
+|---|---|---|
+| **Tiene agenda** | `medicos.tiene_agenda` (`tinyint(1)`, `DEFAULT 1`) | El médico maneja turnos. No se deduce de los horarios cargados. |
+| **Visible para pacientes** | `medicos.castigo_automatico` («Mostrar Médico», `1` = se muestra) | El paciente lo ve en la web para pedir turno. Es la columna de siempre: no cambió su significado ni la web. |
+
+Combinaciones válidas al escribir: sin agenda; con agenda interna (no visible); con agenda pública (visible).
+**«Sin agenda y visible» no se puede escribir** (puede existir en la base de antes: se informa tal cual).
+
+La migración rellena `tiene_agenda` con el mismo criterio de `tiene_horarios` (hay un `horario_medicos` con
+`activo = 1`: 1 si tiene, 0 si no), así que al activarla ningún médico cambia de estado; `castigo_automatico` no se toca.
+Mientras la migración no corrió, `tiene_agenda` y `visible_en_turnos` no se informan y la app sigue con `tiene_horarios`;
+el `PUT` responde `422 no_disponible`.
+
+#### Campos nuevos en `catalogos` y `auth/perfil`
+
+En cada elemento de `catalogos.medicos`, en `perfil.medico` y en cada elemento de `perfil.secretaria.medicos[]`
+(los tres salen de `Salud360Controller::formatearMedico`), sin quitar ni cambiar ningún campo anterior:
+
+| Campo | Valor |
+|---|---|
+| `tiene_horarios` | `0` / `1`: hay horarios cargados. Sigue igual (respaldo de la app cuando no llega `tiene_agenda`). |
+| `tiene_agenda` | `0` / `1`: columna `medicos.tiene_agenda`. |
+| `visible_en_turnos` | `0` / `1`: `castigo_automatico == 1`. |
+
+```json
+{
+  "id": 12, "nombre": "Ana", "apellido": "Pérez", "mail": "ana@ejemplo.com", "telefono": "1155550000",
+  "especialidad_id": 3, "especialidad": "Clínica médica", "consultorio_id": 2, "activo": 1,
+  "tiene_horarios": 1, "tiene_agenda": 1, "visible_en_turnos": 0,
+  "historias_clinicas": ["clinica"]
+}
+```
+
+#### `PUT medicos/{id}/agenda` (solo administrador)
+
+`{id}` es el número de médico de turnos. Cuerpo (al menos uno de los dos, booleanos):
+
+```json
+{ "tiene_agenda": false, "visible_en_turnos": false }
+```
+
+Reglas, en este orden:
+
+1. No es administrador → `403` `sin_permiso`.
+2. Médico inexistente → `404` `no_encontrado` (se busca por `id`, esté activo o dado de baja).
+3. Ningún campo, o valor que no es booleano (`true`/`false`, `1`/`0` o sus textos) → `422` `datos_invalidos`.
+4. `tiene_agenda = false` → el médico queda también con `castigo_automatico = 0`, venga o no `visible_en_turnos`.
+   Si el mismo pedido trae `visible_en_turnos = true` → `422` `agenda_requerida`.
+5. `visible_en_turnos = true` en un médico sin agenda (ni la tiene ni la trae el pedido) → `422` `agenda_requerida`. No se guarda nada.
+6. Solo `tiene_agenda = true` → la visibilidad no cambia. Apagar solo `visible_en_turnos` se puede siempre.
+7. Todo en una transacción, con la fila del médico bloqueada. Solo se escribe lo que cambia: repetir el pedido no toca nada y da la misma respuesta.
+
+No cancela ni modifica turnos, y no toca horarios, licencias ni `salud360_medico_hc`: apagar la agenda **no borra** lo cargado.
+
+Respuesta `200`, siempre con el estado final de los dos y el aviso de turnos futuros:
+
+```json
+{ "ok": true, "medico_id": 12, "tiene_agenda": false, "visible_en_turnos": false, "turnos_futuros": 3 }
+```
+
+- `tiene_agenda` y `visible_en_turnos` van como booleanos JSON acá (en `catalogos` y `perfil` van como `0`/`1`).
+- `turnos_futuros`: turnos del médico con fecha de hoy en adelante y vigentes, en todos sus consultorios. Vigente = no cancelado
+  (`turno_registrados.activo` en 1 o 2, lo mismo que ocupa un horario en la agenda). Se informa siempre; importa cuando se apagó la agenda.
+  Solo cuenta `turno_registrados` (las videollamadas no se gestionan desde Salud 360).
+
+Errores (formato de siempre: `ok`, `mensaje`, `codigo`):
+
+| HTTP | `codigo` | Cuándo | Ejemplo |
+|---|---|---|---|
+| 401 | `sin_token` / `token` | Sin token, o token inválido o vencido (middleware) | `{"ok":false,"mensaje":"No autenticado.","codigo":"sin_token"}` |
+| 403 | `sin_permiso` | No es administrador | `{"ok":false,"mensaje":"Solo el administrador puede cambiar la agenda de un médico.","codigo":"sin_permiso"}` |
+| 404 | `no_encontrado` | Médico inexistente | `{"ok":false,"mensaje":"Médico no encontrado.","codigo":"no_encontrado"}` |
+| 422 | `datos_invalidos` | Cuerpo sin ninguno de los dos campos, o no booleano | `{"ok":false,"mensaje":"El campo tiene_agenda tiene que ser verdadero o falso.","codigo":"datos_invalidos"}` |
+| 422 | `agenda_requerida` | Visible sin agenda (reglas 4 y 5) | `{"ok":false,"mensaje":"Para mostrar al médico a los pacientes primero tiene que tener agenda de turnos.","codigo":"agenda_requerida"}` |
+| 422 | `no_disponible` | Falta correr la migración (columna `tiene_agenda`) | |
+
+Ejemplos (datos inventados):
+
+```bash
+# Apagar la agenda del médico 12 (queda también no visible)
+curl -s -X PUT https://turnosonlinebb.com/api/salud360/medicos/12/agenda \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' -H 'Authorization: Bearer <token admin>' \
+  -d '{"tiene_agenda":false}'
+# → {"ok":true,"medico_id":12,"tiene_agenda":false,"visible_en_turnos":false,"turnos_futuros":3}
+
+# Dar agenda pública al médico 12
+curl -s -X PUT .../medicos/12/agenda ... -d '{"tiene_agenda":true,"visible_en_turnos":true}'
+# → {"ok":true,"medico_id":12,"tiene_agenda":true,"visible_en_turnos":true,"turnos_futuros":3}
+
+# Mostrarlo sin agenda: no se puede
+curl -s -X PUT .../medicos/41/agenda ... -d '{"visible_en_turnos":true}'
+# → 422 {"ok":false,"mensaje":"Para mostrar al médico a los pacientes primero tiene que tener agenda de turnos.","codigo":"agenda_requerida"}
+```
+
+Qué no hace: los endpoints de `agenda/*`, `turnos/*`, `horarios/*` y `recetas/*` **no** se bloquean por «tiene agenda»
+(la app solo oculta las pantallas) y las listas de la web para el paciente siguen mirando solo `castigo_automatico`.
+
+### Alta de usuarios (`POST usuarios`)
+
+Solo administrador. Crea en un solo pedido (una transacción) el usuario con su contraseña y la ficha de médico o de secretaria.
+Respuesta `201`: `{"ok":true,"usuario":{"id","nombre","apellido","email","tipo","rol","medico_id","secretaria_id","activo"}}`.
+
+Cuerpo: `nombre`, `apellido`, `email`, `password` (mínimo 6), `rol` (`ADMIN`, `MEDICO` o `SECRETARIA`) y, solo para el rol médico:
+`especialidad_id`, `consultorio_id`, `[telefono]`, `[sexo]`, `[historias_clinicas[]]`, `[mostrar_en_turnos]` y `[tiene_agenda]`.
+
+**Agenda del médico recién creado** (solo rol `MEDICO`; para secretaria y administrador estos campos se ignoran y no se escribe nada de esto):
+
+| Cuerpo | `medicos.tiene_agenda` | `castigo_automatico` («visible») |
+|---|---|---|
+| ninguno de los dos | `0` | `0` |
+| `mostrar_en_turnos: true` (la app publicada, que no manda `tiene_agenda`) | `1` | `1` |
+| `tiene_agenda: true`, `mostrar_en_turnos` falso u omitido | `1` | `0` (agenda interna) |
+| `tiene_agenda: true`, `mostrar_en_turnos: true` | `1` | `1` (agenda pública) |
+| `tiene_agenda: false`, `mostrar_en_turnos` falso u omitido | `0` | `0` |
+| `tiene_agenda: false`, `mostrar_en_turnos: true` | `422 agenda_requerida`, no se crea nada | |
+
+- Si `tiene_agenda` **no viene**, vale lo mismo que `mostrar_en_turnos`. Si **viene**, se guarda tal cual.
+- `tiene_agenda` se acepta como `true`/`false`, `1`/`0` o sus textos; cualquier otro valor (incluido `null`) → `422 datos_invalidos`, sin crear nada.
+- La columna se escribe siempre de forma explícita (su `DEFAULT 1` no se usa): un médico dado de alta sin pedir agenda no la tiene.
+- Si la columna todavía no existe (falta la migración) el alta funciona como antes.
+
+Errores (`ok`, `mensaje`, `codigo`): `403 sin_permiso`; `409 mail_repetido`; `422 datos` (nombre, mail, contraseña o rol), `422 especialidad`, `422 consultorio`;
+y los de la agenda:
+
+| HTTP | `codigo` | Ejemplo |
+|---|---|---|
+| 422 | `agenda_requerida` | `{"ok":false,"mensaje":"No se puede mostrar a los pacientes un médico sin agenda de turnos.","codigo":"agenda_requerida"}` |
+| 422 | `datos_invalidos` | `{"ok":false,"mensaje":"El campo tiene_agenda tiene que ser verdadero o falso.","codigo":"datos_invalidos"}` |
+
+```bash
+# Médico que solo usa historia clínica: sin agenda y no visible (datos inventados)
+curl -s -X POST https://turnosonlinebb.com/api/salud360/usuarios \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' -H 'Authorization: Bearer <token admin>' \
+  -d '{"nombre":"Ana","apellido":"Prueba","email":"ana@ejemplo.test","password":"clave-1234","rol":"MEDICO","especialidad_id":1,"consultorio_id":10,"tiene_agenda":false,"mostrar_en_turnos":false,"historias_clinicas":["clinica"]}'
+# → 201 {"ok":true,"usuario":{"id":73,"nombre":"Ana","apellido":"Prueba","email":"ana@ejemplo.test","tipo":2,"rol":"medico","medico_id":43,"secretaria_id":null,"activo":1}}
+```
 
 ### Recetas
 

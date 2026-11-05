@@ -58,6 +58,8 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         // dos pantallas. La identidad es de acá, así que el alta también.
         Route::post('usuarios', 'AltaUsuarioController@crear');
         Route::get('secretarias', 'UsuarioController@secretarias');
+        // Agenda por médico: «tiene agenda» y «visible para pacientes». Solo el administrador.
+        Route::put('medicos/{id}/agenda', 'MedicoAgendaController@guardar');
         Route::get('mensajes', 'CatalogoController@mensajes');
         Route::post('mensajes', 'CatalogoController@guardarMensaje');
         Route::put('mensajes/{id}', 'CatalogoController@actualizarMensaje');

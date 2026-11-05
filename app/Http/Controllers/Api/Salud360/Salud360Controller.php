@@ -181,7 +181,7 @@ abstract class Salud360Controller extends Controller
     protected function formatearMedico($m)
     {
         $especialidad = DB::table('especialidads')->where('id', $m->especialidad)->first();
-        return [
+        $medico = [
             'id' => (int) $m->id,
             'nombre' => $m->nombre,
             'apellido' => $m->apellido,
@@ -200,6 +200,16 @@ abstract class Salud360Controller extends Controller
             // Historias clínicas de Salud 360 habilitadas por el administrador (tabla salud360_medico_hc).
             'historias_clinicas' => app(HistoriaClinicaService::class)->habilitadas($m->id),
         ];
+        // Agenda por médico (spec 005). Salen de acá para `catalogos`, `auth/perfil` (médico) y cada médico de
+        // `secretaria.medicos[]`. Si la columna todavía no existe (falta correr la migración) no se informan, y la
+        // app sigue con `tiene_horarios`.
+        //  - tiene_agenda: decisión del administrador (`medicos.tiene_agenda`), independiente de los horarios.
+        //  - visible_en_turnos: «Mostrar Médico» (`castigo_automatico` = 1); se informa tal cual, sin corregir.
+        if (property_exists($m, 'tiene_agenda')) {
+            $medico['tiene_agenda'] = (int) $m->tiene_agenda === 1 ? 1 : 0;
+            $medico['visible_en_turnos'] = (int) $m->castigo_automatico === 1 ? 1 : 0;
+        }
+        return $medico;
     }
 
     protected function formatearPaciente($p)
