@@ -60,6 +60,8 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         Route::get('secretarias', 'UsuarioController@secretarias');
         // Agenda por médico: «tiene agenda» y «visible para pacientes». Solo el administrador.
         Route::put('medicos/{id}/agenda', 'MedicoAgendaController@guardar');
+        // Historias clínicas habilitadas al médico (la lista exacta). Solo el administrador.
+        Route::put('medicos/{id}/historias-clinicas', 'MedicoHistoriasClinicasController@guardar');
         Route::get('mensajes', 'CatalogoController@mensajes');
         Route::post('mensajes', 'CatalogoController@guardarMensaje');
         Route::put('mensajes/{id}', 'CatalogoController@actualizarMensaje');

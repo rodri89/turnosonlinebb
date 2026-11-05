@@ -20,9 +20,12 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | `app/Http/Middleware/Salud360Api.php` | Autentica por token y restringe la API a admin / médico / secretaria (alias `salud360` en `Kernel.php`). |
 | `app/Http/Controllers/Api/Salud360/MedicoAgendaController.php` | `PUT medicos/{id}/agenda`: «tiene agenda» y «visible para pacientes» de un médico (solo administrador). Ver «Agenda por médico». |
 | `app/Services/Salud360/AgendaMedicoReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
+| `app/Http/Controllers/Api/Salud360/MedicoHistoriasClinicasController.php` | `PUT medicos/{id}/historias-clinicas`: historias clínicas habilitadas a un médico (solo administrador). Ver «Historias clínicas por médico». |
+| `app/Services/Salud360/HistoriasClinicasReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
 | `routes/api.php` | Grupo `salud360`. |
 | `tests/Unit/Salud360AgendaServiceTest.php` | Pruebas de los métodos puros del servicio. |
 | `tests/Unit/Salud360AgendaMedicoReglasTest.php` | Pruebas de las reglas de la agenda por médico. |
+| `tests/Unit/Salud360HistoriasClinicasReglasTest.php` | Pruebas de las reglas de las historias clínicas por médico. |
 
 Migraciones: `salud360_tokens` y `salud360_medico_hc` (idempotentes; las tablas también se crean solas, ver
 `app/Services/Salud360/HistoriaClinicaService.php`) y `2026_11_05_000000_add_tiene_agenda_to_medicos_table`
@@ -67,7 +70,8 @@ El médico de `medico` y cada uno de `secretaria.medicos[]` (y de `catalogos`) t
 `historias_clinicas` son los códigos de las historias clínicas de Salud 360 que el administrador habilitó al médico
 (`pediatria`, `clinica`, `hepatologia`, `gineco`, `cardiologia`, `endocrinologia`, `hematologia`, `desarrollo_infantil`),
 tabla `salud360_medico_hc` (se crea sola, como `salud360_tokens`). Se administran en la web en Administración →
-Médico → "Historias clínicas Salud 360" (`POST admin_hc_medico`). turnosonlinebb es la identidad única de Salud 360:
+Médico → "Historias clínicas Salud 360" (`POST admin_hc_medico`) y, desde la app, con `PUT medicos/{id}/historias-clinicas`
+(ver «Historias clínicas por médico»). turnosonlinebb es la identidad única de Salud 360:
 un médico puede tener agenda, historias clínicas o ambas. Cada historia clínica vive en su propio sistema
 (hc_pediatria, hclinica, ...); su API acepta este mismo token, lo valida con `GET auth/perfil` y ubica al usuario
 local por `users.medico_id_tobb = perfil.medico.id`.
@@ -256,6 +260,68 @@ curl -s -X PUT .../medicos/41/agenda ... -d '{"visible_en_turnos":true}'
 
 Qué no hace: los endpoints de `agenda/*`, `turnos/*`, `horarios/*` y `recetas/*` **no** se bloquean por «tiene agenda»
 (la app solo oculta las pantallas) y las listas de la web para el paciente siguen mirando solo `castigo_automatico`.
+
+### Historias clínicas por médico
+
+#### `PUT medicos/{id}/historias-clinicas` (solo administrador)
+
+Deja habilitadas al médico **exactamente** las historias clínicas indicadas; las demás quedan inactivas. Es lo mismo que la web hace con
+`POST admin_hc_medico` (`HistoriaClinicaService::guardar`), pero con token. `{id}` es el número de médico de turnos. Cuerpo:
+
+```json
+{ "historias_clinicas": ["pediatria", "clinica"] }
+```
+
+`[]` deshabilita todas. Los códigos válidos son los de `historias_clinicas` (`pediatria`, `clinica`, `hepatologia`, `gineco`,
+`cardiologia`, `endocrinologia`, `hematologia`, `desarrollo_infantil`); se comparan exactos (`Pediatria` o `pediatria ` no valen).
+
+Reglas, en este orden:
+
+1. No es administrador → `403` `sin_permiso`.
+2. Médico inexistente → `404` `no_encontrado` (se busca por `id`, esté activo o dado de baja).
+3. `historias_clinicas` ausente, que no es una lista (texto, `null`, objeto JSON...) o con algún elemento que no es texto → `422` `datos_invalidos`.
+4. Algún código fuera del catálogo → `422` `datos_invalidos`, con el mensaje nombrando los códigos desconocidos. No se descarta ninguno en
+   silencio ni se guarda el resto.
+5. Los repetidos se juntan. Todo en una transacción, con la fila del médico bloqueada. Es idempotente: repetir el pedido da lo mismo y no toca nada.
+
+Lo que se quita **no se borra**: la fila de `salud360_medico_hc` queda con `activo = 0` y se reactiva si se vuelve a pedir.
+No toca agenda, licencias, horarios ni otras tablas.
+
+Respuesta `200`, con la lista final real (los códigos activos tras guardar, en el orden del catálogo):
+
+```json
+{ "ok": true, "medico_id": 12, "historias_clinicas": ["pediatria", "clinica"] }
+```
+
+`GET catalogos` y `auth/perfil` informan el cambio de inmediato en `historias_clinicas` del médico.
+
+Errores (formato de siempre: `ok`, `mensaje`, `codigo`):
+
+| HTTP | `codigo` | Cuándo | Ejemplo |
+|---|---|---|---|
+| 401 | `sin_token` / `token` | Sin token, o token inválido o vencido (middleware) | `{"ok":false,"mensaje":"No autenticado.","codigo":"sin_token"}` |
+| 403 | `sin_permiso` | No es administrador | `{"ok":false,"mensaje":"Solo el administrador puede cambiar las historias clínicas de un médico.","codigo":"sin_permiso"}` |
+| 404 | `no_encontrado` | Médico inexistente | `{"ok":false,"mensaje":"Médico no encontrado.","codigo":"no_encontrado"}` |
+| 422 | `datos_invalidos` | Falta `historias_clinicas`, no es lista o un elemento no es texto | `{"ok":false,"mensaje":"Falta historias_clinicas: la lista de códigos que quedan habilitadas ([] para ninguna). Códigos válidos: pediatria, clinica, ...","codigo":"datos_invalidos"}` |
+| 422 | `datos_invalidos` | Códigos desconocidos (los nombra) | `{"ok":false,"mensaje":"Historia clínica desconocida: «oftalmologia». Códigos válidos: pediatria, clinica, ...","codigo":"datos_invalidos"}` |
+
+Ejemplos (datos inventados):
+
+```bash
+# Dejar al médico 12 con pediatría y clínica
+curl -s -X PUT https://turnosonlinebb.com/api/salud360/medicos/12/historias-clinicas \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' -H 'Authorization: Bearer <token admin>' \
+  -d '{"historias_clinicas":["clinica","pediatria"]}'
+# → {"ok":true,"medico_id":12,"historias_clinicas":["pediatria","clinica"]}
+
+# Quitarle todas
+curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":[]}'
+# → {"ok":true,"medico_id":12,"historias_clinicas":[]}
+
+# Código que no existe
+curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":["pediatria","oftalmologia"]}'
+# → 422 {"ok":false,"mensaje":"Historia clínica desconocida: «oftalmologia». Códigos válidos: pediatria, clinica, hepatologia, gineco, cardiologia, endocrinologia, hematologia, desarrollo_infantil.","codigo":"datos_invalidos"}
+```
 
 ### Alta de usuarios (`POST usuarios`)
 
