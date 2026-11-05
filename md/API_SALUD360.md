@@ -125,14 +125,64 @@ Formato de un turno:
 | Método | Ruta | Cuerpo / Query | Notas |
 |---|---|---|---|
 | GET | `pacientes` | `medico_id`, `[desde_id]`, `[limite=500]`, `[actualizado_desde]` | Pacientes vinculados al médico (`medico_pacientes`) o al consultorio (`paciente_secretarias`). Paginado por id: repetir con `desde_id = ultimo_id` mientras `hay_mas`. |
-| GET | `pacientes/vinculados` | `medico_id`, `[bloqueados]` (0/1), `[q]` (DNI, apellido o nombre) | Todos los pacientes vinculados directamente al médico (`medico_pacientes`), sin paginar, ordenados por apellido. Cada uno incluye `bloqueado` y `vinculado_en`. Devuelve `total`. |
+| GET | `pacientes/vinculados` | `medico_id`, `[bloqueados]` (0/1), `[q]` (DNI, apellido o nombre) | Los pacientes **asociados al médico**, sin paginar, sin repetir y ordenados por apellido: la unión de los que tienen vínculo (`medico_pacientes`) y los que tienen algún turno con él (`turno_registrados`). Cada uno incluye `bloqueado` y `vinculado_en`. Devuelve `total`. Ver «Pacientes del médico». |
 | GET | `pacientes/buscar` | `q` (DNI, apellido, nombre o mail) | Máximo 50 |
 | GET | `pacientes/pendientes` | `medico_id` | Registrados desde la app que esperan activación (`activo = 2`) |
 | GET | `pacientes/{id}` | | Incluye `medicos[] {medico_id, bloqueado}` |
-| POST | `pacientes` | `medico_id`, `dni`, `nombre`, `apellido`, `[telefono]`, `[mail]`, `[fecha_nacimiento]`, `[domicilio]`, `[localidad]`, `[obra_social]`, `[numero_afiliado]`, `[obra_social_plan]`, `[afiliado_obligatorio]` | Si el DNI ya existe actualiza y vincula (misma regla que la web). `201` si es nuevo. |
+| POST | `pacientes` | `medico_id`, `dni`, `nombre`, `apellido`, `[telefono]`, `[mail]`, `[fecha_nacimiento]`, `[domicilio]`, `[localidad]`, `[obra_social]`, `[numero_afiliado]`, `[obra_social_plan]`, `[afiliado_obligatorio]` | El DNI no se duplica: si ya existe se vincula al médico. Solo se actualizan sus datos si ya era un paciente de ese médico; si no, la ficha queda intacta y se devuelve tal cual. `201` si es nuevo. Ver «Pacientes del médico». |
 | PUT | `pacientes/{id}` | mismos campos | |
 | POST | `pacientes/{id}/activar` | `medico_id` | `activo = 1`, vincula y envía el mail de activación |
 | POST | `pacientes/{id}/bloqueo` | `medico_id`, `bloqueado` (0/1) | |
+
+#### Pacientes del médico (`pacientes/vinculados` y `POST pacientes`)
+
+Un paciente está **asociado a un médico** si cumple alguna de estas dos:
+
+1. tiene una fila en `medico_pacientes` con ese médico (bloqueado o no);
+2. tiene algún turno con él en `turno_registrados`, **de cualquier estado** (`activo` 0, 1, 2…): un turno cancelado también cuenta como «tuvo turno».
+   Es la misma convención de `GET turnos/paciente/{id}`, que tampoco filtra por `activo`.
+
+**`GET pacientes/vinculados?medico_id[&bloqueados=0|1][&q]`** devuelve la unión de las dos, una sola vez por paciente, con el mismo formato, orden
+(apellido, nombre, id) y filtros (`bloqueados`, `q`) de siempre. Para los que están solo por turnos (sin fila en `medico_pacientes`):
+`bloqueado = 0` y `vinculado_en = null` (no hay fecha de vínculo). `bloqueados=0` los incluye y `bloqueados=1` no. Se hace en una sola consulta
+(sin N+1) y no se filtra por `pacientes.activo` ni por el paciente «bloqueo» (DNI 99999), igual que antes. No cambió el `403` ni el `401`.
+
+```json
+{ "ok": true, "medico_id": 8, "total": 1, "pacientes": [
+  { "id": 4101, "nombre": "Prueba", "apellido": "Dos", "dni": 90000002, "telefono": "555", "domicilio": "", "localidad": "", "mail": "",
+    "nota": null, "fecha_nacimiento": null, "obra_social": "OS Dos", "numero_afiliado": "", "obra_social_plan": "", "afiliado_obligatorio": 0,
+    "activo": 1, "created_at": "2026-11-05 19:45:51", "updated_at": "2026-11-05 19:45:51",
+    "bloqueado": 0, "vinculado_en": null }
+] }
+```
+
+(un paciente que el médico 8 tiene solo por un turno; si tuviera vínculo, `vinculado_en` sería la fecha de la fila de `medico_pacientes`).
+
+**`POST pacientes`** (alta por DNI, sin duplicar):
+
+| DNI | ¿Asociado al médico? | Qué pasa | HTTP | `creado` |
+|---|---|---|---|---|
+| nuevo | — | se crea con los datos enviados (`nombre` y `apellido` obligatorios) y se vincula | `201` | `true` |
+| existente | sí | se actualizan los datos enviados (como siempre) | `200` | `false` |
+| existente | **no** | **no se modifica ningún campo de `pacientes`** (ni siquiera los vacíos); solo se crea el vínculo con el médico (`medico_pacientes`) y con el consultorio (`paciente_secretarias`). La respuesta trae la ficha tal cual está en la base. No se validan `nombre`/`apellido` | `200` | `false` |
+
+Después de ese alta el paciente ya está asociado, así que un nuevo `POST` del mismo médico sí actualiza sus datos. La regla «¿se pueden escribir los datos?» está en
+`app/Services/Salud360/PacienteAltaReglas.php` (se prueba con phpunit sin base).
+
+```bash
+# Médico 1 da de alta un DNI nuevo (datos inventados)
+curl -X POST "$BASE/api/salud360/pacientes" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"medico_id":1,"dni":"90000001","nombre":"Prueba","apellido":"Uno","telefono":"111","obra_social":"OS Original"}'
+# → 201 {"ok":true,"paciente":{"id":4102,"nombre":"Prueba","apellido":"Uno","dni":90000001,"telefono":"111",...,"obra_social":"OS Original",...},"creado":true}
+
+# El médico 8 da de alta el mismo DNI con otros datos: no se pisa nada, se asocia y se devuelve la ficha original
+curl -X POST "$BASE/api/salud360/pacientes" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"medico_id":8,"dni":"90000001","nombre":"Otro","apellido":"Nombre","telefono":"999","obra_social":"OS Distinta"}'
+# → 200 {"ok":true,"paciente":{"id":4102,"nombre":"Prueba","apellido":"Uno","dni":90000001,"telefono":"111",...,"obra_social":"OS Original",...},"creado":false}
+```
+
+Pendiente (aparte): `GET pacientes/buscar`, `GET pacientes/{id}` y `PUT pacientes/{id}` no limitan por médico (no resuelven `medico_id`):
+cualquier usuario con token ve o edita cualquier ficha. Esta sección solo cubre `vinculados` y el alta.
 
 ### Horarios y configuración del médico
 

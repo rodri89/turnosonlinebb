@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Salud360;
 
 use App\Paciente;
+use App\Services\Salud360\PacienteAltaReglas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -56,7 +57,10 @@ class PacienteController extends Salud360Controller
     
     /**
      * GET /api/salud360/pacientes/vinculados?medico_id[&bloqueados=0|1][&q]
-     * Todos los pacientes vinculados directamente al médico (tabla medico_pacientes), sin paginar.
+     * Pacientes asociados al médico, sin paginar y sin repetir: la unión de (a) los que tienen fila en
+     * medico_pacientes con él y (b) los que tienen algún turno con él en turno_registrados (de cualquier
+     * estado: un turno cancelado también cuenta). Los de (b) sin fila en medico_pacientes salen con
+     * `bloqueado` = 0 y `vinculado_en` = null.
      * Cada paciente incluye `bloqueado` y `vinculado_en`. `bloqueados` filtra por estado del vínculo;
      * `q` filtra por DNI, apellido o nombre.
      */
@@ -66,13 +70,12 @@ class PacienteController extends Salud360Controller
         if ($medico === null) {
             return $this->sinPermisoMedico();
         }
-        $consulta = DB::table('medico_pacientes')
-            ->join('pacientes', 'pacientes.id', '=', 'medico_pacientes.paciente')
-            ->select('pacientes.*', 'medico_pacientes.bloqueado as vinculo_bloqueado', 'medico_pacientes.created_at as vinculo_created_at')
-            ->where('medico_pacientes.medico', $medico->id);
+        $consulta = DB::table('pacientes')
+            ->joinSub($this->pacientesAsociados($medico->id), 'asociados', 'asociados.paciente', '=', 'pacientes.id')
+            ->select('pacientes.*', 'asociados.bloqueado as vinculo_bloqueado', 'asociados.created_at as vinculo_created_at');
 
         if ($request->filled('bloqueados')) {
-            $consulta->where('medico_pacientes.bloqueado', (int) $request->input('bloqueados') === 1 ? 1 : 0);
+            $consulta->where('asociados.bloqueado', (int) $request->input('bloqueados') === 1 ? 1 : 0);
         }
         $q = trim((string) $request->input('q', ''));
         if ($q !== '') {
@@ -145,7 +148,9 @@ class PacienteController extends Salud360Controller
      * POST /api/salud360/pacientes
      * {medico_id, dni, nombre, apellido, [telefono], [mail], [fecha_nacimiento], [domicilio], [localidad],
      *  [obra_social], [numero_afiliado], [obra_social_plan], [afiliado_obligatorio]}
-     * Si el DNI ya existe, actualiza los datos enviados (misma regla que la web) y lo vincula al médico/consultorio.
+     * Si el DNI ya existe no se duplica: se vincula al médico/consultorio. Si ya estaba asociado al médico
+     * (medico_pacientes o turnos con él) se actualizan los datos enviados (misma regla que la web); si no, la ficha
+     * queda intacta (ni siquiera se completan vacíos) y la respuesta trae los datos que ya tenía, con `creado` = false.
      */
     public function store(Request $request)
     {
@@ -158,37 +163,45 @@ class PacienteController extends Salud360Controller
             return $this->error('DNI inválido.', 422, 'datos');
         }
         $existente = DB::table('pacientes')->where('dni', $dni)->first();
-        $paciente = $existente === null ? new Paciente() : Paciente::find($existente->id);
         $nuevo = $existente === null;
+        $vinculado = !$nuevo && $this->estaAsociadoAlMedico($medico->id, $existente->id);
 
-        if ($nuevo) {
-            $paciente->dni = $dni;
-            $paciente->terminos_condiciones = 0;
-            $paciente->fecha_castigo = '2000-01-01 00:00:00';
-            $paciente->obra_social_foto = '';
-            $paciente->activo = 1;
-            foreach (['nombre', 'apellido', 'telefono', 'domicilio', 'localidad', 'mail', 'obra_social', 'numero_afiliado', 'obra_social_plan'] as $campo) {
-                $paciente->$campo = '';
-            }
-            $paciente->fecha_nacimiento = '1000-01-01 00:00:00';
-            $paciente->afiliado_obligatorio = 0;
-            foreach (['one_signal_id', 'fcm_token', 'google_calendar_access_token', 'google_calendar_refresh_token'] as $campo) {
-                if (\Schema::hasColumn('pacientes', $campo)) {
+        if (PacienteAltaReglas::debeActualizarDatos(!$nuevo, $vinculado)) {
+            $paciente = $nuevo ? new Paciente() : Paciente::find($existente->id);
+
+            if ($nuevo) {
+                $paciente->dni = $dni;
+                $paciente->terminos_condiciones = 0;
+                $paciente->fecha_castigo = '2000-01-01 00:00:00';
+                $paciente->obra_social_foto = '';
+                $paciente->activo = 1;
+                foreach (['nombre', 'apellido', 'telefono', 'domicilio', 'localidad', 'mail', 'obra_social', 'numero_afiliado', 'obra_social_plan'] as $campo) {
                     $paciente->$campo = '';
                 }
+                $paciente->fecha_nacimiento = '1000-01-01 00:00:00';
+                $paciente->afiliado_obligatorio = 0;
+                foreach (['one_signal_id', 'fcm_token', 'google_calendar_access_token', 'google_calendar_refresh_token', 'google_calendar_token_expires_at'] as $campo) {
+                    if (\Schema::hasColumn('pacientes', $campo)) {
+                        $paciente->$campo = '';
+                    }
+                }
             }
+            $this->aplicarCampos($paciente, $request);
+            if ($nuevo && (trim((string) $paciente->nombre) === '' || trim((string) $paciente->apellido) === '')) {
+                return $this->error('Nombre y apellido son obligatorios.', 422, 'datos');
+            }
+            $paciente->save();
+            $pacienteId = (int) $paciente->id;
+        } else {
+            // DNI de un paciente que no es de este médico: se asocia sin tocar la ficha.
+            $pacienteId = (int) $existente->id;
         }
-        $this->aplicarCampos($paciente, $request);
-        if ($nuevo && (trim((string) $paciente->nombre) === '' || trim((string) $paciente->apellido) === '')) {
-            return $this->error('Nombre y apellido son obligatorios.', 422, 'datos');
-        }
-        $paciente->save();
 
         $consultorio = $this->consultorioDe($request, $medico);
-        $this->agenda->vincularMedicoPaciente($medico->id, $paciente->id);
-        $this->agenda->vincularSecretariaPaciente($paciente->id, $consultorio);
+        $this->agenda->vincularMedicoPaciente($medico->id, $pacienteId);
+        $this->agenda->vincularSecretariaPaciente($pacienteId, $consultorio);
 
-        $p = DB::table('pacientes')->where('id', $paciente->id)->first();
+        $p = DB::table('pacientes')->where('id', $pacienteId)->first();
         return $this->ok(['paciente' => $this->formatearPaciente($p), 'creado' => $nuevo], $nuevo ? 201 : 200);
     }
 
@@ -299,6 +312,37 @@ class PacienteController extends Salud360Controller
             ->where('paciente', $pacienteId)
             ->update(['bloqueado' => (int) $request->input('bloqueado', 0) === 1 ? 1 : 0]);
         return $this->ok([]);
+    }
+
+    /**
+     * Pacientes asociados al médico, uno por paciente: (paciente, bloqueado, created_at).
+     * (a) los de medico_pacientes (si hubiera filas repetidas: bloqueado si alguna lo está, la más antigua);
+     * (b) los que tienen algún turno con el médico y ninguna fila en medico_pacientes (bloqueado = 0, sin fecha).
+     */
+    private function pacientesAsociados($medicoId)
+    {
+        $medicoId = (int) $medicoId;
+        $conVinculo = DB::table('medico_pacientes')
+            ->select('medico_pacientes.paciente', DB::raw('MAX(medico_pacientes.bloqueado) as bloqueado'), DB::raw('MIN(medico_pacientes.created_at) as created_at'))
+            ->where('medico_pacientes.medico', $medicoId)
+            ->groupBy('medico_pacientes.paciente');
+        $soloConTurnos = DB::table('turno_registrados')
+            ->select('turno_registrados.paciente', DB::raw('0 as bloqueado'), DB::raw('NULL as created_at'))
+            ->where('turno_registrados.medico', $medicoId)
+            ->whereNotExists(function ($s) use ($medicoId) {
+                $s->select(DB::raw(1))->from('medico_pacientes')
+                    ->whereRaw('medico_pacientes.paciente = turno_registrados.paciente')
+                    ->where('medico_pacientes.medico', $medicoId);
+            })
+            ->groupBy('turno_registrados.paciente');
+        return $conVinculo->unionAll($soloConTurnos);
+    }
+
+    /** ¿El paciente tiene fila en medico_pacientes con el médico o algún turno con él (cualquier estado)? */
+    private function estaAsociadoAlMedico($medicoId, $pacienteId)
+    {
+        return DB::table('medico_pacientes')->where('medico', $medicoId)->where('paciente', $pacienteId)->exists()
+            || DB::table('turno_registrados')->where('medico', $medicoId)->where('paciente', $pacienteId)->exists();
     }
 
     private function aplicarCampos(Paciente $paciente, Request $request)
