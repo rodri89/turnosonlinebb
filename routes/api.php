@@ -64,6 +64,12 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         Route::put('medicos/{id}/activo', 'MedicoActivoController@guardar');
         // Historias clínicas habilitadas al médico (la lista exacta). Solo el administrador.
         Route::put('medicos/{id}/historias-clinicas', 'MedicoHistoriasClinicasController@guardar');
+        // Tipos de turno: el catálogo global (ver y crear) y los que ofrece cada médico, con su condición
+        // («siempre», primera consulta, seguimiento) y sus opciones. Solo el administrador.
+        Route::get('tipos-turno', 'TiposTurnoController@index');
+        Route::post('tipos-turno', 'TiposTurnoController@crear');
+        Route::get('medicos/{id}/tipos-turno', 'MedicoTiposTurnoController@ver');
+        Route::put('medicos/{id}/tipos-turno', 'MedicoTiposTurnoController@guardar');
         Route::get('mensajes', 'CatalogoController@mensajes');
         Route::post('mensajes', 'CatalogoController@guardarMensaje');
         Route::put('mensajes/{id}', 'CatalogoController@actualizarMensaje');

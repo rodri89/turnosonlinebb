@@ -23,6 +23,9 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | `app/Services/Salud360/AgendaMedicoReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
 | `app/Http/Controllers/Api/Salud360/MedicoHistoriasClinicasController.php` | `PUT medicos/{id}/historias-clinicas`: historias clínicas habilitadas a un médico (solo administrador). Ver «Historias clínicas por médico». |
 | `app/Services/Salud360/HistoriasClinicasReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
+| `app/Http/Controllers/Api/Salud360/TiposTurnoController.php` | `GET` y `POST tipos-turno`: el catálogo global de tipos de turno (solo administrador). Ver «Tipos de turno». |
+| `app/Http/Controllers/Api/Salud360/MedicoTiposTurnoController.php` | `GET` y `PUT medicos/{id}/tipos-turno`: los tipos que ofrece un médico, con su condición y sus opciones (solo administrador). Ver «Tipos de turno». |
+| `app/Services/Salud360/TiposTurnoReglas.php` | Las reglas de `POST tipos-turno` y del `PUT` anterior sin base de datos (se prueban con phpunit). |
 | `app/Http/Controllers/Api/Salud360/MedicoActivoController.php` | `PUT medicos/{id}/activo`: dar de baja o de alta a un médico (`medicos.activo`, solo administrador). Ver «Activar / desactivar un médico». |
 | `app/Services/Salud360/EstadoMedicoReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
 | `routes/api.php` | Grupo `salud360`. |
@@ -30,6 +33,7 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | `tests/Unit/Salud360AgendaMedicoReglasTest.php` | Pruebas de las reglas de la agenda por médico. |
 | `tests/Unit/Salud360HistoriasClinicasReglasTest.php` | Pruebas de las reglas de las historias clínicas por médico. |
 | `tests/Unit/Salud360EstadoMedicoReglasTest.php` | Pruebas de las reglas de activar / desactivar un médico. |
+| `tests/Unit/Salud360TiposTurnoReglasTest.php` | Pruebas de las reglas de los tipos de turno. |
 | `tests/Unit/Salud360DisponibilidadReglasTest.php` | Pruebas de las reglas de disponibilidad y de bloquear el día. |
 
 Migraciones: `salud360_tokens` y `salud360_medico_hc` (idempotentes; las tablas también se crean solas, ver
@@ -406,6 +410,168 @@ curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":[
 curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":["pediatria","oftalmologia"]}'
 # → 422 {"ok":false,"mensaje":"Historia clínica desconocida: «oftalmologia». Códigos válidos: pediatria, clinica, hepatologia, gineco, cardiologia, endocrinologia, hematologia, desarrollo_infantil.","codigo":"datos_invalidos"}
 ```
+
+### Tipos de turno
+
+Lleva a la app lo que la web de administración hace en «Tipos de turno» del alta de médico. **Solo administrador.** La API reutiliza
+`App\Services\TipoTurnoService` (`crear`, `guardar`, `guardarOpciones`), el mismo que usa la web, así que los datos quedan igual que si
+se cargaran desde ahí. No toca horarios, turnos, agenda ni historias clínicas.
+
+Tres tablas:
+
+- `tipo_turnos`: el catálogo global (`id` autoincremental, `nombre`, `activo`). Un tipo no se borra.
+- `medico_tipo_turnos`: qué tipos ofrece cada médico (`activo`) y bajo qué condición (`primer_control`).
+- `tipo_turno_opciones`: opciones de un tipo «padre» para un médico (otro tipo del catálogo, distinto del padre). El horario queda
+  asociado al padre y el paciente elige la opción recién al confirmar el turno.
+
+#### Condición del tipo: `primer_control`
+
+| Valor | Significa | Se le ofrece al paciente |
+|---|---|---|
+| `null` | **Siempre** | Tanto si es su primera consulta como si no |
+| `1` | **Solo primera consulta** | Solo si el paciente dijo que es su primera consulta |
+| `0` | **Solo consultas de seguimiento** | Solo si el paciente dijo que no es su primera consulta |
+
+En el cuerpo del `PUT` tiene que ser exactamente `null`, `0` o `1` (JSON estricto: `"1"`, `true`, `""` o `2` dan `422`). Si no se manda la
+clave, es «siempre» (`null`), igual que un id suelto en la web.
+
+#### `GET tipos-turno`
+
+El catálogo completo, **también los inactivos** (`activo` 0/1), ordenado por `id` (como lo lista la web). Respuesta `200`:
+
+```json
+{ "ok": true, "tipos": [
+  { "id": 1, "nombre": "Consulta", "activo": 1 },
+  { "id": 40, "nombre": "Control rápido", "activo": 1 },
+  { "id": 41, "nombre": "Tipo en desuso", "activo": 0 }
+] }
+```
+
+#### `POST tipos-turno` (cuerpo `{"nombre": "..."}`)
+
+Crea un tipo nuevo, activo, con `TipoTurnoService::crear`. Reglas, en este orden:
+
+1. No es administrador → `403` `sin_permiso`.
+2. `nombre` ausente, que no es texto, vacío o solo espacios, o de más de **60 caracteres** (ya sin los espacios de los extremos) → `422` `datos_invalidos`.
+3. Ya existe un tipo con ese nombre, **sin distinguir mayúsculas ni espacios de los extremos** y también contra los inactivos → `409`
+   `nombre_repetido`, con la ficha del existente en `tipo`. **No crea nada.** (Esta regla es solo de la API: la web no valida nombres repetidos.)
+4. Si no, se guarda el nombre sin los espacios de los extremos y responde `201`. La comprobación y el alta van en una transacción con el
+   catálogo bloqueado, así que dos pedidos a la vez con el mismo nombre no crean dos tipos.
+
+```json
+{ "ok": true, "tipo": { "id": 42, "nombre": "Control anual", "activo": 1 } }
+```
+
+```json
+{ "ok": false, "mensaje": "Ya existe un tipo de turno con ese nombre: «Control anual» (id 42).", "codigo": "nombre_repetido",
+  "tipo": { "id": 42, "nombre": "Control anual", "activo": 1 } }
+```
+
+#### `GET medicos/{id}/tipos-turno`
+
+Solo los tipos **habilitados** del médico (`activo = 1`) que siguen activos en el catálogo (los que muestra la web), por `id`, cada uno con
+su condición y sus **opciones activas**. Las opciones guardadas de tipos que no están habilitados no se informan (se conservan, ocultas).
+`404` si el médico no existe (se busca por `id`, esté activo o dado de baja). Respuesta `200`:
+
+```json
+{ "ok": true, "medico_id": 12, "tipos": [
+  { "id": 1, "nombre": "Consulta", "primer_control": null, "opciones": [] },
+  { "id": 40, "nombre": "Control rápido", "primer_control": 0, "opciones": [] },
+  { "id": 43, "nombre": "Estudios", "primer_control": 1,
+    "opciones": [ { "id": 44, "nombre": "Estudio A" }, { "id": 45, "nombre": "Estudio B" } ] }
+] }
+```
+
+#### `PUT medicos/{id}/tipos-turno`
+
+Deja habilitados al médico **exactamente** los tipos de la lista (`[]` los deshabilita todos), con su condición y, si se quiere, sus
+opciones. Cuerpo JSON:
+
+```json
+{ "tipos": [
+  { "id": 1, "primer_control": null },
+  { "id": 40, "primer_control": 0 },
+  { "id": 43, "primer_control": 1, "opciones": [44, 45] }
+] }
+```
+
+- `primer_control`: ver arriba (opcional; si falta, `null`).
+- `opciones` (opcional por tipo): si viene, deja **exactamente** esas opciones para ese tipo (`[]` las apaga todas); si no viene, las
+  opciones de ese tipo **no se tocan**. Las de un tipo que no está en la lista tampoco se tocan.
+
+Reglas, en este orden:
+
+1. No es administrador → `403` `sin_permiso`.
+2. Médico inexistente → `404` `no_encontrado`.
+3. Forma (JSON estricto) → `422` `datos_invalidos`, con el mensaje diciendo qué campo está mal (`tipos[1].primer_control`...): `tipos` ausente o
+   que no es una lista; un elemento que no es objeto; `id` que no es un entero mayor que cero; `primer_control` distinto de `null`/`0`/`1`;
+   `opciones` que no es una lista de enteros mayores que cero. Un cuerpo que no es JSON cuenta como «falta `tipos`».
+4. Catálogo → `422` `datos_invalidos` nombrando el id: un `id` que no existe en el catálogo o está inactivo; un `id` repetido; una opción
+   inexistente o inactiva; una opción igual a su propio tipo. Una opción puede ser cualquier otro tipo del catálogo, aunque el médico no lo tenga habilitado.
+   Las opciones repetidas dentro de un tipo se juntan.
+5. Todo en **una transacción**, con la fila del médico bloqueada (`TipoTurnoService::guardar` y `guardarOpciones`). Si algo falla no se guarda nada.
+   Es idempotente: repetir el pedido da la misma respuesta.
+
+Lo que se quita **no se borra**: la fila de `medico_tipo_turnos` queda con `activo = 0` (conserva su `primer_control`) y se reactiva si se vuelve
+a pedir. Las opciones guardadas de un tipo deshabilitado se conservan y reaparecen si se lo vuelve a habilitar sin mandar `opciones`.
+
+Deshabilitar un tipo que todavía tiene horarios o turnos **no falla** (la web lo permite): no se toca ninguno. Pero la respuesta trae
+`avisos` (lista de textos, `[]` si nada): uno por cada tipo **no habilitado** con horarios fijos activos del médico (`horario_medicos.activo = 1`,
+de cualquier consultorio), con la cantidad. Es el estado final, no solo lo que cambió este pedido; solo números y nombres de tipo, sin datos
+personales. La app lo muestra tal cual.
+
+Respuesta `200`: el mismo contenido que el `GET` (estado final real leído de la base) más `avisos`:
+
+```json
+{ "ok": true, "medico_id": 12, "tipos": [
+  { "id": 43, "nombre": "Estudios", "primer_control": 1,
+    "opciones": [ { "id": 44, "nombre": "Estudio A" }, { "id": 45, "nombre": "Estudio B" } ] }
+], "avisos": [ "El tipo Consulta sigue teniendo 17 horarios activos.", "El tipo Control rápido sigue teniendo 1 horario activo." ] }
+```
+
+Errores (formato de siempre: `ok`, `mensaje`, `codigo`):
+
+| HTTP | `codigo` | Cuándo | Ejemplo |
+|---|---|---|---|
+| 401 | `sin_token` / `token` | Sin token, o token inválido o vencido (middleware) | `{"ok":false,"mensaje":"No autenticado.","codigo":"sin_token"}` |
+| 403 | `sin_permiso` | No es administrador (los cuatro pedidos) | `{"ok":false,"mensaje":"Solo el administrador puede cambiar los tipos de turno de un médico.","codigo":"sin_permiso"}` |
+| 404 | `no_encontrado` | Médico inexistente | `{"ok":false,"mensaje":"Médico no encontrado.","codigo":"no_encontrado"}` |
+| 409 | `nombre_repetido` | `POST tipos-turno` con un nombre que ya existe | ver arriba |
+| 422 | `datos_invalidos` | Falta `tipos` | `{"ok":false,"mensaje":"Falta tipos: la lista de tipos de turno que quedan habilitados ([] para ninguno).","codigo":"datos_invalidos"}` |
+| 422 | `datos_invalidos` | `primer_control` mal | `{"ok":false,"mensaje":"tipos[0].primer_control tiene que ser null (siempre), 1 (solo primera consulta) o 0 (solo consultas de seguimiento).","codigo":"datos_invalidos"}` |
+| 422 | `datos_invalidos` | Tipo inexistente o inactivo | `{"ok":false,"mensaje":"El tipo de turno 999 (tipos[0].id) no existe en el catálogo o está inactivo.","codigo":"datos_invalidos"}` |
+| 422 | `datos_invalidos` | Tipo repetido | `{"ok":false,"mensaje":"El tipo de turno 1 está repetido en tipos.","codigo":"datos_invalidos"}` |
+| 422 | `datos_invalidos` | Opción igual a su tipo | `{"ok":false,"mensaje":"El tipo de turno 1 no puede ser opción de sí mismo (tipos[0].opciones).","codigo":"datos_invalidos"}` |
+| 422 | `datos_invalidos` | Opción inexistente o inactiva | `{"ok":false,"mensaje":"La opción 777 (tipos[0].opciones) no existe en el catálogo o está inactiva.","codigo":"datos_invalidos"}` |
+| 422 | `datos_invalidos` | `nombre` vacío, que no es texto o de más de 60 caracteres | `{"ok":false,"mensaje":"nombre no puede pasar de 60 caracteres.","codigo":"datos_invalidos"}` |
+
+Ejemplos (datos inventados):
+
+```bash
+# Crear un tipo
+curl -s -X POST https://turnosonlinebb.com/api/salud360/tipos-turno \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' -H 'Authorization: Bearer <token admin>' \
+  -d '{"nombre":"Control anual"}'
+# → 201 {"ok":true,"tipo":{"id":42,"nombre":"Control anual","activo":1}}
+
+# Otra vez, con otras mayúsculas: no crea nada
+curl -s -X POST .../tipos-turno ... -d '{"nombre":"  CONTROL ANUAL "}'
+# → 409 {"ok":false,"mensaje":"Ya existe un tipo de turno con ese nombre: «Control anual» (id 42).","codigo":"nombre_repetido","tipo":{"id":42,"nombre":"Control anual","activo":1}}
+
+# Dejar al médico 12 con «Estudios» solo en la primera consulta y dos opciones
+curl -s -X PUT .../medicos/12/tipos-turno ... -d '{"tipos":[{"id":43,"primer_control":1,"opciones":[44,45]}]}'
+# → 200 (ver arriba), con avisos si le quedan horarios de los tipos que se sacaron
+
+# Deshabilitar todos
+curl -s -X PUT .../medicos/12/tipos-turno ... -d '{"tipos":[]}'
+# → 200 {"ok":true,"medico_id":12,"tipos":[],"avisos":[]}
+
+# primer_control como texto
+curl -s -X PUT .../medicos/12/tipos-turno ... -d '{"tipos":[{"id":43,"primer_control":"1"}]}'
+# → 422 {"ok":false,"mensaje":"tipos[0].primer_control tiene que ser null (siempre), 1 (solo primera consulta) o 0 (solo consultas de seguimiento).","codigo":"datos_invalidos"}
+```
+
+`GET catalogos` y `auth/perfil` no cambian con esta entrega.
 
 ### Activar / desactivar un médico
 
