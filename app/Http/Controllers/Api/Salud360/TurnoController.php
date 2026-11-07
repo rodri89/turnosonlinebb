@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Salud360;
 
 use App\Services\Salud360\AgendaService;
+use App\Services\Salud360\DisponibilidadReglas;
 use App\TurnoRegistrado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -229,7 +230,9 @@ class TurnoController extends Salud360Controller
     /**
      * POST /api/salud360/turnos/bloquear-dia  {medico_id, fecha, paciente_id, [tipo_turno]}
      * Ocupa todos los horarios del día con el paciente indicado (misma mecánica que la web:
-     * el consultorio usa un paciente "bloqueo"). Falla si el día ya tiene turnos.
+     * el consultorio usa un paciente "bloqueo"), sin importar el tipo de turno de cada horario: cada
+     * bloqueo se guarda con el tipo de su propio horario. `tipo_turno` solo hace falta para videollamada (4)
+     * o como tipo de los horarios que no traen el suyo. Falla si el día ya tiene turnos.
      */
     public function bloquearDia(Request $request)
     {
@@ -259,17 +262,21 @@ class TurnoController extends Salud360Controller
         if ($ocupados > 0) {
             return $this->error('El día ya tiene turnos registrados; cancelalos antes de bloquearlo.', 409, 'dia_con_turnos');
         }
-        $horarios = $this->agenda->horariosDelDia($medico->id, $consultorio, $dia, $fecha, $tipoTurno);
+        // Se bloquean los horarios de todos los tipos de turno (un horario libre de otro tipo seguiría
+        // ofreciéndose); videollamada tiene sus propios horarios y se pide con tipo_turno = 4.
+        $horarios = $tipoTurno === AgendaService::TIPO_TURNO_VIDEOLLAMADA
+            ? $this->agenda->horariosDelDia($medico->id, $consultorio, $dia, $fecha, $tipoTurno)
+            : $this->agenda->horariosDelDiaTodosLosTipos($medico->id, $consultorio, $dia, $fecha);
         $creados = 0;
-        foreach ($horarios as $h) {
+        foreach (DisponibilidadReglas::horariosParaBloquear($horarios, $tipoTurno) as $h) {
             $this->agenda->registrarTurno([
                 'paciente_id' => $pacienteId,
                 'medico_id' => $medico->id,
                 'consultorio_id' => $consultorio,
                 'dia' => $dia,
-                'horario' => $h->horario,
+                'horario' => $h['horario'],
                 'fecha' => $fecha,
-                'tipo_turno' => $tipoTurno,
+                'tipo_turno' => $h['tipo_turno'],
                 'primer_control' => false,
                 'sobreturno' => 0,
                 'comentario' => 'Bloqueado desde Salud 360',

@@ -3305,12 +3305,13 @@ class SecretariaController extends Controller
 		return $turnoRegistradoVideollamada;
     }
 
-    public function consultarTurno($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, $horario, $tipoTurno) {
+    // Turnos activos que ocupan ese horario. NO filtra por tipo de turno (igual que el panel del medico, la API y
+    // la web publica): un bloqueo (tipo 1) o un turno de otro tipo tambien ocupan el horario. $tipoTurno ya no se usa.
+    public function consultarTurno($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, $horario, $tipoTurno = null) {
     		$turno = DB::table('turno_registrados')						                              								
 	                    ->where('turno_registrados.medico',$medico_id)
 	                   	->where('turno_registrados.consultorio', $consultorio)
 	                   	->where('turno_registrados.dia', $diaSeleccionado)
-	                   	->where('turno_registrados.tipo_turno', $tipoTurno)
 	                   	->where('turno_registrados.fechaTurno', $nuevaFecha)
 	                   	->where('turno_registrados.horario', $horario)	 
 	                   	->where('turno_registrados.activo', 1)	 
@@ -3409,45 +3410,59 @@ class SecretariaController extends Controller
 		$primerControl = $request->primerControl;
 
 		$turnosPaciente = $this->consultarTurno($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, $horario, $tipoTurno);
-	    $contador = $turnosPaciente->count();
 	   
 		$turnosPaciente2 = $this->consultarTurno($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, $horario2, $tipoTurno);	
-	    $contador2 = $turnosPaciente2->count();
 
-	    if($cancelarModificarTurnoId != null && $cancelarModificarTurnoId != 0){
-        	$turnoRegistradoModificarAux = TurnoRegistrado::find($cancelarModificarTurnoId);
-        	$turnoRegistradoModificarAux->activo = 0;
-        	$turnoRegistradoModificarAux->save();
-        }
+		// Los dos horarios tienen que estar libres (cualquier turno activo ocupa, sin importar el tipo).
+		$destinoLibre = \App\Services\Salud360\DisponibilidadReglas::destinosLibres([$turnosPaciente, $turnosPaciente2]);
 
-	    $validarTurnoMismoDia = $this->validarTurnoMismoDia($paciente_id , $medico_id, $consultorio, $nuevaFecha);
-    	if($validarTurnoMismoDia){
-    		return response()->json(array('turnoRegistrado'=>2));	
-    	}
+		// Mover un turno = cancelar el original + reservar el nuevo, en una sola transaccion: si el destino no se
+		// puede reservar (ocupado, ya tiene turno ese dia, sin primeros controles) se revierte y el original queda igual.
+		DB::beginTransaction();
+		try {
+		    if($cancelarModificarTurnoId != null && $cancelarModificarTurnoId != 0){
+	        	$turnoRegistradoModificarAux = TurnoRegistrado::find($cancelarModificarTurnoId);
+	        	$turnoRegistradoModificarAux->activo = 0;
+	        	$turnoRegistradoModificarAux->save();
+	        }
 
-	    $validarCantidadPrimerControl = $this->controlarCantidadPrimerControl($medico_id, $diaSeleccionado, $consultorio, $nuevaFecha);
-	    if(!$validarCantidadPrimerControl){
-	    	return response()->json(array('turnoRegistrado'=>3));
-	    }
-		if(($contador==0) && ($contador2==0)){
+		    $validarTurnoMismoDia = $this->validarTurnoMismoDia($paciente_id , $medico_id, $consultorio, $nuevaFecha);
+	    	if($validarTurnoMismoDia){
+	    		DB::rollBack();
+	    		return response()->json(array('turnoRegistrado'=>2));	
+	    	}
+
+		    $validarCantidadPrimerControl = $this->controlarCantidadPrimerControl($medico_id, $diaSeleccionado, $consultorio, $nuevaFecha);
+		    if(!$validarCantidadPrimerControl){
+		    	DB::rollBack();
+		    	return response()->json(array('turnoRegistrado'=>3));
+		    }
+			if(!$destinoLibre){
+				DB::rollBack();
+		    	return response()->json(array('turnoRegistrado'=>0));
+			}
+
 			$turnoRegistrado = $this->registrarTurno($paciente_id,$medico_id,$consultorio,$diaSeleccionado,$horario,$nuevaFecha,'SI', 0, $tipoTurno);
 
 			$turnoRegistrado2 = $this->registrarTurno($paciente_id,$medico_id,$consultorio,$diaSeleccionado,$horario2,$nuevaFecha,'SI', 0, $tipoTurno);
 
-			$turnosAux = DB::select('select * from horario_medicos where medico = ? and consultorio = ? and dia = ? and activo=1',
-			[$medico_id , $consultorio, $diaSeleccionado]);			
-			
-			$data = array();
-			
-            //turnos especiales cada 1 hora.         		   
-        	$data = $this-> createJsonTurnosDobles($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha);				
-    		
-    		$someArray = json_decode($data, true);    
+			DB::commit();
+		} catch (\Throwable $e) {
+			DB::rollBack();
+			throw $e;
+		}
 
-        	return response()->json(array('turnosPaciente'=>$someArray,'medico_id'=>$medico_id,'consultorio'=>$consultorio,'dia'=>$dia, 'primerControl'=>$primerControl,'turnoRegistrado'=>1));
-	    } else {
-	    	return response()->json(array('turnoRegistrado'=>0));
-	    }	
+		$turnosAux = DB::select('select * from horario_medicos where medico = ? and consultorio = ? and dia = ? and activo=1',
+		[$medico_id , $consultorio, $diaSeleccionado]);			
+		
+		$data = array();
+		
+        //turnos especiales cada 1 hora.         		   
+    	$data = $this-> createJsonTurnosDobles($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha);				
+		
+		$someArray = json_decode($data, true);    
+
+    	return response()->json(array('turnosPaciente'=>$someArray,'medico_id'=>$medico_id,'consultorio'=>$consultorio,'dia'=>$dia, 'primerControl'=>$primerControl,'turnoRegistrado'=>1));
     }
 
      // Los medicos pueden definir tener una cantidad x de primeros controles cada dia.
@@ -3587,42 +3602,53 @@ class SecretariaController extends Controller
             $primerContorlTexto = 'NO';
         }*/
 
-        if($cancelarModificarTurnoId != null && $cancelarModificarTurnoId != 0){
-        	$turnoRegistradoModificarAux = TurnoRegistrado::find($cancelarModificarTurnoId);
-        	$turnoRegistradoModificarAux->activo = 0;
-        	$turnoRegistradoModificarAux->save();
-        }
+		// Mover un turno = cancelar el original + reservar el nuevo, en una sola transaccion: si el destino no se
+		// puede reservar (ocupado o el paciente ya tiene turno ese dia) se revierte y el original queda igual.
+		DB::beginTransaction();
+		try {
+	        if($cancelarModificarTurnoId != null && $cancelarModificarTurnoId != 0){
+	        	$turnoRegistradoModificarAux = TurnoRegistrado::find($cancelarModificarTurnoId);
+	        	$turnoRegistradoModificarAux->activo = 0;
+	        	$turnoRegistradoModificarAux->save();
+	        }
 
-		// consulto si hay algun turno reservado en ese dia y horario.
-		$turnosPaciente = $this->consultarTurno($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, $horario, $tipo_turno);
-	    // si contador = 0 el turno esta libre para ser reservado.
-	    $contador = $turnosPaciente->count();
+			// consulto si hay algun turno reservado en ese dia y horario (de cualquier tipo).
+			$turnosPaciente = $this->consultarTurno($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, $horario, $tipo_turno);
+		    // el turno esta libre para ser reservado si ningun turno activo ocupa el horario.
+		    $destinoLibre = \App\Services\Salud360\DisponibilidadReglas::turnoDestinoLibre($turnosPaciente);
 
-	    if($medico->especialidad == 2){
-	    	$validarTurnoMismoDia = $this->validarTurnoMismoDiaPEG($paciente_id , $medico_id, $nuevaFecha, $horario);
-	    	if($validarTurnoMismoDia){
-	    		return response()->json(array('turnoRegistrado'=>3));	
+		    if($medico->especialidad == 2){
+		    	$validarTurnoMismoDia = $this->validarTurnoMismoDiaPEG($paciente_id , $medico_id, $nuevaFecha, $horario);
+		    	if($validarTurnoMismoDia){
+		    		DB::rollBack();
+		    		return response()->json(array('turnoRegistrado'=>3));	
+		    	}
+		    } else {
+			    $validarTurnoMismoDia = $this->validarTurnoMismoDia($paciente_id , $medico_id, $consultorio, $nuevaFecha);
+		    	if($validarTurnoMismoDia){
+		    		DB::rollBack();
+		    		return response()->json(array('turnoRegistrado'=>2));	
+		    	}
 	    	}
-	    } else {
-		    $validarTurnoMismoDia = $this->validarTurnoMismoDia($paciente_id , $medico_id, $consultorio, $nuevaFecha);
-	    	if($validarTurnoMismoDia){
-	    		return response()->json(array('turnoRegistrado'=>2));	
-	    	}
-    	}
 
-        if ($contador == 0){
+	        if(!$destinoLibre){
+	        	DB::rollBack();
+	     	   	return response()->json(array('turnoRegistrado'=>0));
+	        }
+
         	// Registro un nuevo turno y lo devuelvo.
         	$turnoRegistrado = $this->registrarTurno($paciente_id,$medico_id,$consultorio,$diaSeleccionado,$horario,$nuevaFecha, $primerContorlTexto, 0, $tipo_turno);
-			
-			$data = array();
- 		   	$data = $this-> createJson($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0); 		   
- 		   	$someArray = json_decode($data, true);    	
+        	DB::commit();
+		} catch (\Throwable $e) {
+			DB::rollBack();
+			throw $e;
+		}
 
-        	return response()->json(array('turnosPaciente'=>$someArray,'medico_id'=>$medico_id,'consultorio'=>$consultorio,'dia'=>$dia, 'primerControl'=>$primerControl,'turnoRegistrado'=>1));
+		$data = array();
+	   	$data = $this-> createJson($medico_id, $consultorio, $diaSeleccionado, $nuevaFecha, 0); 		   
+	   	$someArray = json_decode($data, true);    	
 
-    	} else {   	
-     	   return response()->json(array('turnoRegistrado'=>0));
-    	}
+    	return response()->json(array('turnosPaciente'=>$someArray,'medico_id'=>$medico_id,'consultorio'=>$consultorio,'dia'=>$dia, 'primerControl'=>$primerControl,'turnoRegistrado'=>1));
 	}
 
 	public function registrarSobreturnoPeg($request){

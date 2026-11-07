@@ -201,10 +201,11 @@ class AgendaService
     /**
      * Horarios que ofrece el médico para una fecha concreta:
      * plantilla semanal vigente (o videollamada si tipo 4), reemplazada por la fecha agregada si existe.
+     * Con `$tipoTurno = null` no filtra por tipo (ver `horariosDelDiaTodosLosTipos`).
      */
     public function horariosDelDia($medicoId, $consultorioId, $dia, $fecha, $tipoTurno)
     {
-        if ((int) $tipoTurno === self::TIPO_TURNO_VIDEOLLAMADA) {
+        if ($tipoTurno !== null && (int) $tipoTurno === self::TIPO_TURNO_VIDEOLLAMADA) {
             $turnos = DB::table('horario_medico_videollamadas')
                 ->where('medico', $medicoId)
                 ->where('consultorio', $consultorioId)
@@ -218,7 +219,7 @@ class AgendaService
                 ->where('consultorio', $consultorioId)
                 ->where('dia', $dia)
                 ->where('activo', 1);
-            if (Schema::hasColumn('horario_medicos', 'tipo_turno')) {
+            if ($tipoTurno !== null && Schema::hasColumn('horario_medicos', 'tipo_turno')) {
                 $q->where('tipo_turno', $tipoTurno);
             }
             $turnos = $this->filtrarVigencia($q->orderBy('horario')->get(), $fecha);
@@ -239,26 +240,42 @@ class AgendaService
     }
 
     /**
+     * Horarios que ofrece el médico ese día sin importar el tipo de turno (para bloquear el día completo).
+     * Misma plantilla vigente / fecha agregada que `horariosDelDia`; videollamada (tipo 4) no entra.
+     */
+    public function horariosDelDiaTodosLosTipos($medicoId, $consultorioId, $dia, $fecha)
+    {
+        return $this->horariosDelDia($medicoId, $consultorioId, $dia, $fecha, null);
+    }
+
+    /**
      * Turnos que ocupan horario ese día (activo 1 o 2) más los horarios con pago MercadoPago pendiente.
+     *
+     * Qué turno cuenta para el tipo elegido lo decide `DisponibilidadReglas::ocupaHorario`: los bloqueos
+     * (paciente DNI 99999) ocupan el horario sin importar su tipo_turno; los turnos de pacientes reales
+     * siguen la regla de siempre (mismo tipo, o cualquiera si el tipo tiene opciones configuradas).
      */
     public function turnosRegistradosDelDia($medicoId, $consultorioId, $dia, $fecha, $tipoTurno, $siempreFiltrarTipo = false)
     {
-        $q = DB::table('turno_registrados')
-            ->where('medico', $medicoId)
-            ->where('consultorio', $consultorioId)
-            ->where('dia', $dia)
-            ->where('fechaTurno', $fecha)
-            ->whereIn('activo', self::ACTIVOS_QUE_OCUPAN);
+        // Sin filtrar por tipo en la base: el DNI del paciente viene en la misma consulta (sin N+1)
+        // y el filtro por tipo se aplica en DisponibilidadReglas, que deja pasar a los bloqueos.
+        $delDia = DB::table('turno_registrados')
+            ->leftJoin('pacientes', 'pacientes.id', '=', 'turno_registrados.paciente')
+            ->select('turno_registrados.*', 'pacientes.dni as paciente_dni')
+            ->where('turno_registrados.medico', $medicoId)
+            ->where('turno_registrados.consultorio', $consultorioId)
+            ->where('turno_registrados.dia', $dia)
+            ->where('turno_registrados.fechaTurno', $fecha)
+            ->whereIn('turno_registrados.activo', self::ACTIVOS_QUE_OCUPAN)
+            ->orderBy('turno_registrados.horario')
+            ->get();
         // Si el tipo de turno tiene opciones configuradas (TipoTurnoService), el turno ya registrado
         // puede tener su tipo_turno sobreescrito a una opción distinta del padre tras el insert
         // (ver TurnoController::actualizarTipoTurno) - no filtrar por tipo exacto en ese caso, o el
         // horario dejaría de verse ocupado y se mostraría como libre incorrectamente.
         // Para los turnos dobles (createJsonTurnosDobles) siempre se filtra por tipo.
         $tieneOpciones = app(\App\Services\TipoTurnoService::class)->tieneOpciones($medicoId, $tipoTurno);
-        if ($siempreFiltrarTipo || !$tieneOpciones) {
-            $q->where('tipo_turno', $tipoTurno);
-        }
-        $registrados = $q->orderBy('horario')->get();
+        $registrados = collect(DisponibilidadReglas::turnosQueOcupan($delDia, $tipoTurno, $tieneOpciones, $siempreFiltrarTipo));
 
         $pendientes = [];
         try {

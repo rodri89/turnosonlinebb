@@ -15,6 +15,7 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | Archivo | Qué hace |
 |---|---|
 | `app/Services/Salud360/AgendaService.php` | Lógica de disponibilidad y validaciones (antes `createJson` / `createJsonTurnosDobles` en `TurnoController`). La web ahora delega en este servicio. |
+| `app/Services/Salud360/DisponibilidadReglas.php` | Qué turnos ocupan un horario en la lista de libres (los bloqueos ocupan sin importar el tipo), si un horario de destino está libre en la reserva interna de la secretaria y qué horarios bloquea `bloquear-dia`, sin base de datos (se prueban con phpunit). Ver «Los bloqueos ocupan el horario sin importar el tipo de turno». |
 | `app/Http/Controllers/Api/Salud360/*` | Controladores de la API (`Auth`, `Agenda`, `Turno`, `Paciente`, `Horario`, `Catalogo`, `Receta`). |
 | `app/Services/Salud360/TokenService.php` | Emite y valida los tokens (hash SHA-256 en `salud360_tokens`; la tabla se crea sola en el primer ingreso o con la migración). |
 | `app/Http/Middleware/Salud360Api.php` | Autentica por token y restringe la API a admin / médico / secretaria (alias `salud360` en `Kernel.php`). |
@@ -29,6 +30,7 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | `tests/Unit/Salud360AgendaMedicoReglasTest.php` | Pruebas de las reglas de la agenda por médico. |
 | `tests/Unit/Salud360HistoriasClinicasReglasTest.php` | Pruebas de las reglas de las historias clínicas por médico. |
 | `tests/Unit/Salud360EstadoMedicoReglasTest.php` | Pruebas de las reglas de activar / desactivar un médico. |
+| `tests/Unit/Salud360DisponibilidadReglasTest.php` | Pruebas de las reglas de disponibilidad y de bloquear el día. |
 
 Migraciones: `salud360_tokens` y `salud360_medico_hc` (idempotentes; las tablas también se crean solas, ver
 `app/Services/Salud360/HistoriaClinicaService.php`) y `2026_11_05_000000_add_tiene_agenda_to_medicos_table`
@@ -98,13 +100,42 @@ local por `users.medico_id_tobb = perfil.medico.id`.
 | GET | `turnos/paciente/{pacienteId}` | query `medico_id` | Historial del paciente con el médico |
 | POST | `turnos` | `medico_id`, `paciente_id`, `fecha`, `horario`, `[horario2]`, `[tipo_turno=1]`, `[primer_control]`, `[comentario]` | Valida horario ocupado y "un turno por día". Con `primer_control=1` + `horario2` registra el primer control doble (dos turnos) y controla el cupo del día. |
 | POST | `turnos/sobreturno` | `medico_id`, `paciente_id`, `fecha`, `horario`, `[tipo_turno]` | Turno con `sobreturno = 1` |
-| POST | `turnos/bloquear-dia` | `medico_id`, `fecha`, `paciente_id`, `[tipo_turno]` | Ocupa todos los horarios del día con el paciente "bloqueo" (misma mecánica que la web). Falla si ya hay turnos. |
+| POST | `turnos/bloquear-dia` | `medico_id`, `fecha`, `paciente_id`, `[tipo_turno]` | Ocupa todos los horarios del día, **de todos los tipos de turno**, con el paciente "bloqueo" (misma mecánica que la web). Cada bloqueo lleva el `tipo_turno` de su propio horario; un horario que está en dos tipos se bloquea una sola vez. `tipo_turno` solo hace falta para videollamada (`4`) o como tipo de los horarios que no traen el suyo (fechas especiales). Falla (`dia_con_turnos`) si ya hay turnos, así que repetir la llamada no duplica nada. |
 | POST | `turnos/{id}/cancelar` | `[motivo]` | `activo = 0`, comentario "Cancelado por :Apellido, Nombre" |
 | POST | `turnos/{id}/asistencia` | `asistio` (0/1/2) | |
 | POST | `turnos/{id}/caja` | `caja` | |
 | POST | `turnos/{id}/comentario` | `comentario` | |
 
 Códigos de rechazo (HTTP 409): `ocupado`, `mismo_dia`, `cupo_primer_control`, `dia_con_turnos`.
+
+### Los bloqueos ocupan el horario sin importar el tipo de turno
+
+Un médico puede tener varios tipos de turno (`tipo_turnos` / `medico_tipo_turnos`) y cada horario fijo
+(`horario_medicos.tipo_turno`) pertenece a un tipo. La lista de horarios libres (`agenda/dia`,
+`agenda/disponibilidad` y la web del paciente) ofrece solo los horarios del tipo elegido y marca como ocupado un
+turno registrado si es **del mismo tipo** (o de cualquiera, si ese tipo tiene opciones configuradas). La validación al
+reservar, en cambio, no mira el tipo: un horario con turno activo está ocupado para todos.
+
+Los bloqueos (turnos del paciente con DNI `99999`) se guardan con `tipo_turno = 1`. Antes, un horario bloqueado
+de un médico con otro tipo (por ejemplo Deportología, `24`) figuraba libre en la lista para quien elegía ese tipo y
+recién al confirmar daba «ocupado». Regla actual (`DisponibilidadReglas::ocupaHorario`, con tests en
+`tests/Unit/Salud360DisponibilidadReglasTest.php`):
+
+- **Bloqueo** (DNI 99999): ocupa el horario sin importar su `tipo_turno`.
+- **Turno de un paciente real**: igual que siempre (mismo tipo, o cualquiera si el tipo tiene opciones; los turnos
+  dobles siempre filtran por tipo).
+- Los pagos de MercadoPago pendientes no cambian.
+
+No hay migración ni corrección de datos: los bloqueos ya guardados con otro tipo quedan cubiertos por la regla.
+`bloquear-dia` ahora bloquea los horarios de todos los tipos (antes solo los del `tipo_turno` pedido, por defecto 1).
+
+**Reserva interna del panel web de la secretaria** (`SecretariaController::registrarAsignarTurno`, `registrarAsignarTurnoDoble`,
+`registrarSobreturno`, agenda semanal): rechaza cualquier turno activo en el mismo horario **sin importar el tipo**
+(bloqueo o turno real de otro tipo también ocupan), igual que el panel del médico y la API
+(`DisponibilidadReglas::turnoDestinoLibre` / `destinosLibres`). Antes filtraba por tipo y dejaba reservar sobre un bloqueo.
+Mover un turno (`cancelar_modificar_turno_id`) ya no lo cancela si el destino no se puede reservar (ocupado, el paciente ya
+tiene otro turno ese día, sin cupo de primeros controles): cancelar el original y reservar el nuevo son una sola
+transacción y, ante el rechazo (`turnoRegistrado` 0, 2 o 3, igual que antes), el turno original queda como estaba.
 
 Formato de un turno:
 
