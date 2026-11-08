@@ -23,6 +23,9 @@ class DisponibilidadReglas
     /** Tipo de turno con el que se guarda un bloqueo cuando el horario no trae el suyo. */
     const TIPO_TURNO_POR_DEFECTO = 1;
 
+    /** Videollamada: tiene sus propios horarios y turnos (tablas `*_videollamadas`). */
+    const TIPO_TURNO_VIDEOLLAMADA = 4;
+
     /** true si el DNI es el del paciente «bloqueo». */
     public static function esDniBloqueo($dni)
     {
@@ -71,6 +74,84 @@ class DisponibilidadReglas
             if (self::ocupaHorario($tipo, self::esDniBloqueo($dni), $tipoElegido, $tieneOpciones, $siempreFiltrarTipo)) {
                 $out[] = $t;
             }
+        }
+        return $out;
+    }
+
+    /**
+     * Modo `todos_los_tipos` de la agenda (agenda/dia, semana, disponibilidad, proximas-fechas): ofrece los
+     * horarios de todos los tipos de turno en vez de los de uno solo. Solo se activa con `1` o `true`
+     * (estricto); cualquier otro valor o su ausencia deja el comportamiento de siempre, que es el que
+     * espera la app ya publicada.
+     *
+     * @param mixed $valor valor crudo del parámetro
+     */
+    public static function esModoTodosLosTipos($valor)
+    {
+        return $valor === true
+            || $valor === 1
+            || $valor === '1'
+            || (is_string($valor) && strtolower($valor) === 'true');
+    }
+
+    /**
+     * Modo `todos_los_tipos`: horarios que se ofrecen en un día cuyos horarios vienen de varios tipos.
+     * Deja un solo horario por hora (si dos tipos coinciden gana el tipo más bajo), sin los de
+     * videollamada (tipo 4, que tiene su propio circuito), ordenados por hora. Cada horario conserva sus
+     * campos y lleva `tipo_turno` entero; el que no trae tipo (fechas agregadas) usa `$tipoPorDefecto`.
+     *
+     * @param iterable $horarios objetos con `horario` y, opcionalmente, `tipo_turno`
+     * @param int      $tipoPorDefecto
+     * @return array lista de objetos
+     */
+    public static function horariosDeTodosLosTipos($horarios, $tipoPorDefecto = self::TIPO_TURNO_POR_DEFECTO)
+    {
+        $filas = [];
+        foreach ($horarios as $h) {
+            $tipo = (isset($h->tipo_turno) && is_numeric($h->tipo_turno)) ? (int) $h->tipo_turno : 0;
+            if ($tipo <= 0) {
+                $tipo = (int) $tipoPorDefecto;
+            }
+            if ($tipo === self::TIPO_TURNO_VIDEOLLAMADA) {
+                continue;
+            }
+            $fila = clone $h;
+            $fila->tipo_turno = $tipo;
+            $filas[] = $fila;
+        }
+        usort($filas, function ($a, $b) {
+            $c = strcmp((string) $a->horario, (string) $b->horario);
+            return $c !== 0 ? $c : $a->tipo_turno - $b->tipo_turno;
+        });
+        $out = [];
+        $vistos = [];
+        foreach ($filas as $f) {
+            $clave = (string) $f->horario;
+            if (isset($vistos[$clave])) {
+                continue;
+            }
+            $vistos[$clave] = true;
+            $out[] = $f;
+        }
+        return $out;
+    }
+
+    /**
+     * Modo `todos_los_tipos`: turnos que ocupan horario sin mirar el tipo (bloqueos y turnos reales por
+     * igual): cualquier turno activo (1 o 2) lo ocupa, el mismo criterio de `validarTurnoLibre` al reservar.
+     * Un turno sin campo `activo` se toma como activo (la consulta ya filtra por estado). Conserva el orden.
+     *
+     * @param iterable $turnos objetos con `horario` y, opcionalmente, `activo`
+     * @return array lista de objetos
+     */
+    public static function turnosQueOcupanSinFiltrarTipo($turnos)
+    {
+        $out = [];
+        foreach ($turnos as $t) {
+            if (isset($t->activo) && !in_array((int) $t->activo, [1, 2], true)) {
+                continue;
+            }
+            $out[] = $t;
         }
         return $out;
     }

@@ -89,10 +89,10 @@ local por `users.medico_id_tobb = perfil.medico.id`.
 
 | Método | Ruta | Query | Devuelve |
 |---|---|---|---|
-| GET | `agenda/dia` | `medico_id`, `fecha`, `[tipo_turno=1]` | `turnos` del día con datos del paciente, `slots` `[{horario, libre}]`, `es_feriado`, `cantidad_sobreturnos`, `modulo_caja_comentario` |
-| GET | `agenda/disponibilidad` | `medico_id`, `fecha`, `[tipo_turno]`, `[primer_control=0/1]` | `slots`. Con `primer_control=1` y módulo 3 activo devuelve pares `{horario, horario2, libre}` y `cupo_primer_control_disponible` |
-| GET | `agenda/semana` | `medico_id`, `[desde]`, `[cantidad=5]` | Próximos días con horarios cargados: `dias[] {fecha, dia, es_feriado, slots, turnos}` |
-| GET | `agenda/proximas-fechas` | `medico_id`, `[primer_control]`, `[cantidad=3]`, `[desde]` | `fechas[]` con al menos un turno libre |
+| GET | `agenda/dia` | `medico_id`, `fecha`, `[tipo_turno=1]`, `[todos_los_tipos=1]` | `turnos` del día con datos del paciente, `slots` `[{horario, libre, tipo_turno, tipo_turno_nombre}]`, `es_feriado`, `cantidad_sobreturnos`, `modulo_caja_comentario` |
+| GET | `agenda/disponibilidad` | `medico_id`, `fecha`, `[tipo_turno]`, `[primer_control=0/1]`, `[todos_los_tipos=1]` | `slots`. Con `primer_control=1` y módulo 3 activo devuelve pares `{horario, horario2, libre}` y `cupo_primer_control_disponible` |
+| GET | `agenda/semana` | `medico_id`, `[desde]`, `[cantidad=5]`, `[tipo_turno]`, `[todos_los_tipos=1]` | Próximos días con horarios cargados: `dias[] {fecha, dia, es_feriado, slots, turnos}` |
+| GET | `agenda/proximas-fechas` | `medico_id`, `[primer_control]`, `[cantidad=3]`, `[desde]`, `[tipo_turno]`, `[todos_los_tipos=1]` | `fechas[]` con al menos un turno libre |
 | GET | `agenda/dias-atencion` | `medico_id` | `dias_semana[]`, `fechas_especiales[]` |
 
 ### Turnos
@@ -148,12 +148,88 @@ Formato de un turno:
   "id": 123, "paciente_id": 45, "medico_id": 3, "consultorio_id": 1,
   "dia": 2, "horario": "09:20", "fecha": "2026-09-08",
   "asistio": 0, "sobreturno": 0, "primer_control": false, "caja": 0, "comentario": "",
-  "tipo_turno": 1, "especialidad": null, "otorgado_por": "secretaria@mail.com",
+  "tipo_turno": 1, "tipo_turno_nombre": "Consulta", "especialidad": null, "otorgado_por": "secretaria@mail.com",
   "cancelado_por": null, "activo": 1, "pago": 0, "pago_estado": null, "importe_reserva": null,
   "paciente": {"id": 45, "nombre": "…", "apellido": "…", "dni": "…", "telefono": "…", "mail": "…", "obra_social": "…", "numero_afiliado": "…"},
   "created_at": "…", "updated_at": "…"
 }
 ```
+
+### Agenda de todos los tipos de turno (`todos_los_tipos=1`)
+
+Por omisión `agenda/dia`, `agenda/disponibilidad`, `agenda/semana` y `agenda/proximas-fechas` ofrecen **los horarios de un solo
+tipo de turno**: el de `tipo_turno` (1 si no se manda). Un médico cuyos horarios son de otro tipo (por ejemplo, los viernes de
+Deportología, `24`) veía la agenda vacía o incompleta, porque la app nunca pide otro tipo.
+
+El parámetro `todos_los_tipos=1` (query string) cambia eso, y **solo ese parámetro**: sin él, o con cualquier otro valor
+(`0`, `2`, `si`, vacío, una lista…), el comportamiento es exactamente el de siempre, incluido `tipo_turno=1` por omisión. Solo
+activan el modo `1` y `true`. Un servidor viejo ignora el parámetro, así que se puede mandar sin riesgo.
+
+Con `todos_los_tipos=1` (`tipo_turno` se ignora):
+
+- **Horarios que se ofrecen**: los horarios fijos activos del médico, consultorio y día, con la misma vigencia y quincenal de
+  siempre, **de todos los tipos**, salvo el tipo `4` (videollamada, que tiene su propio circuito:
+  `horario_medico_videollamadas` y `turno_registrado_videollamadas`). Si una misma hora está cargada en dos tipos (la web lo impide
+  al crear, pero puede haber filas cargadas a mano) se ofrece **una sola vez, con el tipo más bajo**. Los slots salen ordenados
+  por hora.
+- **Fecha especial** (`fechas_agregadas`): rige lo de siempre, esa fecha reemplaza la plantilla. Sus horarios no tienen tipo y
+  salen con `tipo_turno: 1`.
+- **Horarios ocupados**: cuenta como ocupado cualquier turno activo (`activo` 1 o 2) del día, **sin mirar su `tipo_turno`**
+  (bloqueos y turnos de pacientes reales por igual): el mismo criterio de la validación al reservar. Los pagos de MercadoPago
+  pendientes también ocupan el horario sin mirar el tipo (como `slotTienePagoPendiente` al reservar). Sin el modo nuevo, un turno
+  o un pago pendiente de otro tipo no ocupa el horario en la lista (salvo bloqueos), y recién al reservar daría «ocupado».
+- **`agenda/semana`**: un día entra si tiene algún horario de cualquier tipo (antes, solo de tipo 1) y sus `slots` son los de todos
+  los tipos.
+- **`agenda/proximas-fechas`**: devuelve las fechas con al menos un horario libre de cualquier tipo (antes, de un solo tipo).
+- **Turnos dobles**: `agenda/disponibilidad` y `agenda/proximas-fechas` con `primer_control=1` y el módulo 3 activo siguen
+  calculando los pares de un solo tipo (`tipo_turno`); `todos_los_tipos` no los cambia.
+
+#### Campos nuevos (siempre, con o sin el modo nuevo)
+
+Son aditivos; un cliente que no los conoce los ignora.
+
+| Dónde | Campo | Valor |
+|---|---|---|
+| cada slot de `agenda/dia`, `agenda/disponibilidad` (sin pares) y `agenda/semana` | `tipo_turno` | entero: el tipo del horario (1 si el horario no trae tipo, por ejemplo de una fecha especial; 4 si se pidió `tipo_turno=4`) |
+| ídem | `tipo_turno_nombre` | texto del catálogo `tipo_turnos` (el mismo de `catalogos.tipos_turno`); si falta, «Consulta» |
+| cada turno (`agenda/dia`, `turnos`, `turnos/{id}`, alta de turnos…) | `tipo_turno_nombre` | ídem, según el `tipo_turno` del turno (que ya existía) |
+| cada horario de `horarios_fijos[]` en `GET horarios` | `tipo_turno_nombre` | ídem |
+
+Los slots de pares (`primer_control=1`, `{horario, horario2, libre}`) no cambian.
+
+#### Ejemplo (datos inventados)
+
+El médico 2 atiende los lunes de tipo 1 (Consulta) y los viernes de tipo 24 (Deportología).
+
+```bash
+# Como hasta ahora: el viernes no hay horarios de tipo 1
+curl -s -H 'Authorization: Bearer <token>' \
+  'https://turnosonlinebb.com/api/salud360/agenda/dia?medico_id=2&fecha=2026-11-13'
+# → {"ok":true,"fecha":"2026-11-13","dia":5,...,"turnos":[],"slots":[],...}
+
+# Con todos los tipos
+curl -s -H 'Authorization: Bearer <token>' \
+  'https://turnosonlinebb.com/api/salud360/agenda/dia?medico_id=2&fecha=2026-11-13&todos_los_tipos=1'
+# → {"ok":true,"fecha":"2026-11-13","dia":5,"medico_id":2,"consultorio_id":2,"es_feriado":false,"turnos":[],
+#    "slots":[
+#      {"horario":"11:00","libre":1,"tipo_turno":24,"tipo_turno_nombre":"Deportología"},
+#      {"horario":"11:30","libre":0,"tipo_turno":24,"tipo_turno_nombre":"Deportología"},
+#      {"horario":"12:00","libre":1,"tipo_turno":24,"tipo_turno_nombre":"Deportología"}
+#    ],"cantidad_sobreturnos":0,"modulo_caja_comentario":1}
+
+# Próximas fechas: con el modo nuevo aparece el viernes
+curl -s -H 'Authorization: Bearer <token>' \
+  'https://turnosonlinebb.com/api/salud360/agenda/proximas-fechas?medico_id=2&desde=2026-11-09&cantidad=4'
+# → {"ok":true,"fechas":["2026-11-09","2026-11-11","2026-11-16","2026-11-18"]}
+curl -s -H 'Authorization: Bearer <token>' \
+  'https://turnosonlinebb.com/api/salud360/agenda/proximas-fechas?medico_id=2&desde=2026-11-09&cantidad=4&todos_los_tipos=1'
+# → {"ok":true,"fechas":["2026-11-09","2026-11-11","2026-11-13","2026-11-16"]}
+```
+
+Qué no cambia: la validación al reservar (`POST turnos`), las reglas de bloqueo, las escrituras (`POST horarios`, `POST turnos`),
+la web pública, los paneles de la secretaria y del médico, `catalogos` y `auth/perfil`. La lógica pura está en
+`DisponibilidadReglas::esModoTodosLosTipos`, `horariosDeTodosLosTipos` y `turnosQueOcupanSinFiltrarTipo` (tests en
+`tests/Unit/Salud360DisponibilidadReglasTest.php`); la integración, en `AgendaService::slotsConTipo`.
 
 ### Pacientes
 
@@ -223,7 +299,7 @@ cualquier usuario con token ve o edita cualquier ficha. Esta sección solo cubre
 
 | Método | Ruta | Cuerpo | Notas |
 |---|---|---|---|
-| GET | `horarios` | query `medico_id` | `horarios_fijos[]` (con `valido_desde/hasta`, `tipo_turno`), `fechas_especiales[]` futuras con sus horarios, `cupo_primer_control`, `ventana_dias`, `modulos` |
+| GET | `horarios` | query `medico_id` | `horarios_fijos[]` (con `valido_desde/hasta`, `tipo_turno`, `tipo_turno_nombre`), `fechas_especiales[]` futuras con sus horarios, `cupo_primer_control`, `ventana_dias`, `modulos` |
 | POST | `horarios` | `medico_id`, `dia`, `horario`, `[tipo_turno=1]`, `[valido_desde]`, `[valido_hasta]` | Horario fijo semanal |
 | PUT | `horarios/{id}` | `[valido_desde]`, `[valido_hasta]` | Vigencia |
 | DELETE | `horarios/{id}` | | Desactiva |

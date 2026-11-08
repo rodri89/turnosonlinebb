@@ -8,6 +8,7 @@ use App\HorariosMedicosAgregado;
 use App\MedicoConfig;
 use App\MedicoPrimerControl;
 use App\Services\Salud360\AgendaService;
+use App\Util\Util;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -40,12 +41,14 @@ class HorarioController extends Salud360Controller
             ->orderBy('horario')
             ->get()
             ->map(function ($h) use ($tieneVigencia, $tieneTipo) {
+                $tipo = $tieneTipo ? (int) $h->tipo_turno : AgendaService::TIPO_TURNO_CONSULTA;
                 return [
                     'id' => (int) $h->id,
                     'dia' => (int) $h->dia,
                     'horario' => $h->horario,
                     'doble' => (int) $h->doble,
-                    'tipo_turno' => $tieneTipo ? (int) $h->tipo_turno : AgendaService::TIPO_TURNO_CONSULTA,
+                    'tipo_turno' => $tipo,
+                    'tipo_turno_nombre' => Util::getTipoTurno($tipo),
                     'valido_desde' => $tieneVigencia ? $h->valido_desde : null,
                     'valido_hasta' => $tieneVigencia ? $h->valido_hasta : null,
                 ];

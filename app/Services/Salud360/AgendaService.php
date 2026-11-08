@@ -6,6 +6,7 @@ use App\HorarioMedico;
 use App\MedicoPaciente;
 use App\PacienteSecretaria;
 use App\TurnoRegistrado;
+use App\Util\Util;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -249,13 +250,30 @@ class AgendaService
     }
 
     /**
+     * Modo `todos_los_tipos` de la API: horarios que se ofrecen ese día de TODOS los tipos de turno, uno por
+     * hora (tipo más bajo si coinciden), sin videollamada (tipo 4). Misma plantilla vigente / fecha
+     * agregada que `horariosDelDia`; los horarios de fecha agregada no tienen tipo y salen con tipo 1.
+     * Cada horario trae `tipo_turno` entero.
+     */
+    public function horariosDelDiaOfrecidos($medicoId, $consultorioId, $dia, $fecha)
+    {
+        return DisponibilidadReglas::horariosDeTodosLosTipos(
+            $this->horariosDelDiaTodosLosTipos($medicoId, $consultorioId, $dia, $fecha),
+            self::TIPO_TURNO_CONSULTA
+        );
+    }
+
+    /**
      * Turnos que ocupan horario ese día (activo 1 o 2) más los horarios con pago MercadoPago pendiente.
      *
      * Qué turno cuenta para el tipo elegido lo decide `DisponibilidadReglas::ocupaHorario`: los bloqueos
      * (paciente DNI 99999) ocupan el horario sin importar su tipo_turno; los turnos de pacientes reales
      * siguen la regla de siempre (mismo tipo, o cualquiera si el tipo tiene opciones configuradas).
+     *
+     * Con `$todosLosTipos` (modo `todos_los_tipos` de la API) ocupa cualquier turno activo y cualquier pago
+     * pendiente, sin mirar el tipo (como `validarTurnoLibre` al reservar); `$tipoTurno` se ignora.
      */
-    public function turnosRegistradosDelDia($medicoId, $consultorioId, $dia, $fecha, $tipoTurno, $siempreFiltrarTipo = false)
+    public function turnosRegistradosDelDia($medicoId, $consultorioId, $dia, $fecha, $tipoTurno, $siempreFiltrarTipo = false, $todosLosTipos = false)
     {
         // Sin filtrar por tipo en la base: el DNI del paciente viene en la misma consulta (sin N+1)
         // y el filtro por tipo se aplica en DisponibilidadReglas, que deja pasar a los bloqueos.
@@ -274,13 +292,19 @@ class AgendaService
         // (ver TurnoController::actualizarTipoTurno) - no filtrar por tipo exacto en ese caso, o el
         // horario dejaría de verse ocupado y se mostraría como libre incorrectamente.
         // Para los turnos dobles (createJsonTurnosDobles) siempre se filtra por tipo.
-        $tieneOpciones = app(\App\Services\TipoTurnoService::class)->tieneOpciones($medicoId, $tipoTurno);
-        $registrados = collect(DisponibilidadReglas::turnosQueOcupan($delDia, $tipoTurno, $tieneOpciones, $siempreFiltrarTipo));
+        if ($todosLosTipos) {
+            $registrados = collect(DisponibilidadReglas::turnosQueOcupanSinFiltrarTipo($delDia));
+            $tipoPendientes = null; // null = sin filtrar los pagos pendientes por tipo
+        } else {
+            $tieneOpciones = app(\App\Services\TipoTurnoService::class)->tieneOpciones($medicoId, $tipoTurno);
+            $registrados = collect(DisponibilidadReglas::turnosQueOcupan($delDia, $tipoTurno, $tieneOpciones, $siempreFiltrarTipo));
+            $tipoPendientes = $tipoTurno;
+        }
 
         $pendientes = [];
         try {
             $intentService = new \App\Services\MercadoPago\TurnoPagoIntentService();
-            $pendientes = $intentService->getHorariosBloqueadosPorPagoPendiente($medicoId, $consultorioId, $dia, $fecha, $tipoTurno);
+            $pendientes = $intentService->getHorariosBloqueadosPorPagoPendiente($medicoId, $consultorioId, $dia, $fecha, $tipoPendientes);
         } catch (\Exception $e) {
             \Log::warning('Salud360: no se pudieron leer los pagos pendientes: ' . $e->getMessage());
         }
@@ -318,6 +342,49 @@ class AgendaService
         $turnos = $this->horariosDelDia($medicoId, $consultorioId, $dia, $fecha, $tipoTurno);
         $registrados = $this->turnosRegistradosDelDia($medicoId, $consultorioId, $dia, $fecha, $tipoTurno);
         return $this->marcarLibres($turnos, $registrados);
+    }
+
+    /**
+     * Disponibilidad de un día para la API de Salud 360: como `slots` pero cada horario lleva su
+     * `tipo_turno` y `tipo_turno_nombre`. Sin `$todosLosTipos` ofrece lo de siempre (horarios de
+     * `$tipoTurno`); con él, los horarios de todos los tipos (menos videollamada) y cuenta como ocupado
+     * cualquier turno activo, sin mirar el tipo. `slots` queda igual para la web.
+     */
+    public function slotsConTipo($medicoId, $consultorioId, $dia, $fecha, $tipoTurno, $todosLosTipos = false)
+    {
+        if ($todosLosTipos) {
+            $turnos = $this->horariosDelDiaOfrecidos($medicoId, $consultorioId, $dia, $fecha);
+            $registrados = $this->turnosRegistradosDelDia($medicoId, $consultorioId, $dia, $fecha, null, false, true);
+            $porDefecto = self::TIPO_TURNO_CONSULTA;
+        } else {
+            $turnos = $this->horariosDelDia($medicoId, $consultorioId, $dia, $fecha, $tipoTurno);
+            $registrados = $this->turnosRegistradosDelDia($medicoId, $consultorioId, $dia, $fecha, $tipoTurno);
+            // Videollamada pedida: sus horarios no traen tipo.
+            $porDefecto = (int) $tipoTurno === self::TIPO_TURNO_VIDEOLLAMADA ? self::TIPO_TURNO_VIDEOLLAMADA : self::TIPO_TURNO_CONSULTA;
+        }
+        $slots = $this->marcarLibresConTipo($turnos, $registrados, $porDefecto);
+        foreach ($slots as $i => $s) {
+            $slots[$i]['tipo_turno_nombre'] = Util::getTipoTurno($s['tipo_turno']);
+        }
+        return $slots;
+    }
+
+    /**
+     * Como `marcarLibres`, agregando `tipo_turno` (entero) de cada horario; el que no trae el suyo
+     * (fechas agregadas, videollamada) usa `$tipoPorDefecto`. Método puro (sin base).
+     */
+    public function marcarLibresConTipo($turnos, $registrados, $tipoPorDefecto = self::TIPO_TURNO_CONSULTA)
+    {
+        $data = [];
+        foreach ($turnos as $turno) {
+            $tipo = (isset($turno->tipo_turno) && is_numeric($turno->tipo_turno)) ? (int) $turno->tipo_turno : 0;
+            $data[] = [
+                'horario' => $turno->horario,
+                'libre' => $this->horarioOcupado($turno->horario, $registrados) ? 0 : 1,
+                'tipo_turno' => $tipo > 0 ? $tipo : (int) $tipoPorDefecto,
+            ];
+        }
+        return $data;
     }
 
     /** Marca cada horario con libre = 1/0 según los registrados. Método puro (sin base). */
@@ -391,8 +458,11 @@ class AgendaService
     /**
      * Próximas fechas (a partir de $desde) en las que el médico tiene horarios cargados.
      * Generaliza `obtener5Dias`.
+     *
+     * Solo cuentan los horarios de tipo 1 (consulta), salvo con `$todosLosTipos` (modo `todos_los_tipos`
+     * de la API): ahí cuenta un horario de cualquier tipo (menos videollamada).
      */
-    public function proximasFechasConHorario($medico, $desde, $cantidad = 5, $maxDias = 120)
+    public function proximasFechasConHorario($medico, $desde, $cantidad = 5, $maxDias = 120, $todosLosTipos = false)
     {
         $consultorio = $medico->consultorio;
         $diasSemana = DB::table('horario_medicos')
@@ -419,7 +489,9 @@ class AgendaService
             if (isset($fechasAgregadas[$fecha])) {
                 $out[] = $fecha;
             } elseif ($diasSemana->contains($dia)) {
-                $horarios = $this->horariosDelDia($medico->id, $consultorio, $dia, $fecha, self::TIPO_TURNO_CONSULTA);
+                $horarios = $todosLosTipos
+                    ? $this->horariosDelDiaOfrecidos($medico->id, $consultorio, $dia, $fecha)
+                    : $this->horariosDelDia($medico->id, $consultorio, $dia, $fecha, self::TIPO_TURNO_CONSULTA);
                 if (count($horarios) > 0) {
                     $out[] = $fecha;
                 }
@@ -644,6 +716,7 @@ class AgendaService
             'caja' => (float) $t->caja,
             'comentario' => (string) $t->comentario,
             'tipo_turno' => (int) $t->tipo_turno,
+            'tipo_turno_nombre' => Util::getTipoTurno((int) $t->tipo_turno),
             'especialidad' => isset($t->especialidad) ? $t->especialidad : null,
             'otorgado_por' => $t->otorgado_por,
             'cancelado_por' => isset($t->cancelado_por) ? $t->cancelado_por : null,

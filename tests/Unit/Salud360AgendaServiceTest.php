@@ -55,6 +55,45 @@ class Salud360AgendaServiceTest extends TestCase
         ], $this->agenda->marcarLibres($turnos, $registrados));
     }
 
+    public function testMarcarLibresConTipoAgregaElTipoDeCadaHorario()
+    {
+        $turnos = [
+            (object) ['horario' => '09:00', 'tipo_turno' => 1],
+            (object) ['horario' => '11:00', 'tipo_turno' => '24'],
+            (object) ['horario' => '11:30', 'tipo_turno' => 24],
+        ];
+        $registrados = collect([(object) ['horario' => '11:00']]);
+
+        $this->assertSame([
+            ['horario' => '09:00', 'libre' => 1, 'tipo_turno' => 1],
+            ['horario' => '11:00', 'libre' => 0, 'tipo_turno' => 24],
+            ['horario' => '11:30', 'libre' => 1, 'tipo_turno' => 24],
+        ], $this->agenda->marcarLibresConTipo($turnos, $registrados));
+    }
+
+    public function testMarcarLibresConTipoUsaElTipoPorDefectoSiElHorarioNoTraeElSuyo()
+    {
+        // Fechas agregadas: sin columna tipo_turno -> 1; videollamada pedida -> 4.
+        $turnos = [(object) ['horario' => '09:00'], (object) ['horario' => '09:20', 'tipo_turno' => 0]];
+        $this->assertSame(
+            [['horario' => '09:00', 'libre' => 1, 'tipo_turno' => 1], ['horario' => '09:20', 'libre' => 1, 'tipo_turno' => 1]],
+            $this->agenda->marcarLibresConTipo($turnos, [])
+        );
+        $this->assertSame(
+            [['horario' => '09:00', 'libre' => 1, 'tipo_turno' => 4], ['horario' => '09:20', 'libre' => 1, 'tipo_turno' => 4]],
+            $this->agenda->marcarLibresConTipo($turnos, [], 4)
+        );
+    }
+
+    public function testMarcarLibresConTipoNoAlteraLosCamposDeMarcarLibres()
+    {
+        $turnos = [(object) ['horario' => '09:00', 'tipo_turno' => 1], (object) ['horario' => '09:20', 'tipo_turno' => 1]];
+        $registrados = collect([(object) ['horario' => '09:20']]);
+        $viejo = $this->agenda->marcarLibres($turnos, $registrados);
+        $nuevo = array_map(function ($s) { unset($s['tipo_turno']); return $s; }, $this->agenda->marcarLibresConTipo($turnos, $registrados));
+        $this->assertSame($viejo, $nuevo);
+    }
+
     public function testMarcarLibresDoblesReplicaCreateJsonTurnosDobles()
     {
         $turnos = [

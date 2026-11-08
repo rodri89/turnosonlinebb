@@ -255,4 +255,143 @@ class Salud360DisponibilidadReglasTest extends TestCase
         // Sin horarios que comprobar no hay nada que reservar.
         $this->assertFalse(DisponibilidadReglas::destinosLibres([]));
     }
+
+    // ------------------------------------------------------------------
+    // Modo `todos_los_tipos=1` de la agenda: parseo del parámetro
+    // ------------------------------------------------------------------
+
+    public function testElModoTodosLosTiposSoloSeActivaConUnoOTrueEstricto()
+    {
+        $this->assertTrue(DisponibilidadReglas::esModoTodosLosTipos('1'));
+        $this->assertTrue(DisponibilidadReglas::esModoTodosLosTipos(1));
+        $this->assertTrue(DisponibilidadReglas::esModoTodosLosTipos(true));
+        $this->assertTrue(DisponibilidadReglas::esModoTodosLosTipos('true'));
+        $this->assertTrue(DisponibilidadReglas::esModoTodosLosTipos('TRUE'));
+    }
+
+    public function testElModoTodosLosTiposNoSeActivaConOtrosValores()
+    {
+        foreach ([null, '', '0', 0, false, 'false', 'todos', 'si', 'yes', 'on', '2', 2, ' 1', '1 ', '01', 'verdadero', [], ['1'], 1.0, '1.0'] as $valor) {
+            $this->assertFalse(DisponibilidadReglas::esModoTodosLosTipos($valor), var_export($valor, true));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Modo `todos_los_tipos=1`: horarios que se ofrecen
+    // ------------------------------------------------------------------
+
+    private function hor($horario, $tipo = null)
+    {
+        $h = ['horario' => $horario];
+        if ($tipo !== null) {
+            $h['tipo_turno'] = $tipo;
+        }
+        return (object) $h;
+    }
+
+    private function pares(array $horarios)
+    {
+        return array_map(function ($h) { return [$h->horario, $h->tipo_turno]; }, $horarios);
+    }
+
+    public function testTodosLosTiposJuntaLosHorariosDeCadaTipoOrdenadosPorHora()
+    {
+        $r = DisponibilidadReglas::horariosDeTodosLosTipos([
+            $this->hor('11:00', 24),
+            $this->hor('09:00', 1),
+            $this->hor('10:00', 24),
+            $this->hor('09:20', 1),
+        ]);
+        $this->assertSame([['09:00', 1], ['09:20', 1], ['10:00', 24], ['11:00', 24]], $this->pares($r));
+    }
+
+    public function testTodosLosTiposNoOfreceDosVecesLaMismaHoraYGanaElTipoMasBajo()
+    {
+        $r = DisponibilidadReglas::horariosDeTodosLosTipos([
+            $this->hor('09:00', 24),
+            $this->hor('09:00', 1),
+            $this->hor('09:00', '7'),
+            $this->hor('09:20', 24),
+        ]);
+        $this->assertSame([['09:00', 1], ['09:20', 24]], $this->pares($r));
+    }
+
+    public function testTodosLosTiposDejaAfueraLaVideollamada()
+    {
+        $r = DisponibilidadReglas::horariosDeTodosLosTipos([
+            $this->hor('09:00', 4),
+            $this->hor('09:00', 24),
+            $this->hor('09:20', '4'),
+            $this->hor('09:40', 1),
+        ]);
+        // El 09:00 queda con el tipo 24 (el 4 no cuenta, ni siquiera como «tipo más bajo»).
+        $this->assertSame([['09:00', 24], ['09:40', 1]], $this->pares($r));
+    }
+
+    public function testTodosLosTiposDaElTipoPorDefectoALosHorariosSinTipo()
+    {
+        // Fechas agregadas: los horarios no tienen columna tipo_turno.
+        $r = DisponibilidadReglas::horariosDeTodosLosTipos([$this->hor('09:00'), $this->hor('09:20', 0)]);
+        $this->assertSame([['09:00', 1], ['09:20', 1]], $this->pares($r));
+    }
+
+    public function testTodosLosTiposDevuelveElTipoComoEntero()
+    {
+        $r = DisponibilidadReglas::horariosDeTodosLosTipos([$this->hor('09:00', '24')]);
+        $this->assertSame(24, $r[0]->tipo_turno);
+    }
+
+    public function testTodosLosTiposConservaLosDemasCamposDelHorario()
+    {
+        $h = (object) ['id' => 5, 'horario' => '09:00', 'tipo_turno' => 24, 'doble' => 0, 'valido_desde' => null];
+        $r = DisponibilidadReglas::horariosDeTodosLosTipos([$h]);
+        $this->assertSame(5, $r[0]->id);
+        $this->assertSame(0, $r[0]->doble);
+        $this->assertNull($r[0]->valido_desde);
+    }
+
+    public function testTodosLosTiposAceptaColeccionesYSinHorariosDevuelveVacio()
+    {
+        $this->assertSame([], DisponibilidadReglas::horariosDeTodosLosTipos([]));
+        $this->assertSame([], DisponibilidadReglas::horariosDeTodosLosTipos(collect()));
+        $r = DisponibilidadReglas::horariosDeTodosLosTipos(collect([$this->hor('10:00', 24), $this->hor('09:00', 1)]));
+        $this->assertSame([['09:00', 1], ['10:00', 24]], $this->pares($r));
+    }
+
+    // ------------------------------------------------------------------
+    // Modo `todos_los_tipos=1`: turnos ocupados sin mirar el tipo
+    // ------------------------------------------------------------------
+
+    public function testSinFiltrarTipoOcupaCualquierTurnoActivoSeaDelTipoQueSea()
+    {
+        $turnos = [
+            $this->turno('09:00', 1, 99999),     // bloqueo tipo 1
+            $this->turno('09:20', 1, 30111222),  // real tipo 1
+            $this->turno('09:40', 24, 30111222), // real tipo 24
+            $this->turno('10:00', 31, 30111222), // real con tipo de una opción
+            $this->turno('10:20', null, 30111222),
+        ];
+        $r = DisponibilidadReglas::turnosQueOcupanSinFiltrarTipo($turnos);
+        $this->assertSame(['09:00', '09:20', '09:40', '10:00', '10:20'], $this->horarios($r));
+    }
+
+    public function testSinFiltrarTipoCuentaActivo1Y2PeroNoCanceladosNiOtrosEstados()
+    {
+        $turnos = [
+            (object) ['horario' => '09:00', 'activo' => 1],
+            (object) ['horario' => '09:20', 'activo' => '2'],
+            (object) ['horario' => '09:40', 'activo' => 0],
+            (object) ['horario' => '10:00', 'activo' => '3'],
+            (object) ['horario' => '10:20'], // la lista ya viene filtrada por activo: sin el campo, ocupa
+        ];
+        $r = DisponibilidadReglas::turnosQueOcupanSinFiltrarTipo($turnos);
+        $this->assertSame(['09:00', '09:20', '10:20'], $this->horarios($r));
+    }
+
+    public function testSinFiltrarTipoConservaElOrdenYAceptaColecciones()
+    {
+        $turnos = collect([$this->turno('10:00', 24, 30111222), $this->turno('09:00', 1, 99999)]);
+        $this->assertSame(['10:00', '09:00'], $this->horarios(DisponibilidadReglas::turnosQueOcupanSinFiltrarTipo($turnos)));
+        $this->assertSame([], DisponibilidadReglas::turnosQueOcupanSinFiltrarTipo([]));
+    }
 }
