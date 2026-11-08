@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Salud360;
 
 use App\Services\Salud360\AgendaService;
 use App\Services\Salud360\DisponibilidadReglas;
+use App\Services\Salud360\TipoEnReservaReglas;
+use App\Services\TipoTurnoService;
 use App\TurnoRegistrado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -103,6 +105,12 @@ class TurnoController extends Salud360Controller
      * {medico_id, paciente_id, fecha, horario, [horario2], [tipo_turno=1], [primer_control=0], [consultorio_id], [comentario]}
      *
      * Códigos de rechazo (HTTP 409): `ocupado`, `mismo_dia`, `cupo_primer_control`, `horario_invalido`.
+     *
+     * Si viene `tipo_turno` y el horario es de la plantilla semanal, el tipo tiene que ser el del horario o una
+     * opción vigente de él; si no, 422 `tipo_invalido`. El turno se guarda con el tipo recibido (la opción).
+     * Excepción: si el médico tiene a lo sumo un tipo habilitado, un `tipo_turno` = 1 (el valor por omisión de
+     * la app publicada) se acepta y el turno se guarda con el tipo T del horario, no con 1.
+     * Sin `tipo_turno`, o en un horario sin plantilla (fecha especial), no se valida. Ver tipoEnSlot.
      */
     public function store(Request $request)
     {
@@ -137,6 +145,15 @@ class TurnoController extends Salud360Controller
         if ($this->agenda->validarTurnoLibre($medico->id, $consultorio, $dia, $horario, $fecha)->count() > 0) {
             return $this->error('El horario ya está ocupado.', 409, 'ocupado');
         }
+        // Va después de `ocupado` y `mismo_dia`: un pedido que ya fallaba por eso sigue fallando igual.
+        $tipoPedido = TipoEnReservaReglas::leerTipo($request->input('tipo_turno'));
+        $enSlot = $this->tipoEnSlot($tipoPedido, $medico->id, $consultorio, $dia, $horario, $fecha);
+        if (isset($enSlot['error'])) {
+            return $this->error($enSlot['mensaje'], 422, $enSlot['error']);
+        }
+        $tipoParaSlots = $enSlot['padre'] !== null ? $enSlot['padre'] : $tipoTurno;
+        // Un 1 aceptado por tener el médico un solo tipo habilitado se guarda con el tipo del horario.
+        $tipoGuardado = isset($enSlot['tipo']) ? $enSlot['tipo'] : $tipoTurno;
 
         $base = [
             'paciente_id' => $pacienteId,
@@ -144,7 +161,7 @@ class TurnoController extends Salud360Controller
             'consultorio_id' => $consultorio,
             'dia' => $dia,
             'fecha' => $fecha,
-            'tipo_turno' => $tipoTurno,
+            'tipo_turno' => $tipoGuardado,
             'primer_control' => $primerControl,
             'sobreturno' => 0,
             'comentario' => (string) $request->input('comentario', ''),
@@ -159,11 +176,16 @@ class TurnoController extends Salud360Controller
             if ($this->agenda->validarTurnoLibre($medico->id, $consultorio, $dia, $horario2, $fecha)->count() > 0) {
                 return $this->error('El segundo horario ya está ocupado.', 409, 'ocupado');
             }
+            $enSlot2 = $this->tipoEnSlot($tipoPedido, $medico->id, $consultorio, $dia, $horario2, $fecha);
+            if (isset($enSlot2['error'])) {
+                return $this->error($enSlot2['mensaje'], 422, $enSlot2['error']);
+            }
             if (!$this->agenda->controlarCantidadPrimerControl($medico->id, $dia, $consultorio, $fecha)) {
                 return $this->error('No quedan cupos de primer control para ese día.', 409, 'cupo_primer_control');
             }
             $creados[] = $this->agenda->registrarTurno(array_merge($base, ['horario' => $horario]));
-            $creados[] = $this->agenda->registrarTurno(array_merge($base, ['horario' => $horario2]));
+            $tipoGuardado2 = isset($enSlot2['tipo']) ? $enSlot2['tipo'] : $tipoTurno;
+            $creados[] = $this->agenda->registrarTurno(array_merge($base, ['horario' => $horario2, 'tipo_turno' => $tipoGuardado2]));
         } else {
             $creados[] = $this->agenda->registrarTurno(array_merge($base, ['horario' => $horario]));
         }
@@ -178,12 +200,15 @@ class TurnoController extends Salud360Controller
 
         return $this->ok([
             'turnos' => $turnos,
-            'slots' => $this->agenda->slots($medico->id, $consultorio, $dia, $fecha, $tipoTurno),
+            'slots' => $this->agenda->slots($medico->id, $consultorio, $dia, $fecha, $tipoParaSlots),
         ], 201);
     }
 
     /**
      * POST /api/salud360/turnos/sobreturno  {medico_id, paciente_id, fecha, horario, [tipo_turno], [comentario]}
+     *
+     * `tipo_turno` se valida igual que en `store` (422 `tipo_invalido`), solo si el horario es de la plantilla;
+     * también vale la excepción del 1 con a lo sumo un tipo habilitado (se guarda el tipo del horario).
      */
     public function sobreturno(Request $request)
     {
@@ -207,6 +232,10 @@ class TurnoController extends Salud360Controller
         if ($this->agenda->validarTurnoLibre($medico->id, $consultorio, $dia, $horario, $fecha)->count() > 0) {
             return $this->error('El horario ya está ocupado.', 409, 'ocupado');
         }
+        $enSlot = $this->tipoEnSlot(TipoEnReservaReglas::leerTipo($request->input('tipo_turno')), $medico->id, $consultorio, $dia, $horario, $fecha);
+        if (isset($enSlot['error'])) {
+            return $this->error($enSlot['mensaje'], 422, $enSlot['error']);
+        }
         $t = $this->agenda->registrarTurno([
             'paciente_id' => $pacienteId,
             'medico_id' => $medico->id,
@@ -214,7 +243,7 @@ class TurnoController extends Salud360Controller
             'dia' => $dia,
             'horario' => $horario,
             'fecha' => $fecha,
-            'tipo_turno' => $tipoTurno,
+            'tipo_turno' => isset($enSlot['tipo']) ? $enSlot['tipo'] : $tipoTurno,
             'primer_control' => false,
             'sobreturno' => 1,
             'comentario' => (string) $request->input('comentario', ''),
@@ -367,6 +396,50 @@ class TurnoController extends Salud360Controller
         $turno->comentario = $c === null ? '' : (string) $c;
         $turno->save();
         return $this->ok(['turno' => $this->formatearPorId($turno->id)]);
+    }
+
+    /**
+     * Valida el `tipo_turno` explícito de una reserva contra el horario de la plantilla semanal de ese slot
+     * (mismo médico, consultorio, día y hora, activo y vigente en la fecha). Si la fecha tiene fecha especial
+     * (`fechas_agregadas`), la plantilla no rige ese día y no hay nada que validar. Sin tipo explícito no
+     * consulta nada. Las reglas están en TipoEnReservaReglas::paraTurno (con los tipos habilitados del médico, para
+     * el 1 de la app publicada).
+     *
+     * @param int|null $tipoPedido TipoEnReservaReglas::leerTipo del cuerpo
+     * @return array ['padre' => null|int, 'tipo' => int (solo si hay que guardar otro tipo que el recibido)]
+     *               o ['error' => ..., 'mensaje' => ...]
+     */
+    private function tipoEnSlot($tipoPedido, $medicoId, $consultorio, $dia, $horario, $fecha)
+    {
+        if ($tipoPedido === null || !Schema::hasColumn('horario_medicos', 'tipo_turno')) {
+            return ['padre' => null];
+        }
+        if ($this->agenda->checkFechaAgregada($medicoId, $consultorio, $fecha) !== -1) {
+            return ['padre' => null];
+        }
+        $filas = DB::table('horario_medicos')
+            ->where('medico', $medicoId)
+            ->where('consultorio', $consultorio)
+            ->where('dia', $dia)
+            ->where('horario', $horario)
+            ->where('activo', 1)
+            ->get();
+        $tiposDelHorario = $this->agenda->filtrarVigencia($filas, $fecha)
+            ->pluck('tipo_turno')
+            ->map(function ($t) { return (int) $t; })
+            ->unique()
+            ->values()
+            ->all();
+        if (count($tiposDelHorario) === 0) {
+            return ['padre' => null];
+        }
+
+        $servicio = app(TipoTurnoService::class);
+        $opcionesPorPadre = [];
+        foreach ($tiposDelHorario as $padre) {
+            $opcionesPorPadre[$padre] = array_column($servicio->opciones($medicoId, $padre), 'id');
+        }
+        return TipoEnReservaReglas::paraTurno($tipoPedido, $tiposDelHorario, $opcionesPorPadre, $servicio->nombresPorId(), $servicio->habilitados($medicoId));
     }
 
     private function formatearPorId($id)

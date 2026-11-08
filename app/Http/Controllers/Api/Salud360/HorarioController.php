@@ -8,6 +8,8 @@ use App\HorariosMedicosAgregado;
 use App\MedicoConfig;
 use App\MedicoPrimerControl;
 use App\Services\Salud360\AgendaService;
+use App\Services\Salud360\TipoEnReservaReglas;
+use App\Services\TipoTurnoService;
 use App\Util\Util;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -90,6 +92,10 @@ class HorarioController extends Salud360Controller
 
     /**
      * POST /api/salud360/horarios  {medico_id, dia 1..7, horario HH:MM, [tipo_turno=1], [valido_desde], [valido_hasta]}
+     *
+     * Si viene `tipo_turno`, tiene que ser un tipo habilitado del médico (un médico sin ninguno habilitado
+     * ofrece solo el 1); si no, 422 `tipo_no_habilitado`. Con a lo sumo un tipo habilitado, un `tipo_turno` = 1
+     * se acepta igual (la app publicada lo manda por omisión). Reglas en TipoEnReservaReglas.
      */
     public function store(Request $request)
     {
@@ -113,6 +119,18 @@ class HorarioController extends Salud360Controller
         if ($existe) {
             return $this->error('Ese horario ya está cargado para ese día.', 409, 'duplicado');
         }
+        // El tipo, si viene, tiene que estar habilitado al médico (como en la web). Va después de `duplicado`
+        // porque la app toma ese 409 como «ya estaba» y no como error. Sin `tipo_turno` es 1, como siempre.
+        $tipoTurno = AgendaService::TIPO_TURNO_CONSULTA;
+        $tipoPedido = TipoEnReservaReglas::leerTipo($request->input('tipo_turno'));
+        if ($tipoPedido !== null && Schema::hasColumn('horario_medicos', 'tipo_turno')) {
+            $servicio = app(TipoTurnoService::class);
+            $leido = TipoEnReservaReglas::paraHorarioNuevo($tipoPedido, $servicio->habilitados($medico->id), $servicio->nombresPorId());
+            if (isset($leido['error'])) {
+                return $this->error($leido['mensaje'], 422, $leido['error']);
+            }
+            $tipoTurno = $leido['tipo'];
+        }
         $reg = new HorarioMedico();
         $reg->medico = $medico->id;
         $reg->consultorio = $consultorio;
@@ -121,7 +139,7 @@ class HorarioController extends Salud360Controller
         $reg->doble = 0;
         $reg->activo = 1;
         if (Schema::hasColumn('horario_medicos', 'tipo_turno')) {
-            $reg->tipo_turno = (int) $request->input('tipo_turno', AgendaService::TIPO_TURNO_CONSULTA);
+            $reg->tipo_turno = $tipoTurno;
         }
         if (Schema::hasColumn('horario_medicos', 'valido_desde')) {
             $reg->valido_desde = $this->agenda->normalizarFecha($request->input('valido_desde'));

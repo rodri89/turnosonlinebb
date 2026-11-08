@@ -24,8 +24,9 @@ La web y la app de pacientes siguen funcionando igual: Laravel sigue siendo el �
 | `app/Http/Controllers/Api/Salud360/MedicoHistoriasClinicasController.php` | `PUT medicos/{id}/historias-clinicas`: historias clínicas habilitadas a un médico (solo administrador). Ver «Historias clínicas por médico». |
 | `app/Services/Salud360/HistoriasClinicasReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
 | `app/Http/Controllers/Api/Salud360/TiposTurnoController.php` | `GET` y `POST tipos-turno`: el catálogo global de tipos de turno (solo administrador). Ver «Tipos de turno». |
-| `app/Http/Controllers/Api/Salud360/MedicoTiposTurnoController.php` | `GET` y `PUT medicos/{id}/tipos-turno`: los tipos que ofrece un médico, con su condición y sus opciones (solo administrador). Ver «Tipos de turno». |
+| `app/Http/Controllers/Api/Salud360/MedicoTiposTurnoController.php` | `GET` y `PUT medicos/{id}/tipos-turno`: los tipos que ofrece un médico, con su condición y sus opciones. El `GET` lo leen también el médico dueño y la secretaria con permiso; el `PUT`, solo el administrador. Ver «Tipos de turno». |
 | `app/Services/Salud360/TiposTurnoReglas.php` | Las reglas de `POST tipos-turno` y del `PUT` anterior sin base de datos (se prueban con phpunit). |
+| `app/Services/Salud360/TipoEnReservaReglas.php` | Qué `tipo_turno` se acepta al cargar un horario fijo (`POST horarios`) y al reservar un turno (`POST turnos`, `turnos/sobreturno`), sin base de datos (se prueban con phpunit). Ver «Validación del tipo al cargar horarios y reservar». |
 | `app/Http/Controllers/Api/Salud360/MedicoActivoController.php` | `PUT medicos/{id}/activo`: dar de baja o de alta a un médico (`medicos.activo`, solo administrador). Ver «Activar / desactivar un médico». |
 | `app/Services/Salud360/EstadoMedicoReglas.php` | Las reglas de ese `PUT` sin base de datos (se prueban con phpunit). |
 | `routes/api.php` | Grupo `salud360`. |
@@ -102,15 +103,15 @@ local por `users.medico_id_tobb = perfil.medico.id`.
 | GET | `turnos` | query `medico_id`, `[desde]`, `[hasta]`, `[actualizado_desde]`, `[incluir_cancelados]`, `[limite]` | Para sincronizar. Con `actualizado_desde` (timestamp) trae también cancelados. |
 | GET | `turnos/{id}` | | |
 | GET | `turnos/paciente/{pacienteId}` | query `medico_id` | Historial del paciente con el médico |
-| POST | `turnos` | `medico_id`, `paciente_id`, `fecha`, `horario`, `[horario2]`, `[tipo_turno=1]`, `[primer_control]`, `[comentario]` | Valida horario ocupado y "un turno por día". Con `primer_control=1` + `horario2` registra el primer control doble (dos turnos) y controla el cupo del día. |
-| POST | `turnos/sobreturno` | `medico_id`, `paciente_id`, `fecha`, `horario`, `[tipo_turno]` | Turno con `sobreturno = 1` |
+| POST | `turnos` | `medico_id`, `paciente_id`, `fecha`, `horario`, `[horario2]`, `[tipo_turno=1]`, `[primer_control]`, `[comentario]` | Valida horario ocupado y "un turno por día". Con `primer_control=1` + `horario2` registra el primer control doble (dos turnos) y controla el cupo del día. Si viene `tipo_turno` y el horario es de la plantilla semanal, tiene que ser el tipo del horario o una de sus opciones (`422 tipo_invalido`); el turno queda guardado con el tipo recibido (salvo el `1` de un médico con a lo sumo un tipo habilitado: queda el tipo del horario). Ver «Validación del tipo al cargar horarios y reservar». |
+| POST | `turnos/sobreturno` | `medico_id`, `paciente_id`, `fecha`, `horario`, `[tipo_turno]` | Turno con `sobreturno = 1`. `tipo_turno` se valida igual que en `turnos` (solo si el horario es de la plantilla). |
 | POST | `turnos/bloquear-dia` | `medico_id`, `fecha`, `paciente_id`, `[tipo_turno]` | Ocupa todos los horarios del día, **de todos los tipos de turno**, con el paciente "bloqueo" (misma mecánica que la web). Cada bloqueo lleva el `tipo_turno` de su propio horario; un horario que está en dos tipos se bloquea una sola vez. `tipo_turno` solo hace falta para videollamada (`4`) o como tipo de los horarios que no traen el suyo (fechas especiales). Falla (`dia_con_turnos`) si ya hay turnos, así que repetir la llamada no duplica nada. |
 | POST | `turnos/{id}/cancelar` | `[motivo]` | `activo = 0`, comentario "Cancelado por :Apellido, Nombre" |
 | POST | `turnos/{id}/asistencia` | `asistio` (0/1/2) | |
 | POST | `turnos/{id}/caja` | `caja` | |
 | POST | `turnos/{id}/comentario` | `comentario` | |
 
-Códigos de rechazo (HTTP 409): `ocupado`, `mismo_dia`, `cupo_primer_control`, `dia_con_turnos`.
+Códigos de rechazo (HTTP 409): `ocupado`, `mismo_dia`, `cupo_primer_control`, `dia_con_turnos`. Código de rechazo 422: `tipo_invalido` (ver «Validación del tipo al cargar horarios y reservar»).
 
 ### Los bloqueos ocupan el horario sin importar el tipo de turno
 
@@ -300,7 +301,7 @@ cualquier usuario con token ve o edita cualquier ficha. Esta sección solo cubre
 | Método | Ruta | Cuerpo | Notas |
 |---|---|---|---|
 | GET | `horarios` | query `medico_id` | `horarios_fijos[]` (con `valido_desde/hasta`, `tipo_turno`, `tipo_turno_nombre`), `fechas_especiales[]` futuras con sus horarios, `cupo_primer_control`, `ventana_dias`, `modulos` |
-| POST | `horarios` | `medico_id`, `dia`, `horario`, `[tipo_turno=1]`, `[valido_desde]`, `[valido_hasta]` | Horario fijo semanal |
+| POST | `horarios` | `medico_id`, `dia`, `horario`, `[tipo_turno=1]`, `[valido_desde]`, `[valido_hasta]` | Horario fijo semanal. Si viene `tipo_turno`, tiene que ser un tipo habilitado del médico (`422 tipo_no_habilitado`); un médico sin tipos habilitados ofrece solo el `1`, y con un solo tipo habilitado también se acepta el `1`. Ver «Validación del tipo al cargar horarios y reservar». |
 | PUT | `horarios/{id}` | `[valido_desde]`, `[valido_hasta]` | Vigencia |
 | DELETE | `horarios/{id}` | | Desactiva |
 | POST | `horarios/fecha-especial` | `medico_id`, `fecha`, `horarios[]` | Fecha agregada que reemplaza la plantilla ese día |
@@ -489,7 +490,7 @@ curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":[
 
 ### Tipos de turno
 
-Lleva a la app lo que la web de administración hace en «Tipos de turno» del alta de médico. **Solo administrador.** La API reutiliza
+Lleva a la app lo que la web de administración hace en «Tipos de turno» del alta de médico. **Cambiarlos es solo del administrador** (`PUT`, y el catálogo global); **leer** los de un médico (`GET medicos/{id}/tipos-turno`) pueden también el médico dueño y la secretaria con permiso, porque la app los necesita para cargar horarios y reservar. La API reutiliza
 `App\Services\TipoTurnoService` (`crear`, `guardar`, `guardarOpciones`), el mismo que usa la web, así que los datos quedan igual que si
 se cargaran desde ahí. No toca horarios, turnos, agenda ni historias clínicas.
 
@@ -547,7 +548,17 @@ Crea un tipo nuevo, activo, con `TipoTurnoService::crear`. Reglas, en este orden
 
 Solo los tipos **habilitados** del médico (`activo = 1`) que siguen activos en el catálogo (los que muestra la web), por `id`, cada uno con
 su condición y sus **opciones activas**. Las opciones guardadas de tipos que no están habilitados no se informan (se conservan, ocultas).
-`404` si el médico no existe (se busca por `id`, esté activo o dado de baja). Respuesta `200`:
+
+**Quién puede leerlo** (los mismos permisos del resto de la API, `puedeGestionarMedico`):
+
+| Quién | Resultado |
+|---|---|
+| Administrador | `200` con cualquier médico, activo o dado de baja |
+| Médico | `200` solo con su propio `{id}` (si está activo); con el de otro médico, `403` `sin_permiso` |
+| Secretaria | `200` con los médicos activos de sus consultorios; con cualquier otro, `403` `sin_permiso` |
+
+`403` `sin_permiso` va antes que el `404`: un médico o una secretaria que pide un `{id}` que no es suyo, exista o no, recibe `403`. El
+administrador recibe `404` `no_encontrado` si el médico no existe (se busca por `id`, esté activo o dado de baja). Respuesta `200`:
 
 ```json
 { "ok": true, "medico_id": 12, "tipos": [
@@ -610,7 +621,7 @@ Errores (formato de siempre: `ok`, `mensaje`, `codigo`):
 | HTTP | `codigo` | Cuándo | Ejemplo |
 |---|---|---|---|
 | 401 | `sin_token` / `token` | Sin token, o token inválido o vencido (middleware) | `{"ok":false,"mensaje":"No autenticado.","codigo":"sin_token"}` |
-| 403 | `sin_permiso` | No es administrador (los cuatro pedidos) | `{"ok":false,"mensaje":"Solo el administrador puede cambiar los tipos de turno de un médico.","codigo":"sin_permiso"}` |
+| 403 | `sin_permiso` | `PUT medicos/{id}/tipos-turno`, `GET` y `POST tipos-turno` sin ser administrador; `GET medicos/{id}/tipos-turno` de un médico sobre el que no se tiene permiso | `{"ok":false,"mensaje":"Solo el administrador puede cambiar los tipos de turno de un médico.","codigo":"sin_permiso"}` |
 | 404 | `no_encontrado` | Médico inexistente | `{"ok":false,"mensaje":"Médico no encontrado.","codigo":"no_encontrado"}` |
 | 409 | `nombre_repetido` | `POST tipos-turno` con un nombre que ya existe | ver arriba |
 | 422 | `datos_invalidos` | Falta `tipos` | `{"ok":false,"mensaje":"Falta tipos: la lista de tipos de turno que quedan habilitados ([] para ninguno).","codigo":"datos_invalidos"}` |
@@ -648,6 +659,132 @@ curl -s -X PUT .../medicos/12/tipos-turno ... -d '{"tipos":[{"id":43,"primer_con
 ```
 
 `GET catalogos` y `auth/perfil` no cambian con esta entrega.
+
+### Validación del tipo al cargar horarios y reservar
+
+Hasta ahora `POST horarios`, `POST turnos` y `POST turnos/sobreturno` guardaban cualquier `tipo_turno` que llegara. Ahora lo validan, **solo si
+`tipo_turno` viene explícito en el cuerpo**. Sin `tipo_turno` (o con `null`/`""`) todo sigue exactamente como antes; la app ya publicada no
+se ve afectada mientras no mande un tipo que no corresponda. Las reglas están en `TipoEnReservaReglas` (con tests en
+`tests/Unit/Salud360TipoEnReservaReglasTest.php`). No se toca ningún dato existente: los horarios y turnos ya guardados quedan como están.
+
+#### `POST horarios`: el tipo tiene que estar habilitado al médico (`422 tipo_no_habilitado`)
+
+Igual que la web (`guardarHorarioFijo`): el tipo de un horario fijo nuevo tiene que ser uno de los **habilitados** del médico
+(`GET medicos/{id}/tipos-turno`, tabla `medico_tipo_turnos` con `activo = 1`). Un médico **sin ningún tipo habilitado** ofrece solo la
+«Consulta» (`1`): con `tipo_turno: 1` se acepta y con cualquier otro, `422`. Sin `tipo_turno` se guarda `1`, como siempre.
+
+- La validación va **después** de `duplicado`: repetir un horario que ya existe sigue dando `409 duplicado` (la app lo toma como «ya estaba»).
+- Una opción de un tipo no cuenta como tipo habilitado: un horario es siempre de un tipo «padre» habilitado; la opción se elige al reservar.
+- Un médico con **2 o más** habilitados que no incluyen el `1` no puede cargar horarios de tipo `1` (hay que mandar uno de los suyos). Con **a lo
+  sumo un** tipo habilitado, el `1` se acepta igual: ver «Un solo tipo habilitado: el `1` de la app publicada».
+- `PUT horarios/{id}` (vigencia), las fechas especiales y `bloquear-dia` no reciben un tipo que guardar y no cambian.
+
+```json
+{ "ok": false, "mensaje": "El tipo Deportología (24) no está habilitado para este médico.", "codigo": "tipo_no_habilitado" }
+```
+
+#### `POST turnos` y `POST turnos/sobreturno`: el tipo tiene que ser el del horario o una opción suya (`422 tipo_invalido`)
+
+Si viene `tipo_turno` y el slot (misma fecha, hora y consultorio) corresponde a un **horario fijo activo y vigente** (`horario_medicos`) de tipo
+`T`, el tipo recibido tiene que ser:
+
+- el propio `T`, o
+- una **opción vigente** de `T` para ese médico (`tipo_turno_opciones` con `activo = 1`; las que devuelve el `GET` dentro de `opciones` de `T`).
+
+Si no, `422 tipo_invalido` y no se guarda nada. El turno se guarda con el **tipo recibido**: si es una opción, `turno_registrados.tipo_turno` queda
+con el id de la opción (como hace la web al confirmar), y `tipo_turno_nombre` sale con el nombre de la opción. El primer control doble
+(`horario2`) valida también el segundo horario.
+
+Excepción: si el médico tiene a lo sumo un tipo habilitado, un `tipo_turno` igual a `1` se acepta y el turno se guarda con `T` (ver la sección
+siguiente). Con 2 o más habilitados el `1` sobre un horario de otro tipo sigue siendo `422 tipo_invalido`.
+
+**No se valida** (todo igual que hoy) cuando:
+
+| Situación | Por qué |
+|---|---|
+| El cuerpo no trae `tipo_turno` (o es `null`/`""`) | El turno se guarda con tipo `1`, como siempre |
+| El slot no es de la plantilla: la fecha tiene una **fecha especial** (`horarios/fecha-especial`), o el sobreturno es a una hora que no está cargada | No hay horario con tipo contra el cual comparar |
+| `tipo_turno` es `4` (videollamada) | Tiene su propio circuito (`horario_medico_videollamadas`) y no pasa por la plantilla |
+| Los **bloqueos** (paciente DNI `99999`, `turnos/bloquear-dia`) | Cada bloqueo se guarda con el tipo de su propio horario, sin cambios |
+
+`ocupado`, `mismo_dia` y `cupo_primer_control` se comprueban **antes** que el tipo: un pedido que ya fallaba con `409` sigue fallando igual.
+
+```json
+{ "ok": false, "mensaje": "El tipo Consulta y evaluación (27) no corresponde a ese horario: es de tipo Deportología (24) y Consulta y evaluación (27) no es una de sus opciones.", "codigo": "tipo_invalido" }
+```
+
+La lista de horarios libres sigue coherente con un turno guardado con una opción: con `todos_los_tipos=1` cualquier turno activo ocupa el horario, y
+sin él, pedir los horarios del tipo `T` cuenta como ocupado todo turno mientras `T` tenga opciones configuradas (regla de siempre). Si más tarde se
+sacan todas las opciones de `T`, un turno ya guardado con una de ellas deja de figurar ocupado en la lista de `T` (sin `todos_los_tipos`) y recién da
+`409 ocupado` al reservar: es el comportamiento anterior, no cambia.
+
+Ejemplos (datos inventados; el médico 12 tiene habilitados «Consulta» (1) y «Estudios» (43) con las opciones 44 y 45, y los viernes a las 11:00
+son horarios de «Estudios»):
+
+```bash
+# Leer los tipos del médico con el token del propio médico (o de su secretaria)
+curl -s https://turnosonlinebb.com/api/salud360/medicos/12/tipos-turno \
+  -H 'Accept: application/json' -H 'Authorization: Bearer <token médico 12>'
+# → 200 {"ok":true,"medico_id":12,"tipos":[
+#      {"id":1,"nombre":"Consulta","primer_control":null,"opciones":[]},
+#      {"id":43,"nombre":"Estudios","primer_control":null,"opciones":[{"id":44,"nombre":"Estudio A"},{"id":45,"nombre":"Estudio B"}]}]}
+
+# El mismo pedido con el token de otro médico
+# → 403 {"ok":false,"mensaje":"No tiene permiso para ver los tipos de turno de ese médico.","codigo":"sin_permiso"}
+
+# Cargar un horario de un tipo que el médico no tiene habilitado
+curl -s -X POST .../horarios ... -d '{"dia":2,"horario":"09:00","tipo_turno":27}'
+# → 422 {"ok":false,"mensaje":"El tipo Consulta y evaluación (27) no está habilitado para este médico.","codigo":"tipo_no_habilitado"}
+
+# Reservar el viernes 2027-06-04 a las 11:00 (horario de «Estudios») con la opción «Estudio A»
+curl -s -X POST .../turnos ... -d '{"medico_id":12,"paciente_id":345,"fecha":"2027-06-04","horario":"11:00","tipo_turno":44}'
+# → 201 {"ok":true,"turnos":[{"id":900,"horario":"11:00","fecha":"2027-06-04","tipo_turno":44,"tipo_turno_nombre":"Estudio A", ...}], "slots":[...]}
+
+# Con un tipo que no es «Estudios» ni una de sus opciones
+curl -s -X POST .../turnos ... -d '{"medico_id":12,"paciente_id":346,"fecha":"2027-06-04","horario":"11:30","tipo_turno":1}'
+# → 422 {"ok":false,"mensaje":"El tipo Consulta (1) no corresponde a ese horario: es de tipo Estudios (43) y Consulta (1) no es una de sus opciones.","codigo":"tipo_invalido"}
+```
+
+#### Un solo tipo habilitado: el `1` de la app publicada
+
+La app ya publicada manda `tipo_turno: 1` (su valor por omisión) en `POST horarios`, `POST turnos` y `POST turnos/sobreturno`, y la web grababa ese 1 en
+silencio. Para que un médico con **un solo tipo habilitado distinto de 1** (p. ej. solo «Deportología», 24) no reciba un `422` por eso, la regla es:
+
+| Tipos habilitados del médico (`activo = 1` en `medico_tipo_turnos`) | `tipo_turno: 1` explícito |
+|---|---|
+| 0 o 1 (aunque el único sea distinto de 1) | **Se acepta** |
+| 2 o más y el `1` no es uno de ellos | `422` (`tipo_no_habilitado` en horarios, `tipo_invalido` en turnos sobre un horario de otro tipo) |
+| 2 o más y el `1` es uno de ellos | Se acepta como cualquier tipo habilitado |
+
+Qué se guarda:
+
+- **Horarios**: el horario queda de tipo `1`, tal cual se mandó (como hacía la web).
+- **Turnos y sobreturnos** sobre un horario de plantilla de un único tipo `T ≠ 1`: el turno queda guardado con **`T`**, no con `1`, y la respuesta lo
+  muestra (`tipo_turno: T`). Se guarda `T` para que el listado y la ocupación, que filtran por el tipo del horario, vean el turno donde corresponde
+  (con un `1` guardado, el horario de `T` se vería libre al pedir los horarios de tipo `T`). Antes de la validación de tipos se guardaba el `1` recibido.
+  Si el slot tiene dos tipos distintos de 1 en la plantilla no hay un `T` único y se rechaza con `422 tipo_invalido`.
+- Todo lo demás no cambia: cualquier otro tipo no habilitado (p. ej. `27`) sigue dando `422`; una opción válida de `T` se guarda como opción; un turno
+  sobre un horario de tipo `1`, sobre una fecha especial o sin `tipo_turno` queda como siempre.
+
+Ejemplo (datos inventados; el médico 12 tiene habilitado solo «Deportología» (24) y los viernes a las 11:00 son horarios de tipo 24):
+
+```bash
+# Cargar un horario con el 1 por omisión de la app
+curl -s -X POST .../horarios ... -d '{"medico_id":12,"dia":5,"horario":"12:00","tipo_turno":1}'
+# → 201 {"ok":true,"id":501}                                  (antes: 422 tipo_no_habilitado)
+
+# Reservar el viernes 2027-06-04 a las 11:00 con el 1 por omisión
+curl -s -X POST .../turnos ... -d '{"medico_id":12,"paciente_id":345,"fecha":"2027-06-04","horario":"11:00","tipo_turno":1}'
+# → 201 {"ok":true,"turnos":[{"id":901,"horario":"11:00","fecha":"2027-06-04","tipo_turno":24,"tipo_turno_nombre":"Deportología", ...}], "slots":[...]}
+
+# Un tipo que el médico no tiene habilitado sigue rechazado
+curl -s -X POST .../turnos ... -d '{"medico_id":12,"paciente_id":346,"fecha":"2027-06-04","horario":"11:30","tipo_turno":27}'
+# → 422 {"ok":false,"mensaje":"El tipo Consulta y evaluación (27) no corresponde a ese horario: es de tipo Deportología (24) y Consulta y evaluación (27) no es una de sus opciones.","codigo":"tipo_invalido"}
+
+# Si el médico 12 pasa a tener habilitados «Deportología» (24) y «Estudios» (26), el mismo pedido con tipo_turno 1 vuelve a dar 422
+curl -s -X POST .../turnos ... -d '{"medico_id":12,"paciente_id":347,"fecha":"2027-06-04","horario":"11:00","tipo_turno":1}'
+# → 422 {"ok":false,"mensaje":"El tipo Consulta (1) no corresponde a ese horario: es de tipo Deportología (24) y Consulta (1) no es una de sus opciones.","codigo":"tipo_invalido"}
+```
 
 ### Activar / desactivar un médico
 

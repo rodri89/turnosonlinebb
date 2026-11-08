@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Schema;
  * (tablas `medico_tipo_turnos` y `tipo_turno_opciones`, a cargo de TipoTurnoService), pero con token y en
  * un solo pedido. Las reglas del cuerpo están en TiposTurnoReglas.
  *
- * Solo para el administrador. Lo que se quita queda inactivo (`activo = 0`), no se borra la fila, y las
+ * Cambiarlos es solo del administrador; leerlos (GET) también pueden el médico dueño y la secretaria con
+ * permiso sobre ese médico. Lo que se quita queda inactivo (`activo = 0`), no se borra la fila, y las
  * opciones guardadas de un tipo que se deshabilita se conservan. No toca horarios, turnos, agenda ni
  * historias clínicas: si a un tipo deshabilitado le quedan horarios activos, solo se avisa.
  *
@@ -27,13 +28,19 @@ class MedicoTiposTurnoController extends Salud360Controller
      * GET medicos/{id}/tipos-turno
      *
      * Solo los tipos habilitados del médico (con la condición `primer_control`) y sus opciones activas.
+     *
+     * Lo puede leer el administrador (cualquier médico), el médico sobre sí mismo y la secretaria sobre los
+     * médicos de sus consultorios (los mismos permisos que el resto de la API, `puedeGestionarMedico`): la app
+     * los necesita para ofrecer solo tipos habilitados al cargar horarios y para elegir la opción de un turno.
+     * Cambiarlos sigue siendo solo del administrador (PUT).
      */
     public function ver(Request $request, $id)
     {
-        if (!$this->esAdmin($request->user())) {
-            return $this->error('Solo el administrador puede ver los tipos de turno de un médico.', 403, 'sin_permiso');
-        }
+        $user = $request->user();
         $medicoId = (int) $id;
+        if (!$this->esAdmin($user) && !$this->puedeGestionarMedico($user, $medicoId)) {
+            return $this->error('No tiene permiso para ver los tipos de turno de ese médico.', 403, 'sin_permiso');
+        }
         if ($medicoId < 1 || !DB::table('medicos')->where('id', $medicoId)->exists()) {
             return $this->error('Médico no encontrado.', 404, 'no_encontrado');
         }
