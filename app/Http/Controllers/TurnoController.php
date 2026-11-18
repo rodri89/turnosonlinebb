@@ -4946,13 +4946,39 @@ ORDER BY `pc`  DESC*/
             }
             if($diaSeleccionado == 3) {
                 $direccion = 'Blandengues 505';
-                $telefono = "2914717327";                         
-            }                            
-        } 
-        if($medico->id == 25) {                            
-            $direccion = 'Blandengues 505'; 
-            $telefono = "2914717327";                                                    
-        }        
+                $telefono = "2914717327";
+            }
+        }
+        if($medico->id == 43) {
+            if($diaSeleccionado == 1 || $diaSeleccionado == 3 || $diaSeleccionado == 5) {
+                $direccion = 'Luiggi 463';
+                $telefono = "2914236530";
+            }
+            if($diaSeleccionado == 2) {
+                $direccion = 'Gimnasio EFI · Jorge Walsh 31';
+                $telefono = "2914236530";
+            }
+            if($diaSeleccionado == 4) {
+                $horarioTarde = ['15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30'];
+                if($turno->horario && in_array($turno->horario, $horarioTarde)) {
+                    $direccion = 'Gimnasio EFI · Jorge Walsh 31';
+                    $telefono = "2914236530";
+                } else {
+                    $direccion = 'Luiggi 463';
+                    $telefono = "2914236530";
+                }
+            }
+        }
+        if($medico->id == 32) {
+            if($diaSeleccionado == 2) {
+               $direccion = 'Alvarado 575';
+               $telefono = "2915756022";
+            }
+        }
+        if($medico->id == 25) {
+            $direccion = 'Blandengues 505';
+            $telefono = "2914717327";
+        }
        if($medico->id == 1) {
             if($turno->fechaTurno < '2025-02-01'){
                 $direccion = 'Unimed. 12 de Octubre 53, piso 9.'; 
