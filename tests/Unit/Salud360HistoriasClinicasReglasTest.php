@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Services\Salud360\HistoriaClinicaService;
 use App\Services\Salud360\HistoriasClinicasReglas;
 use PHPUnit\Framework\TestCase;
 
@@ -187,6 +188,19 @@ class Salud360HistoriasClinicasReglasTest extends TestCase
             $this->catalogo
         );
         $this->assertSame(['clinica'], $r['historias_clinicas']);
+    }
+
+    // ------------------------------------------------------------------
+    // Catálogo real del servicio
+    // ------------------------------------------------------------------
+
+    /** Sin `odontologia` en el catálogo, guardar las HC de un médico desde la app se la borraba (spec 102 de Salud 360). */
+    public function testOdontologiaEsValidaYSeConservaAlGuardar()
+    {
+        $catalogo = array_keys(HistoriaClinicaService::CATALOGO);
+        $r = HistoriasClinicasReglas::validar(['historias_clinicas' => ['odontologia', 'pediatria']], $catalogo);
+        $this->assertArrayNotHasKey('error', $r);
+        $this->assertSame(['pediatria', 'odontologia'], $r['historias_clinicas']);
     }
 
     public function testLaListaNormalizadaEsUnaListaConIndicesCorridos()

@@ -78,7 +78,7 @@ El médico de `medico` y cada uno de `secretaria.medicos[]` (y de `catalogos`) t
 `tiene_agenda` y `visible_en_turnos`; ver «Agenda por médico».
 
 `historias_clinicas` son los códigos de las historias clínicas de Salud 360 que el administrador habilitó al médico
-(`pediatria`, `clinica`, `hepatologia`, `gineco`, `cardiologia`, `endocrinologia`, `hematologia`, `desarrollo_infantil`),
+(`pediatria`, `clinica`, `hepatologia`, `gineco`, `cardiologia`, `endocrinologia`, `hematologia`, `desarrollo_infantil`, `odontologia`),
 tabla `salud360_medico_hc` (se crea sola, como `salud360_tokens`). Se administran en la web en Administración →
 Médico → "Historias clínicas Salud 360" (`POST admin_hc_medico`) y, desde la app, con `PUT medicos/{id}/historias-clinicas`
 (ver «Historias clínicas por médico»). turnosonlinebb es la identidad única de Salud 360:
@@ -438,7 +438,7 @@ Deja habilitadas al médico **exactamente** las historias clínicas indicadas; l
 ```
 
 `[]` deshabilita todas. Los códigos válidos son los de `historias_clinicas` (`pediatria`, `clinica`, `hepatologia`, `gineco`,
-`cardiologia`, `endocrinologia`, `hematologia`, `desarrollo_infantil`); se comparan exactos (`Pediatria` o `pediatria ` no valen).
+`cardiologia`, `endocrinologia`, `hematologia`, `desarrollo_infantil`, `odontologia`); se comparan exactos (`Pediatria` o `pediatria ` no valen).
 
 Reglas, en este orden:
 
@@ -485,7 +485,7 @@ curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":[
 
 # Código que no existe
 curl -s -X PUT .../medicos/12/historias-clinicas ... -d '{"historias_clinicas":["pediatria","oftalmologia"]}'
-# → 422 {"ok":false,"mensaje":"Historia clínica desconocida: «oftalmologia». Códigos válidos: pediatria, clinica, hepatologia, gineco, cardiologia, endocrinologia, hematologia, desarrollo_infantil.","codigo":"datos_invalidos"}
+# → 422 {"ok":false,"mensaje":"Historia clínica desconocida: «oftalmologia». Códigos válidos: pediatria, clinica, hepatologia, gineco, cardiologia, endocrinologia, hematologia, desarrollo_infantil, odontologia.","codigo":"datos_invalidos"}
 ```
 
 ### Tipos de turno

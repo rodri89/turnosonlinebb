@@ -32,6 +32,7 @@ class HistoriaClinicaService
         'endocrinologia' => 'Endocrinología',
         'hematologia' => 'Hematología',
         'desarrollo_infantil' => 'Desarrollo infantil',
+        'odontologia' => 'Odontología',
     ];
 
     /** Crea la tabla si todavía no existe (por si el hosting no corre migraciones). */
