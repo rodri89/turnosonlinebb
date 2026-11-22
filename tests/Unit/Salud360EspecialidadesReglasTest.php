@@ -201,6 +201,27 @@ class Salud360EspecialidadesReglasTest extends TestCase
         $this->assertSame(0, EspecialidadesReglas::fila(['id' => 2, 'nombre' => 'X', 'activo' => 1], null)['medicos_activos']);
     }
 
+    // ------------------------------------------------------------------
+    // Activar / desactivar (T3): el cuerpo {"activo": true|false}
+    // ------------------------------------------------------------------
+
+    public function testElActivoTieneQueSerUnBooleano()
+    {
+        $this->assertSame(['activo' => true], EspecialidadesReglas::validarActivo(['activo' => true]));
+        $this->assertSame(['activo' => false], EspecialidadesReglas::validarActivo(['activo' => false, 'otro' => 1]));
+        foreach ([[], ['activo' => 1], ['activo' => 0], ['activo' => 'true'], ['activo' => null], ['activo' => '0']] as $cuerpo) {
+            $r = EspecialidadesReglas::validarActivo($cuerpo);
+            $this->assertSame('datos_invalidos', $r['error'], json_encode($cuerpo));
+            $this->assertNotEmpty($r['mensaje']);
+        }
+    }
+
+    public function testElAvisoDelEstadoQueQuedo()
+    {
+        $this->assertSame('Especialidad «Odontología» desactivada en turnos.', EspecialidadesReglas::avisoDeEstado('Odontología', 0));
+        $this->assertSame('Especialidad «Odontología» activada en turnos.', EspecialidadesReglas::avisoDeEstado('Odontología', 1));
+    }
+
     public function testLasAccionesSonTextosEstables()
     {
         $this->assertSame('crear', EspecialidadesReglas::CREAR);

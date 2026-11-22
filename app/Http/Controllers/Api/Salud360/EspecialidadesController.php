@@ -96,6 +96,48 @@ class EspecialidadesController extends Salud360Controller
         }
     }
 
+    /**
+     * PUT especialidades/{id}/activo  {activo: true|false}
+     *
+     * Cambia solo `activo` (y `updated_at` si cambia) de la especialidad; no toca a los médicos que la tienen (siguen con
+     * esa especialidad, su agenda y sus turnos). Deja de ofrecerse en la lista pública porque esa lista ya filtra
+     * `activo = 1`. Responde `{especialidad, mensaje}` con el estado que quedó, leído de la base; si no existe, `404
+     * especialidad_no_encontrada` (distinto del 404 sin código de una ruta que no existe).
+     */
+    public function cambiarActivo(Request $request, $id)
+    {
+        if (!$this->esAdmin($request->user())) {
+            return $this->error('Solo el administrador puede activar o desactivar especialidades.', 403, 'sin_permiso');
+        }
+        $especialidadId = (int) $id;
+        $leido = EspecialidadesReglas::validarActivo($request->all());
+        if (isset($leido['error'])) {
+            return $this->error($leido['mensaje'], 422, $leido['error']);
+        }
+
+        $existe = DB::transaction(function () use ($especialidadId, $leido) {
+            $fila = DB::table('especialidads')->where('id', $especialidadId)->lockForUpdate()->first(['id', 'activo']);
+            if ($fila === null) {
+                return false;
+            }
+            $nuevo = $leido['activo'] ? 1 : 0;
+            // Solo se escribe si cambia: repetir el pedido no toca la fila.
+            if ((int) $fila->activo !== $nuevo) {
+                DB::table('especialidads')->where('id', $especialidadId)->update(['activo' => $nuevo, 'updated_at' => now()]);
+            }
+            return true;
+        });
+        if (!$existe) {
+            return $this->error('La especialidad ya no existe en turnos.', 404, 'especialidad_no_encontrada');
+        }
+
+        $especialidad = $this->especialidad($especialidadId);
+        return $this->ok([
+            'especialidad' => $especialidad,
+            'mensaje' => EspecialidadesReglas::avisoDeEstado($especialidad['nombre'], $especialidad['activo']),
+        ]);
+    }
+
     /** @return array [especialidad_id => cantidad de médicos con `activo` 1] */
     private function medicosActivosPorEspecialidad()
     {

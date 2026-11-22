@@ -901,6 +901,72 @@ curl -s -X POST https://turnosonlinebb.com/api/salud360/usuarios \
 # → 201 {"ok":true,"usuario":{"id":73,"nombre":"Ana","apellido":"Prueba","email":"ana@ejemplo.test","tipo":2,"rol":"medico","medico_id":43,"secretaria_id":null,"activo":1}}
 ```
 
+### Especialidades (administrador, spec 007)
+
+La app crea, reactiva, activa y desactiva especialidades **en turnos** (antes las creaba solo en el dispositivo y el alta
+de un médico llegaba sin especialidad). Los tres pedidos son **solo del administrador** (`403 sin_permiso` para los
+demás). El catálogo común (`GET catalogos`) no cambia: sigue trayendo solo las activas.
+
+Nombre normalizado (`EspecialidadesReglas::normalizarNombre`): sin espacios al principio ni al final, un solo espacio
+entre palabras, minúsculas, sin tildes ni diéresis (la ñ queda). «Odontología» = «odontologia» = « ODONTOLOGIA ».
+
+#### `GET especialidades`
+
+Todas, activas e inactivas, en orden de id, con cuántos médicos activos (`medicos.activo = 1`) tiene cada una:
+
+```json
+{"ok":true,"especialidades":[{"id":1,"nombre":"Pediatría","activo":1,"medicos_activos":19},{"id":2,"nombre":"Ginecología","activo":0,"medicos_activos":0}]}
+```
+
+#### `POST especialidades` (cuerpo `{"nombre": "..."}`)
+
+Lee, decide y escribe en una transacción con la tabla bloqueada:
+
+| Caso | Respuesta |
+|---|---|
+| No hay ninguna con ese nombre normalizado | `201` `{"resultado":"creada","especialidad":{...}}`: activa, `foto` y `color` vacíos (como la pantalla web sin foto) |
+| Hay una **inactiva** con ese nombre (la de menor id si hay varias) | `200` `{"resultado":"reactivada","especialidad":{...}}`: cambia solo `activo` y `updated_at`; el nombre queda como estaba |
+| Hay una **activa** con ese nombre | `409 duplicado` con `especialidad` (la existente) y «Ya existe la especialidad «<nombre>» en turnos.»; no cambia nada |
+| Nombre vacío, no texto o más largo que la columna | `422 datos_invalidos`, con el máximo en el mensaje |
+
+El nombre se guarda sin los espacios de más, con sus mayúsculas y tildes. El máximo es el largo real de
+`especialidads.nombre` (leído de `information_schema`; hoy `varchar(191)`; 191 si no se puede leer; nunca más de 255):
+con MySQL estricto un nombre más largo terminaría en un error al guardar.
+
+`especialidad` es siempre `{"id", "nombre", "activo", "medicos_activos"}`.
+
+#### `PUT especialidades/{id}/activo` (cuerpo `{"activo": true|false}`)
+
+Cambia solo `activo` (y `updated_at` si cambia; repetir el pedido no toca la fila). **No toca a los médicos** que la
+tienen: siguen con esa especialidad, su agenda y sus turnos; la especialidad deja de ofrecerse en la lista pública
+(`seleccionar_especialidad` ya filtra `activo = 1`). Responde con el estado que quedó, leído de la base:
+
+```json
+{"ok":true,"especialidad":{"id":20,"nombre":"Deportología","activo":0,"medicos_activos":1},"mensaje":"Especialidad «Deportología» desactivada en turnos."}
+```
+
+Errores: `422 datos_invalidos` si `activo` no es un booleano JSON (ni `1`/`0` ni `"true"`); `404
+especialidad_no_encontrada` si el id no existe. Una ruta que no existe (por ejemplo un turnos viejo sin este pedido, o un
+id no numérico) responde el `404` de Laravel **sin** `codigo`: la app lo distingue como «este turnos todavía no permite
+cambiar especialidades desde la app».
+
+#### Ejemplo (datos inventados)
+
+```bash
+T=https://.../api/salud360
+curl -s -X POST "$T/especialidades" -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" -d '{"nombre":"Prueba Especialidad"}'
+# → 201 {"ok":true,"resultado":"creada","especialidad":{"id":23,"nombre":"Prueba Especialidad","activo":1,"medicos_activos":0}}
+curl -s -X POST "$T/especialidades" -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" -d '{"nombre":"  PRUEBA especialidad "}'
+# → 409 {"ok":false,"mensaje":"Ya existe la especialidad «Prueba Especialidad» en turnos.","codigo":"duplicado","especialidad":{...}}
+curl -s -X PUT "$T/especialidades/23/activo" -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" -d '{"activo":false}'
+# → 200 {"ok":true,"especialidad":{"id":23,...,"activo":0,...},"mensaje":"Especialidad «Prueba Especialidad» desactivada en turnos."}
+curl -s -X POST "$T/especialidades" -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" -d '{"nombre":"prueba especialidad"}'
+# → 200 {"ok":true,"resultado":"reactivada","especialidad":{"id":23,...,"activo":1,...}}
+```
+
+Prueba contra la copia local: crear «PRUEBA SALUD360 ESPECIALIDAD», desactivarla, reactivarla y borrarla a mano, volviendo
+el `AUTO_INCREMENT`; `CHECKSUM TABLE especialidads, medicos` igual antes y después.
+
 ### Recetas
 
 | Método | Ruta | Notas |

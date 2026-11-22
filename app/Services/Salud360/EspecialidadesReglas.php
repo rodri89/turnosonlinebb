@@ -126,6 +126,21 @@ class EspecialidadesReglas
         ];
     }
 
+    /**
+     * El cuerpo de `PUT especialidades/{id}/activo`: `{"activo": true|false}`, un booleano JSON de verdad (la misma regla
+     * que `PUT medicos/{id}/activo`, EstadoMedicoReglas). Devuelve ['activo' => bool] o ['error' => 'datos_invalidos', ...].
+     */
+    public static function validarActivo(array $cuerpo)
+    {
+        return EstadoMedicoReglas::validar($cuerpo);
+    }
+
+    /** El mensaje de la respuesta según el estado que quedó (no el pedido): «… desactivada en turnos» / «… activada …». */
+    public static function avisoDeEstado($nombre, $activo)
+    {
+        return 'Especialidad «' . $nombre . '» ' . ((int) $activo === 1 ? 'activada' : 'desactivada') . ' en turnos.';
+    }
+
     /** Sin espacios al principio ni al final y con uno solo entre palabras; '' si no es texto. */
     private static function limpiar($nombre)
     {
