@@ -70,6 +70,10 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         Route::post('tipos-turno', 'TiposTurnoController@crear');
         Route::get('medicos/{id}/tipos-turno', 'MedicoTiposTurnoController@ver');
         Route::put('medicos/{id}/tipos-turno', 'MedicoTiposTurnoController@guardar');
+        // Especialidades del panel de la app (spec 007): el catálogo completo (activas e inactivas, con médicos activos)
+        // y el alta o reactivación. Solo el administrador; el catálogo común sigue en `catalogos`.
+        Route::get('especialidades', 'EspecialidadesController@index');
+        Route::post('especialidades', 'EspecialidadesController@crear');
         Route::get('mensajes', 'CatalogoController@mensajes');
         Route::post('mensajes', 'CatalogoController@guardarMensaje');
         Route::put('mensajes/{id}', 'CatalogoController@actualizarMensaje');

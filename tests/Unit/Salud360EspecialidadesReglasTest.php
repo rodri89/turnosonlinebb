@@ -97,6 +97,34 @@ class Salud360EspecialidadesReglasTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // Largo real de la columna (spec 007 T2: `especialidads.nombre` es varchar(191))
+    // ------------------------------------------------------------------
+
+    public function testElMaximoEfectivoEsElDeLaColumnaSiEsMenor()
+    {
+        $this->assertSame(191, EspecialidadesReglas::LARGO_COLUMNA_CONOCIDO);
+        $this->assertSame(191, EspecialidadesReglas::maximoEfectivo(191));
+        $this->assertSame(150, EspecialidadesReglas::maximoEfectivo('150'));
+        // Una columna más larga no sube el tope de la spec.
+        $this->assertSame(255, EspecialidadesReglas::maximoEfectivo(300));
+        // Sin dato del esquema, el largo conocido de la columna (nunca 255 a ciegas).
+        $this->assertSame(191, EspecialidadesReglas::maximoEfectivo(null));
+        $this->assertSame(191, EspecialidadesReglas::maximoEfectivo(0));
+        $this->assertSame(191, EspecialidadesReglas::maximoEfectivo('x'));
+    }
+
+    public function testConElLargoDeLaColumnaUnNombreMasLargoEsDatosInvalidosConElMaximo()
+    {
+        $justo = str_repeat('é', 191);
+        $this->assertSame(['nombre' => $justo], EspecialidadesReglas::validarNombre($justo, 191));
+        $r = EspecialidadesReglas::validarNombre(str_repeat('é', 192), 191);
+        $this->assertSame('datos_invalidos', $r['error']);
+        $this->assertStringContainsString('hasta 191 caracteres', $r['mensaje']);
+        // 200 caracteres: válido para la spec (255), no para la columna.
+        $this->assertArrayHasKey('error', EspecialidadesReglas::validarNombre(str_repeat('a', 200), EspecialidadesReglas::maximoEfectivo(191)));
+    }
+
+    // ------------------------------------------------------------------
     // Crear / reactivar / duplicado
     // ------------------------------------------------------------------
 
@@ -158,6 +186,19 @@ class Salud360EspecialidadesReglasTest extends TestCase
             ['accion' => EspecialidadesReglas::REACTIVAR, 'id' => 4, 'nombre' => 'odontologia'],
             EspecialidadesReglas::decidirAlta('Odontología', $existentes)
         );
+    }
+
+    public function testLaFilaDelCatalogoDelAdministrador()
+    {
+        $fila = (object) ['id' => '7', 'nombre' => 'Odontología', 'foto' => '', 'color' => '', 'activo' => '0', 'created_at' => null];
+        $this->assertSame(
+            ['id' => 7, 'nombre' => 'Odontología', 'activo' => 0, 'medicos_activos' => 3],
+            EspecialidadesReglas::fila($fila, '3')
+        );
+        // Activa es `activo` 1, la misma regla que decidirAlta.
+        $this->assertSame(1, EspecialidadesReglas::fila(['id' => 2, 'nombre' => 'X', 'activo' => '1'], null)['activo']);
+        $this->assertSame(0, EspecialidadesReglas::fila(['id' => 2, 'nombre' => 'X', 'activo' => 5], null)['activo']);
+        $this->assertSame(0, EspecialidadesReglas::fila(['id' => 2, 'nombre' => 'X', 'activo' => 1], null)['medicos_activos']);
     }
 
     public function testLasAccionesSonTextosEstables()

@@ -20,8 +20,14 @@ class EspecialidadesReglas
     const REACTIVAR = 'reactivar';
     const DUPLICADO = 'duplicado';
 
-    /** Largo máximo del nombre, en caracteres (spec 007, dependencia 1). */
+    /** Largo máximo del nombre, en caracteres, que pide la spec 007 (dependencia 1). */
     const MAXIMO_NOMBRE = 255;
+
+    /**
+     * Largo de `especialidads.nombre` (varchar(191), utf8mb4) en la base de turnos. Se usa si no se pudo leer del esquema:
+     * con MySQL estricto, un nombre más largo que la columna daría un error al guardar (spec 007 T2).
+     */
+    const LARGO_COLUMNA_CONOCIDO = 191;
 
     /** Vocales con tilde o diéresis (minúsculas, ya pasadas por mb_strtolower) y su forma sin marca. */
     private static $sinMarcas = [
@@ -39,19 +45,30 @@ class EspecialidadesReglas
     }
 
     /**
-     * Valida el nombre del alta. Devuelve ['nombre' => <como se guarda: sin espacios de más, con sus mayúsculas y
-     * tildes>] o ['error' => 'datos_invalidos', 'mensaje' => ...] si está vacío o pasa de [MAXIMO_NOMBRE] caracteres.
+     * El máximo que se valida: el de la columna ([largoColumna], leído del esquema) si es menor que [MAXIMO_NOMBRE]; sin
+     * dato del esquema, [LARGO_COLUMNA_CONOCIDO]. Nunca más que lo que la base puede guardar.
      */
-    public static function validarNombre($nombre)
+    public static function maximoEfectivo($largoColumna)
+    {
+        $columna = is_numeric($largoColumna) && (int) $largoColumna > 0 ? (int) $largoColumna : self::LARGO_COLUMNA_CONOCIDO;
+        return min(self::MAXIMO_NOMBRE, $columna);
+    }
+
+    /**
+     * Valida el nombre del alta. Devuelve ['nombre' => <como se guarda: sin espacios de más, con sus mayúsculas y
+     * tildes>] o ['error' => 'datos_invalidos', 'mensaje' => ...] si está vacío o pasa de [maximo] caracteres (el
+     * controlador pasa [maximoEfectivo] del largo de la columna).
+     */
+    public static function validarNombre($nombre, $maximo = self::MAXIMO_NOMBRE)
     {
         $limpio = self::limpiar($nombre);
         if ($limpio === '') {
             return ['error' => 'datos_invalidos', 'mensaje' => 'Falta el nombre de la especialidad.'];
         }
-        if (mb_strlen($limpio, 'UTF-8') > self::MAXIMO_NOMBRE) {
+        if (mb_strlen($limpio, 'UTF-8') > (int) $maximo) {
             return [
                 'error' => 'datos_invalidos',
-                'mensaje' => 'El nombre de la especialidad puede tener hasta ' . self::MAXIMO_NOMBRE . ' caracteres.',
+                'mensaje' => 'El nombre de la especialidad puede tener hasta ' . (int) $maximo . ' caracteres.',
             ];
         }
         return ['nombre' => $limpio];
@@ -92,6 +109,21 @@ class EspecialidadesReglas
             return ['accion' => self::REACTIVAR, 'id' => $inactiva['id'], 'nombre' => $inactiva['nombre']];
         }
         return ['accion' => self::CREAR];
+    }
+
+    /**
+     * Una especialidad del catálogo del administrador (`GET especialidades`): id, nombre, `activo` (1 si es activa, la
+     * misma regla que [decidirAlta]) y cuántos médicos activos la tienen.
+     */
+    public static function fila($fila, $medicosActivos)
+    {
+        $fila = (array) $fila;
+        return [
+            'id' => (int) $fila['id'],
+            'nombre' => (string) $fila['nombre'],
+            'activo' => isset($fila['activo']) && (int) $fila['activo'] === 1 ? 1 : 0,
+            'medicos_activos' => is_numeric($medicosActivos) ? (int) $medicosActivos : 0,
+        ];
     }
 
     /** Sin espacios al principio ni al final y con uno solo entre palabras; '' si no es texto. */
