@@ -967,6 +967,62 @@ curl -s -X POST "$T/especialidades" -H "Authorization: Bearer $TOKEN_ADMIN" -H "
 Prueba contra la copia local: crear «PRUEBA SALUD360 ESPECIALIDAD», desactivarla, reactivarla y borrarla a mano, volviendo
 el `AUTO_INCREMENT`; `CHECKSUM TABLE especialidads, medicos` igual antes y después.
 
+### Consultorios (administrador, spec 007)
+
+Igual que las especialidades: la app crea, reactiva, activa y desactiva consultorios **en turnos** (antes, solo en el
+dispositivo). Solo el administrador (`403 sin_permiso` para los demás); el catálogo común (`GET catalogos`) sigue
+trayendo solo los activos. El nombre se compara normalizado, con la misma regla que las especialidades.
+
+#### `GET consultorios-admin`
+
+Todos, activos e inactivos, en orden de id (`GET consultorios` también estaba libre; se usa `consultorios-admin` para
+dejar claro que es el catálogo del administrador):
+
+```json
+{"ok":true,"consultorios":[{"id":3,"nombre":"Consultorio Centro","direccion":"Calle Inventada 123","telefono":"2914550000","activo":1,"medicos_activos":4,"secretarias_activas":2,"turnos_por_delante":0}]}
+```
+
+- `medicos_activos`: médicos con `activo = 1` que atienden ahí (su `medicos.consultorio` o un horario activo en ese
+  consultorio), sin contar dos veces al mismo.
+- `secretarias_activas`: secretarias distintas con el vínculo activo (`secretaria_consultorios.activo = 1`) y su ficha y
+  su usuario existentes (`secretarias` no tiene columna `activo`).
+- `turnos_por_delante`: turnos vigentes (`turno_registrados.activo` 1 o 2, lo que ocupa la agenda) con `fechaTurno` de
+  **hoy en adelante, con «hoy» en hora de Argentina** (`AgendaService::hoy`; la app corre en UTC).
+
+#### `POST consultorios` (cuerpo `{"nombre", "direccion", "telefono"}`)
+
+| Caso | Respuesta |
+|---|---|
+| No hay ninguno con ese nombre normalizado | `201` `{"resultado":"creado","consultorio":{...}}`: activo, foto «consultorio_sin_foto.png» y `config` nulo (como la pantalla web) |
+| Hay uno **inactivo** con ese nombre | `200` `{"resultado":"reactivado","consultorio":{...}}`: cambia solo `activo` y `updated_at`; **la dirección y el teléfono quedan los que tenía** (los del cuerpo no se usan) |
+| Hay uno **activo** con ese nombre | `409 duplicado` con `consultorio` (el existente, el de menor id si hay varios) y «Ya existe el consultorio «<nombre>» en turnos.» |
+| Datos inválidos | `422 datos_invalidos` con el campo en el mensaje |
+
+Validación: los tres campos obligatorios; nombre y dirección sin espacios de más y hasta el **largo real de su columna**
+(leído de `information_schema`: hoy `nombre` `varchar(150)` y `direccion` `varchar(191)`; esos valores si no se puede leer;
+nunca más de 255). Teléfono: se quitan espacios, guiones y paréntesis y tiene que quedar **solo dígitos, hasta 15**
+(«El teléfono tiene que tener solo números (hasta 15).»); la columna es `bigint`, así que un 0 adelante se pierde al
+guardar (igual que en la pantalla web) y la respuesta trae el teléfono como quedó.
+
+`consultorio` es siempre `{"id", "nombre", "direccion", "telefono", "activo", "medicos_activos", "secretarias_activas",
+"turnos_por_delante"}` (un consultorio viejo sin nombre viene con `nombre: ""`).
+
+#### `PUT consultorios/{id}/activo` (cuerpo `{"activo": true|false}`)
+
+Cambia solo `activo` (y `updated_at` si cambia). **No toca** médicos, horarios, turnos ni el vínculo de las secretarias:
+la secretaria vinculada deja de verlo (su perfil lista solo consultorios activos) y lo vuelve a ver al reactivarlo; sale
+de la lista pública (`seleccionar_consultorio`). Responde `{consultorio, mensaje}` con el estado que quedó
+(«Consultorio «<nombre>» desactivado en turnos.» / «… activado …»).
+
+Errores: `409 con_turnos` al desactivar uno con turnos por delante, con `turnos_por_delante` y `consultorio` (««<nombre>»
+tiene <n> turnos por delante: no se puede desactivar hasta que no tenga turnos pendientes.»; activar nunca se frena);
+`422 datos_invalidos` si `activo` no es un booleano JSON; `404 consultorio_no_encontrado` si el id no existe. Una ruta que
+no existe responde el `404` de Laravel **sin** `codigo`.
+
+Prueba contra la copia local: crear «PRUEBA SALUD360 CONSULTORIO», vincularle una secretaria y un turno de prueba por
+delante, intentar desactivar (409), sacar el turno, desactivar, reactivar por `POST` y borrarlo todo a mano, volviendo los
+`AUTO_INCREMENT`; `CHECKSUM TABLE consultorios, medicos, secretaria_consultorios, turno_registrados` igual antes y después.
+
 ### Recetas
 
 | Método | Ruta | Notas |

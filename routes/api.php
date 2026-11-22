@@ -75,6 +75,11 @@ Route::group(['prefix' => 'salud360', 'namespace' => 'Api\Salud360'], function (
         Route::get('especialidades', 'EspecialidadesController@index');
         Route::post('especialidades', 'EspecialidadesController@crear');
         Route::put('especialidades/{id}/activo', 'EspecialidadesController@cambiarActivo')->where('id', '[0-9]+');
+        // Consultorios del panel de la app (spec 007): el catálogo completo (activos e inactivos, con médicos, secretarias
+        // y turnos por delante), el alta o reactivación y activar/desactivar (no con turnos por delante). Solo el administrador.
+        Route::get('consultorios-admin', 'ConsultoriosController@index');
+        Route::post('consultorios', 'ConsultoriosController@crear');
+        Route::put('consultorios/{id}/activo', 'ConsultoriosController@cambiarActivo')->where('id', '[0-9]+');
         Route::get('mensajes', 'CatalogoController@mensajes');
         Route::post('mensajes', 'CatalogoController@guardarMensaje');
         Route::put('mensajes/{id}', 'CatalogoController@actualizarMensaje');
