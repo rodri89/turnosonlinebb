@@ -3442,12 +3442,30 @@ class PacienteController extends Controller
         return response()->json(array('paciente'=>$paciente));
     }
 
-    public function solicitarNuevaReceta(Request $request){     
+    public function solicitarNuevaReceta(Request $request){
+        $motivo = trim((string) $request->motivo);
+
+        // Doble click en "Aceptar": el segundo request llega con el motivo ya vaciado por el front
+        if($motivo === '') {
+            return response()->json(array('response'=>0));
+        }
+
+        // Si el paciente reenvía el mismo pedido y todavía está pendiente, no lo duplicamos
+        $existente = Receta::where('paciente', $request->paciente)
+                        ->where('medico', $request->medico)
+                        ->where('motivo', $motivo)
+                        ->where('estado', 1) // solicitada
+                        ->where('activo', 1)
+                        ->first();
+        if($existente != null) {
+            return response()->json(array('response'=>1));
+        }
+
         $receta = new Receta;
         $receta->paciente = $request->paciente;
         $receta->medico = $request->medico;
         $receta->consultorio = $request->consultorio;
-        $receta->motivo = $request->motivo;
+        $receta->motivo = $motivo;
         $receta->estado = 1; // solicitada
         $receta->foto = '';
         $receta->retira_consultorio = $request->retira;

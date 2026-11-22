@@ -192,7 +192,7 @@
   </ul>
   <div class="col-md-8 mb-3">
     <h6 class="fontColorHeader">Consultorio: Alvarado 575</h6>
-    <h6 class="fontColorHeader">Telefono  2915756022</h6>
+    <h6 class="fontColorHeader">Telefono  2914442114</h6>
   </div>
 
   <ul>                  

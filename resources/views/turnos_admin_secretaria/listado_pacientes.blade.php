@@ -46,6 +46,15 @@
         background-color: #f0ad4e;
         vertical-align: middle;
       }
+      /* Tipo de turno distinto a "Consulta" */
+      .tipo-turno-destacado {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background-color: #e83e8c;
+        color: #fff;
+        font-weight: bold;
+      }
     </style>
 </head>
 
@@ -308,10 +317,14 @@
       }
       return '—';
     }
-    if (row.tipo_turno_text != null && String(row.tipo_turno_text).trim().length > 0) {
-      return escapeHtml(String(row.tipo_turno_text));
+    var texto = (row.tipo_turno_text != null && String(row.tipo_turno_text).trim().length > 0)
+      ? String(row.tipo_turno_text).trim()
+      : getTipoTurno(row.tipo_turno);
+    // Todo lo que no sea una consulta común se resalta para que la secre lo distinga
+    if (texto.toLowerCase() !== 'consulta') {
+      return "<span class='tipo-turno-destacado'>" + escapeHtml(texto) + "</span>";
     }
-    return getTipoTurno(row.tipo_turno);
+    return escapeHtml(texto);
   }
 
   function cargarTabla(data){    

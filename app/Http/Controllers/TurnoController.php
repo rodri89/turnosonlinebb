@@ -4610,7 +4610,7 @@ class TurnoController extends Controller
                         if($medico->id == 32) {
                             if($paciente->dia == 2) {
                                $json['direccion'] = 'Alvarado 575'; 
-                               $json['telefono_consultorio'] = "2915756022";                                                    
+                               $json['telefono_consultorio'] = "2914442114";                                                    
                             }
                         }
                        
@@ -4972,7 +4972,7 @@ ORDER BY `pc`  DESC*/
         if($medico->id == 32) {
             if($diaSeleccionado == 2) {
                $direccion = 'Alvarado 575';
-               $telefono = "2915756022";
+               $telefono = "2914442114";
             }
         }
         if($medico->id == 25) {
